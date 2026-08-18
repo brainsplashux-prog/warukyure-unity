@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -42,10 +43,32 @@ public class WarukyureBoard : MonoBehaviour
     private ResolveResponse lastResult;
     private readonly string[] betLabels = { "2", "4", "6", "8", "20" };
     private readonly string[] ballNames = { "うさぎ", "ねこ", "くま", "ことり" };
+    private readonly string[] jpAwardLabels = { "3000", "1000", "30000", "1000", "5000" };
     private Coroutine overlayRoutine;
+
+    // ----------------- JACKPOT challenge overlay -----------------
+    private GameObject jackpotPanel;
+    private CanvasGroup jackpotPanelGroup;
+    private RectTransform[] jackpotLampRects = new RectTransform[5];
+    private Text[] jackpotLampTexts = new Text[5];
+    private RectTransform jackpotIndicatorRect;
+    private Text jackpotAwardText;
+    private RectTransform adVirtuaRect;
+
+    // ----------------- poifx bridge -----------------
+    private bool poiFxPending;
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void PoiFxJackpot(string tier, int amount, string unit, string gameObjectName, string onDoneMethod);
+
+    [DllImport("__Internal")]
+    private static extern void PoiFxSkip();
+#endif
 
     void Start()
     {
+        gameObject.name = "WarukyureBoard";
         SetupCanvas();
         CreateBoardImage();
         CreateLamp();
@@ -55,6 +78,7 @@ public class WarukyureBoard : MonoBehaviour
         CreateBetButtons();
         CreateSpinButton();
         CreateResultOverlay();
+        CreateJackpotChallengeUI();
 
         StartCoroutine(InitSession());
     }
@@ -150,12 +174,12 @@ public class WarukyureBoard : MonoBehaviour
     {
         GameObject go = new GameObject("AdVirtua");
         go.transform.SetParent(canvas.transform, false);
-        RectTransform rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0, 1);
-        rt.anchorMax = new Vector2(0, 1);
-        rt.pivot = new Vector2(0, 1);
-        rt.anchoredPosition = Vector2.zero;
-        rt.sizeDelta = new Vector2(720, 405);
+        adVirtuaRect = go.AddComponent<RectTransform>();
+        adVirtuaRect.anchorMin = new Vector2(0, 1);
+        adVirtuaRect.anchorMax = new Vector2(0, 1);
+        adVirtuaRect.pivot = new Vector2(0, 1);
+        adVirtuaRect.anchoredPosition = Vector2.zero;
+        adVirtuaRect.sizeDelta = new Vector2(720, 405);
 
         Image img = go.AddComponent<Image>();
         img.color = new Color32(26, 29, 34, 255);
@@ -233,6 +257,114 @@ public class WarukyureBoard : MonoBehaviour
         resultPanelText.alignment = TextAnchor.MiddleCenter;
         resultPanelText.color = Color.white;
         resultPanelText.text = "";
+
+        go.SetActive(false);
+    }
+
+    void CreateJackpotChallengeUI()
+    {
+        // 画面B：通常Header A + AdVirtua最前面。JPチャレンジは盤面を覆うオーバーレイ。
+        GameObject go = new GameObject("JackpotPanel");
+        go.transform.SetParent(canvas.transform, false);
+        jackpotPanel = go;
+
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0, 1);
+        rt.anchorMax = new Vector2(0, 1);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = new Vector2(360, -814.5f);
+        rt.sizeDelta = new Vector2(720, 819);
+
+        go.AddComponent<CanvasRenderer>();
+        RawImage bg = go.AddComponent<RawImage>();
+        Texture2D black = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        black.SetPixels(new Color[] { Color.black, Color.black, Color.black, Color.black });
+        black.Apply();
+        bg.texture = black;
+        bg.color = new Color32(0, 0, 0, 200);
+        bg.raycastTarget = true;
+
+        jackpotPanelGroup = go.AddComponent<CanvasGroup>();
+        jackpotPanelGroup.alpha = 0f;
+        jackpotPanelGroup.blocksRaycasts = false;
+
+        // タップで SKIP
+        Button jpBtn = go.AddComponent<Button>();
+        jpBtn.targetGraphic = bg;
+        jpBtn.onClick.AddListener(() => { if (isRunning) skipRequested = true; });
+
+        // 5つのランプ（左から 3000, 1000, 30000, 1000, 5000）
+        float startX = 85f;
+        float spacing = 137.5f;
+        float y = -409.5f;
+        for (int i = 0; i < 5; i++)
+        {
+            GameObject lamp = new GameObject("JPLamp" + i);
+            lamp.transform.SetParent(go.transform, false);
+            RectTransform lrt = lamp.AddComponent<RectTransform>();
+            lrt.anchorMin = new Vector2(0, 1);
+            lrt.anchorMax = new Vector2(0, 1);
+            lrt.pivot = new Vector2(0.5f, 0.5f);
+            float x = startX + i * spacing;
+            lrt.anchoredPosition = new Vector2(x, y);
+            lrt.sizeDelta = new Vector2(90, 90);
+            jackpotLampRects[i] = lrt;
+
+            CanvasRenderer cr = lamp.AddComponent<CanvasRenderer>();
+            RawImage img = lamp.AddComponent<RawImage>();
+            img.texture = CreateCircleTexture(128, new Color32(60, 60, 80, 230));
+            img.raycastTarget = false;
+
+            GameObject txtGO = new GameObject("JPLampText" + i);
+            txtGO.transform.SetParent(lamp.transform, false);
+            Text txt = txtGO.AddComponent<Text>();
+            txt.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+            if (txt.font == null) txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.fontSize = 22;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = new Color32(200, 200, 200, 255);
+            txt.text = jpAwardLabels[i] == "30000" ? "JACKPOT" : jpAwardLabels[i];
+            jackpotLampTexts[i] = txt;
+
+            RectTransform trt = txtGO.GetComponent<RectTransform>();
+            if (trt == null) trt = txtGO.AddComponent<RectTransform>();
+            trt.anchorMin = Vector2.zero;
+            trt.anchorMax = Vector2.one;
+            trt.pivot = new Vector2(0.5f, 0.5f);
+            trt.anchoredPosition = Vector2.zero;
+            trt.sizeDelta = Vector2.zero;
+        }
+
+        // インジケータ
+        GameObject ind = new GameObject("JPIndicator");
+        ind.transform.SetParent(go.transform, false);
+        jackpotIndicatorRect = ind.AddComponent<RectTransform>();
+        jackpotIndicatorRect.anchorMin = new Vector2(0, 1);
+        jackpotIndicatorRect.anchorMax = new Vector2(0, 1);
+        jackpotIndicatorRect.pivot = new Vector2(0.5f, 0.5f);
+        jackpotIndicatorRect.anchoredPosition = new Vector2(startX, y);
+        jackpotIndicatorRect.sizeDelta = new Vector2(60, 60);
+        ind.AddComponent<CanvasRenderer>();
+        RawImage indImg = ind.AddComponent<RawImage>();
+        indImg.texture = CreateCircleTexture(128, new Color32(255, 220, 80, 255));
+        indImg.raycastTarget = false;
+
+        // 獲得枚数テキスト
+        GameObject awardGO = new GameObject("JPAwardText");
+        awardGO.transform.SetParent(go.transform, false);
+        RectTransform art = awardGO.AddComponent<RectTransform>();
+        art.anchorMin = new Vector2(0, 1);
+        art.anchorMax = new Vector2(0, 1);
+        art.pivot = new Vector2(0.5f, 0.5f);
+        art.anchoredPosition = new Vector2(360, -229.5f);
+        art.sizeDelta = new Vector2(600, 60);
+        jackpotAwardText = awardGO.AddComponent<Text>();
+        jackpotAwardText.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+        if (jackpotAwardText.font == null) jackpotAwardText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        jackpotAwardText.fontSize = 38;
+        jackpotAwardText.alignment = TextAnchor.MiddleCenter;
+        jackpotAwardText.color = new Color32(255, 220, 80, 255);
+        jackpotAwardText.text = "";
 
         go.SetActive(false);
     }
@@ -507,7 +639,6 @@ public class WarukyureBoard : MonoBehaviour
         }
 
         ShowResult(lastResult);
-        EndRound("");
     }
 
     void EndRound(string error)
@@ -678,6 +809,31 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- result -----------------
     void ShowResult(ResolveResponse r)
     {
+        lastTotal = r.awardBreakdown.total;
+        wallet = r.state.wallet;
+        ballMask = r.state.ballMask;
+        UpdateHeader();
+
+        // ボールコンプリート → JACKPOT チャレンジ（5ランプ）
+        if (r.bonusOutcome != null && r.awardBreakdown.jackpot > 0)
+        {
+            StartCoroutine(RunJackpotChallenge(r));
+            return;
+        }
+
+        // 通常の BIG/MEGA 配当：fx があれば poifx、なければテキスト
+        if (r.fx != null && !string.IsNullOrEmpty(r.fx.tier) && r.fx.amount > 0)
+        {
+            StartCoroutine(RunPoiFxThenResult(r));
+            return;
+        }
+
+        ShowNormalResult(r);
+        EndRound("");
+    }
+
+    void ShowNormalResult(ResolveResponse r)
+    {
         StringBuilder sb = new StringBuilder();
         if (r.primaryType == "out")
         {
@@ -699,17 +855,196 @@ public class WarukyureBoard : MonoBehaviour
             sb.Append($"BALL {name} ゲット");
         }
 
-        if (r.bonusOutcome != null && r.awardBreakdown.jackpot > 0)
+        ShowResultOverlay(sb.ToString(), 1.5f);
+    }
+
+    // ----------------- JACKPOT challenge flow -----------------
+    float GetJackpotX(int index)
+    {
+        float startX = 85f;
+        float spacing = 137.5f;
+        return startX + index * spacing;
+    }
+
+    IEnumerator RunJackpotChallenge(ResolveResponse r)
+    {
+        // 通常UIを隠して Header A + Ad-Virtua を最前面に
+        SetNormalUIForChallenge(false);
+        walletText.rectTransform.SetAsLastSibling();
+        adVirtuaRect.SetAsLastSibling();
+
+        jackpotPanel.SetActive(true);
+        jackpotPanelGroup.blocksRaycasts = true;
+
+        // フェードイン
+        yield return FadeJackpotPanel(1f);
+
+        int stopIndex = r.bonusOutcome.stopIndex;
+        float hold = 0f;
+
+        // ライトを一度消灯してからアニメ開始
+        for (int i = 0; i < 5; i++)
         {
-            sb.Append($"\nJACKPOT {r.awardBreakdown.jackpot}枚");
+            jackpotLampRects[i].sizeDelta = new Vector2(90, 90);
+            jackpotLampTexts[i].color = new Color32(200, 200, 200, 255);
         }
 
-        lastTotal = r.awardBreakdown.total;
-        wallet = r.state.wallet;
-        ballMask = r.state.ballMask;
-        UpdateHeader();
+        // インジケータを左端から右へ流す。目標は stopIndex。
+        // 仮想インデックスを stopIndex より少し先まで動かし、最後に stopIndex で止まる。
+        const int fullLaps = 4;
+        float endVirtual = fullLaps * 5 + stopIndex;
+        float startVirtual = 0f;
+        float elapsed = 0f;
+        const float RUN_TIME = 2.2f;
 
-        ShowResultOverlay(sb.ToString(), 1.5f);
+        jackpotIndicatorRect.anchoredPosition = new Vector2(GetJackpotX(0), -409.5f);
+
+        while (elapsed < RUN_TIME)
+        {
+            if (skipRequested)
+            {
+                // SKIP: 即座に stopIndex に飛ばす
+                elapsed = RUN_TIME;
+            }
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / RUN_TIME);
+            float p = EaseOutCubic(t);
+            float v = Mathf.Lerp(startVirtual, endVirtual, p);
+            int baseIndex = Mathf.FloorToInt(v) % 5;
+            float frac = v - Mathf.Floor(v);
+            if (baseIndex < 0) baseIndex += 5;
+            int nextIndex = (baseIndex + 1) % 5;
+            float x = Mathf.Lerp(GetJackpotX(baseIndex), GetJackpotX(nextIndex), frac);
+            jackpotIndicatorRect.anchoredPosition = new Vector2(x, -409.5f);
+
+            // 現在のランプを少し大きく
+            for (int i = 0; i < 5; i++)
+            {
+                bool on = (i == baseIndex);
+                jackpotLampRects[i].sizeDelta = on ? new Vector2(100, 100) : new Vector2(90, 90);
+                jackpotLampTexts[i].color = on ? new Color32(255, 255, 255, 255) : new Color32(200, 200, 200, 255);
+            }
+
+            yield return null;
+        }
+
+        // 停止位置を確定
+        jackpotIndicatorRect.anchoredPosition = new Vector2(GetJackpotX(stopIndex), -409.5f);
+        for (int i = 0; i < 5; i++)
+        {
+            bool on = (i == stopIndex);
+            jackpotLampRects[i].sizeDelta = on ? new Vector2(110, 110) : new Vector2(90, 90);
+            jackpotLampTexts[i].color = on ? new Color32(255, 220, 80, 255) : new Color32(120, 120, 120, 255);
+        }
+
+        // 0.5秒の溜め
+        hold = 0f;
+        while (hold < HOLD_DURATION)
+        {
+            if (skipRequested) break;
+            hold += Time.deltaTime;
+            yield return null;
+        }
+
+        // 獲得枚数表示
+        jackpotAwardText.text = $"{r.bonusOutcome.award}枚";
+
+        // 0.3秒の表示溜め
+        hold = 0f;
+        while (hold < 0.3f)
+        {
+            if (skipRequested) break;
+            hold += Time.deltaTime;
+            yield return null;
+        }
+
+        // poifx（サーバー fx があれば）
+        if (r.fx != null && !string.IsNullOrEmpty(r.fx.tier) && r.fx.amount > 0)
+        {
+            yield return StartCoroutine(RunPoiFx(r.fx.tier, r.fx.amount));
+        }
+
+        // 通常画面へ復帰
+        yield return FadeJackpotPanel(0f);
+        jackpotPanel.SetActive(false);
+        jackpotPanelGroup.blocksRaycasts = false;
+        SetNormalUIForChallenge(true);
+        ShowResultOverlay($"JACKPOT {r.bonusOutcome.award}枚", 1.2f);
+        EndRound("");
+    }
+
+    IEnumerator FadeJackpotPanel(float target)
+    {
+        float start = jackpotPanelGroup.alpha;
+        float t = 0f;
+        const float FADE = 0.25f;
+        while (t < FADE)
+        {
+            t += Time.deltaTime;
+            float p = Mathf.Clamp01(t / FADE);
+            p = EaseOutCubic(p);
+            jackpotPanelGroup.alpha = Mathf.Lerp(start, target, p);
+            yield return null;
+        }
+        jackpotPanelGroup.alpha = target;
+    }
+
+    void SetNormalUIForChallenge(bool visible)
+    {
+        GameObject[] gos = { lampRect.gameObject, spinButton.gameObject, resultPanel };
+        foreach (var g in gos)
+        {
+            if (g != null) g.SetActive(visible);
+        }
+        for (int i = 0; i < betButtons.Length; i++)
+        {
+            if (betButtons[i] != null) betButtons[i].gameObject.SetActive(visible);
+        }
+    }
+
+    IEnumerator RunPoiFxThenResult(ResolveResponse r)
+    {
+        yield return StartCoroutine(RunPoiFx(r.fx.tier, r.fx.amount));
+        ShowNormalResult(r);
+        EndRound("");
+    }
+
+    IEnumerator RunPoiFx(string tier, int amount)
+    {
+        poiFxPending = true;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        PoiFxJackpot(tier, amount, "枚", gameObject.name, "OnPoiFxDone");
+#else
+        Debug.Log($"[poifx] {tier} {amount}枚");
+        OnPoiFxDone("");
+#endif
+        float timeout = 0f;
+        while (poiFxPending && timeout < 5f)
+        {
+            if (skipRequested)
+            {
+                CallPoiFxSkip();
+                poiFxPending = false;
+            }
+            timeout += Time.deltaTime;
+            yield return null;
+        }
+        poiFxPending = false;
+    }
+
+    void CallPoiFxSkip()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        PoiFxSkip();
+#else
+        Debug.Log("[poifx] skip");
+#endif
+    }
+
+    // WebGL jslib からの onDone コールバック
+    public void OnPoiFxDone(string _)
+    {
+        poiFxPending = false;
     }
 
     // ----------------- JSON data classes -----------------
@@ -762,6 +1097,13 @@ public class WarukyureBoard : MonoBehaviour
     }
 
     [Serializable]
+    public class FxData
+    {
+        public string tier;
+        public int amount;
+    }
+
+    [Serializable]
     public class ResolveResponse
     {
         public string runId;
@@ -776,6 +1118,7 @@ public class WarukyureBoard : MonoBehaviour
         public Collection collection;
         public BonusOutcome bonusOutcome;
         public int effectTier;
+        public FxData fx;
         public StateData state;
     }
 }
