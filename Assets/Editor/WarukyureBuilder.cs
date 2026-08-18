@@ -24,9 +24,9 @@ public static class WarukyureBuilder
         // Configure player
         PlayerSettings.companyName = "poicasi";
         PlayerSettings.productName = "warukyure";
-        PlayerSettings.bundleVersion = "0.0.6";
+        PlayerSettings.bundleVersion = "0.0.8";
         PlayerSettings.defaultWebScreenWidth = 720;
-        PlayerSettings.defaultWebScreenHeight = 1280;
+        PlayerSettings.defaultWebScreenHeight = 1224;
 
         // Ensure WebGL build target
         EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL);

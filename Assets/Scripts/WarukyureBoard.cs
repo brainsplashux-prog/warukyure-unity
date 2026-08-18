@@ -20,8 +20,10 @@ public class WarukyureBoard : MonoBehaviour
     private Canvas canvas;
     private RectTransform lampRect;
     private Text walletText;
-    private Text resultText;
-    private GameObject messagePanel;
+    private GameObject resultPanel;
+    private RectTransform resultPanelRect;
+    private CanvasGroup resultPanelGroup;
+    private Text resultPanelText;
     private readonly Button[] betButtons = new Button[5];
     private readonly Image[] betButtonImages = new Image[5];
     private Button spinButton;
@@ -31,6 +33,7 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- state -----------------
     private string token;
     private int wallet;
+    private int lastTotal;
     private int ballMask;
     private string currentRunId;
     private bool isRunning;
@@ -39,6 +42,7 @@ public class WarukyureBoard : MonoBehaviour
     private ResolveResponse lastResult;
     private readonly string[] betLabels = { "2", "4", "6", "8", "20" };
     private readonly string[] ballNames = { "うさぎ", "ねこ", "くま", "ことり" };
+    private Coroutine overlayRoutine;
 
     void Start()
     {
@@ -47,10 +51,10 @@ public class WarukyureBoard : MonoBehaviour
         CreateLamp();
         CreateAdVirtuaPlaceholder();
         CreateHeaderText();
-        CreateResultText();
         CreateHelpButton();
         CreateBetButtons();
         CreateSpinButton();
+        CreateResultOverlay();
 
         StartCoroutine(InitSession());
     }
@@ -67,7 +71,7 @@ public class WarukyureBoard : MonoBehaviour
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(720, 1224);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.matchWidthOrHeight = 0.0f;
 
         canvasGO.AddComponent<GraphicRaycaster>();
 
@@ -179,14 +183,58 @@ public class WarukyureBoard : MonoBehaviour
 
     void CreateHeaderText()
     {
-        walletText = CreateText("WalletText", new Vector2(80, 470), new Vector2(300, 40), TextAnchor.UpperLeft, 22);
-        walletText.text = "COIN: ---";
+        walletText = CreateText("WalletText", new Vector2(450, 1130), new Vector2(400, 32), TextAnchor.MiddleRight, 18);
+        walletText.text = "残高 ---";
     }
 
-    void CreateResultText()
+    void CreateResultOverlay()
     {
-        resultText = CreateText("ResultText", new Vector2(360, 1115), new Vector2(600, 90), TextAnchor.MiddleCenter, 22);
-        resultText.text = "";
+        GameObject go = new GameObject("ResultPanel");
+        go.transform.SetParent(canvas.transform, false);
+        resultPanel = go;
+
+        resultPanelRect = go.AddComponent<RectTransform>();
+        resultPanelRect.anchorMin = new Vector2(0, 1);
+        resultPanelRect.anchorMax = new Vector2(0, 1);
+        resultPanelRect.pivot = new Vector2(0.5f, 0.5f);
+        resultPanelRect.anchoredPosition = new Vector2(360, -755.5f);
+        resultPanelRect.sizeDelta = new Vector2(500, 160);
+
+        go.AddComponent<CanvasRenderer>();
+        RawImage img = go.AddComponent<RawImage>();
+        Texture2D white = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        white.SetPixels(new Color[] { Color.white, Color.white, Color.white, Color.white });
+        white.Apply();
+        img.texture = white;
+        img.color = new Color32(0, 0, 0, 165);
+        img.raycastTarget = true;
+
+        Button btn = go.AddComponent<Button>();
+        btn.onClick.AddListener(() => DismissResultOverlay());
+
+        CanvasGroup group = go.AddComponent<CanvasGroup>();
+        group.alpha = 0;
+        group.blocksRaycasts = false;
+        resultPanelGroup = group;
+
+        GameObject txtGO = new GameObject("ResultText");
+        txtGO.transform.SetParent(go.transform, false);
+        RectTransform trt = txtGO.AddComponent<RectTransform>();
+        trt.anchorMin = Vector2.zero;
+        trt.anchorMax = Vector2.one;
+        trt.pivot = new Vector2(0.5f, 0.5f);
+        trt.anchoredPosition = Vector2.zero;
+        trt.sizeDelta = Vector2.zero;
+
+        resultPanelText = txtGO.AddComponent<Text>();
+        resultPanelText.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+        if (resultPanelText.font == null) resultPanelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        resultPanelText.fontSize = 24;
+        resultPanelText.alignment = TextAnchor.MiddleCenter;
+        resultPanelText.color = Color.white;
+        resultPanelText.text = "";
+
+        go.SetActive(false);
     }
 
     void CreateHelpButton()
@@ -277,9 +325,10 @@ public class WarukyureBoard : MonoBehaviour
             skipRequested = true;
             return;
         }
+        DismissResultOverlay();
         if (selectedBets.Count == 0)
         {
-            resultText.text = "BETを1つ以上選んでください";
+            ShowResultOverlay("BETを1つ以上選んでください", 1.5f);
             return;
         }
         StartCoroutine(SpinRound());
@@ -288,12 +337,65 @@ public class WarukyureBoard : MonoBehaviour
     void ToggleHelp()
     {
         if (isRunning) return;
-        resultText.text = "2/4/6/8/20 を選んで SPIN\n数字に止まれば number × 倍率 × 100 枚";
+        ShowResultOverlay("2/4/6/8/20 を選んで SPIN\n数字に止まれば number × 倍率 × 100 枚", -1f);
     }
 
     void UpdateHeader()
     {
-        walletText.text = "COIN: " + wallet.ToString("N0");
+        walletText.text = $"合計 +{lastTotal} / 残高 {wallet:N0}";
+    }
+
+    // ----------------- overlay -----------------
+    void ShowResultOverlay(string text, float displayDuration)
+    {
+        if (resultPanel == null) return;
+        resultPanelText.text = text;
+        resultPanel.SetActive(true);
+        resultPanelGroup.blocksRaycasts = true;
+        if (overlayRoutine != null) StopCoroutine(overlayRoutine);
+        overlayRoutine = StartCoroutine(OverlayRoutine(displayDuration));
+    }
+
+    void DismissResultOverlay()
+    {
+        if (resultPanel == null) return;
+        if (overlayRoutine != null)
+        {
+            StopCoroutine(overlayRoutine);
+            overlayRoutine = null;
+        }
+        resultPanelGroup.alpha = 0;
+        resultPanelGroup.blocksRaycasts = false;
+        resultPanel.SetActive(false);
+    }
+
+    IEnumerator OverlayRoutine(float displayDuration)
+    {
+        yield return FadeOverlay(1f);
+        if (displayDuration > 0)
+        {
+            yield return new WaitForSeconds(displayDuration);
+            yield return FadeOverlay(0f);
+            resultPanelGroup.blocksRaycasts = false;
+            resultPanel.SetActive(false);
+        }
+        overlayRoutine = null;
+    }
+
+    IEnumerator FadeOverlay(float target)
+    {
+        float start = resultPanelGroup.alpha;
+        float t = 0f;
+        const float FADE = 0.3f;
+        while (t < FADE)
+        {
+            t += Time.deltaTime;
+            float p = Mathf.Clamp01(t / FADE);
+            p = Mathf.SmoothStep(0f, 1f, p);
+            resultPanelGroup.alpha = Mathf.Lerp(start, target, p);
+            yield return null;
+        }
+        resultPanelGroup.alpha = target;
     }
 
     // ----------------- API -----------------
@@ -313,6 +415,7 @@ public class WarukyureBoard : MonoBehaviour
                 {
                     wallet = res.state.wallet;
                     ballMask = res.state.ballMask;
+                    lastTotal = 0;
                     UpdateHeader();
                     yield break;
                 }
@@ -325,7 +428,7 @@ public class WarukyureBoard : MonoBehaviour
         yield return StartCoroutine(ApiPost(initJson, null, (b) => initBody = b, (e) => initErr = e));
         if (!string.IsNullOrEmpty(initErr))
         {
-            resultText.text = "通信エラー: " + initErr;
+            ShowResultOverlay("通信エラー: " + initErr, -1f);
             yield break;
         }
         var initRes = JsonUtility.FromJson<InitResponse>(initBody);
@@ -335,6 +438,7 @@ public class WarukyureBoard : MonoBehaviour
             PlayerPrefs.SetString(TOKEN_KEY, token);
             wallet = initRes.state.wallet;
             ballMask = initRes.state.ballMask;
+            lastTotal = 0;
             UpdateHeader();
         }
     }
@@ -344,7 +448,7 @@ public class WarukyureBoard : MonoBehaviour
         isRunning = true;
         skipRequested = false;
         spinButtonText.text = "SKIP";
-        resultText.text = "";
+        DismissResultOverlay();
         UpdateBetButtonState();
 
         currentRunId = System.Guid.NewGuid().ToString();
@@ -384,7 +488,6 @@ public class WarukyureBoard : MonoBehaviour
 
         wallet = lastResult.state.wallet;
         ballMask = lastResult.state.ballMask;
-        UpdateHeader();
 
         // lamp animation
         var path = BuildLampPath(lastResult.pathId, lastResult.stopId);
@@ -412,7 +515,7 @@ public class WarukyureBoard : MonoBehaviour
         isRunning = false;
         skipRequested = false;
         spinButtonText.text = "SPIN";
-        if (!string.IsNullOrEmpty(error)) resultText.text = error;
+        if (!string.IsNullOrEmpty(error)) ShowResultOverlay(error, -1f);
     }
 
     IEnumerator ApiPost(string json, string idemKey, Action<string> onOk, Action<string> onErr)
@@ -601,8 +704,12 @@ public class WarukyureBoard : MonoBehaviour
             sb.Append($"\nJACKPOT {r.awardBreakdown.jackpot}枚");
         }
 
-        sb.Append($"\n合計 +{r.awardBreakdown.total} / 残高 {r.state.wallet:N0}");
-        resultText.text = sb.ToString();
+        lastTotal = r.awardBreakdown.total;
+        wallet = r.state.wallet;
+        ballMask = r.state.ballMask;
+        UpdateHeader();
+
+        ShowResultOverlay(sb.ToString(), 1.5f);
     }
 
     // ----------------- JSON data classes -----------------

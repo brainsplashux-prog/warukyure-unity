@@ -44,7 +44,7 @@ PlayerSettings:
   defaultScreenWidth: 1920
   defaultScreenHeight: 1080
   defaultScreenWidthWeb: 720
-  defaultScreenHeightWeb: 1280
+  defaultScreenHeightWeb: 1224
   m_StereoRenderingPath: 0
   m_ActiveColorSpace: 0
   unsupportedMSAAFallback: 0
@@ -143,7 +143,7 @@ PlayerSettings:
   loadStoreDebugModeEnabled: 0
   visionOSBundleVersion: 1.0
   tvOSBundleVersion: 1.0
-  bundleVersion: 0.0.6
+  bundleVersion: 0.0.8
   preloadedAssets: []
   metroInputSource: 0
   wsaTransparentSwapchain: 0
