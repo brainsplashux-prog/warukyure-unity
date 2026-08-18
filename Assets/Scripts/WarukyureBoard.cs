@@ -1,31 +1,70 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 
 public class WarukyureBoard : MonoBehaviour
 {
+    // ----------------- configuration -----------------
+    const string API_URL = "https://b5yl9sml5l.execute-api.ap-northeast-1.amazonaws.com/";
+    const string TOKEN_KEY = "warukyure_token";
+    const int WAGER_PER_BET = 100;
+    const float RUN_DURATION = 2.0f;
+    const float HOLD_DURATION = 0.5f;
+    const int MIN_PATH_STEPS = 35;
+
+    // ----------------- UI references -----------------
+    private Canvas canvas;
+    private RectTransform lampRect;
+    private Text walletText;
+    private Text resultText;
     private GameObject messagePanel;
+    private readonly Button[] betButtons = new Button[5];
+    private readonly Image[] betButtonImages = new Image[5];
+    private Button spinButton;
+    private Text spinButtonText;
+    private Image spinButtonImage;
+
+    // ----------------- state -----------------
+    private string token;
+    private int wallet;
+    private int ballMask;
+    private string currentRunId;
+    private bool isRunning;
+    private bool skipRequested;
+    private readonly HashSet<int> selectedBets = new HashSet<int>();
+    private ResolveResponse lastResult;
+    private readonly string[] betLabels = { "2", "4", "6", "8", "20" };
+    private readonly string[] ballNames = { "うさぎ", "ねこ", "くま", "ことり" };
 
     void Start()
     {
         SetupCanvas();
-        CreateAdVirtuaPlaceholder();
         CreateBoardImage();
+        CreateLamp();
+        CreateAdVirtuaPlaceholder();
+        CreateHeaderText();
+        CreateResultText();
         CreateHelpButton();
         CreateBetButtons();
         CreateSpinButton();
+
+        StartCoroutine(InitSession());
     }
 
+    // ----------------- setup -----------------
     void SetupCanvas()
     {
         GameObject canvasGO = new GameObject("Canvas");
-        Canvas canvas = canvasGO.AddComponent<Canvas>();
+        canvas = canvasGO.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 0;
 
         CanvasScaler scaler = canvasGO.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        // SAFE AREA = 720x819, Ad-Virtua = 405 => canvas reference is 720x1224.
-        // This makes the board image and all UI parts map 1:1 to layout.json SAFE coordinates.
         scaler.referenceResolution = new Vector2(720, 1224);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
@@ -35,21 +74,6 @@ public class WarukyureBoard : MonoBehaviour
         GameObject eventGO = new GameObject("EventSystem");
         eventGO.AddComponent<UnityEngine.EventSystems.EventSystem>();
         eventGO.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
-    }
-
-    void CreateAdVirtuaPlaceholder()
-    {
-        GameObject go = new GameObject("AdVirtua");
-        go.transform.SetParent(GameObject.Find("Canvas").transform, false);
-        RectTransform rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0, 1);
-        rt.anchorMax = new Vector2(0, 1);
-        rt.pivot = new Vector2(0, 1);
-        rt.anchoredPosition = Vector2.zero;
-        rt.sizeDelta = new Vector2(720, 405);
-
-        Image img = go.AddComponent<Image>();
-        img.color = new Color32(26, 29, 34, 255);
     }
 
     void CreateBoardImage()
@@ -62,7 +86,7 @@ public class WarukyureBoard : MonoBehaviour
         }
 
         GameObject go = new GameObject("Board");
-        go.transform.SetParent(GameObject.Find("Canvas").transform, false);
+        go.transform.SetParent(canvas.transform, false);
         RectTransform rt = go.AddComponent<RectTransform>();
         rt.anchorMin = new Vector2(0, 1);
         rt.anchorMax = new Vector2(0, 1);
@@ -77,33 +101,141 @@ public class WarukyureBoard : MonoBehaviour
         img.raycastTarget = false;
     }
 
+    Texture2D CreateCircleTexture(int size, Color color)
+    {
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+        Color[] pixels = new Color[size * size];
+        Vector2 center = new Vector2(size / 2f, size / 2f);
+        float r = size / 2f - 1f;
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float d = Vector2.Distance(center, new Vector2(x, y));
+                pixels[y * size + x] = d <= r ? color : Color.clear;
+            }
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return tex;
+    }
+
+    void CreateLamp()
+    {
+        GameObject go = new GameObject("Lamp");
+        go.transform.SetParent(canvas.transform, false);
+        lampRect = go.AddComponent<RectTransform>();
+        lampRect.anchorMin = new Vector2(0, 1);
+        lampRect.anchorMax = new Vector2(0, 1);
+        lampRect.pivot = new Vector2(0.5f, 0.5f);
+
+        Vector2 start;
+        BoardData.TryGetCenter("o_01", out start);
+        lampRect.anchoredPosition = new Vector2(start.x, -start.y);
+        lampRect.sizeDelta = new Vector2(34, 34);
+
+        go.AddComponent<CanvasRenderer>();
+        RawImage img = go.AddComponent<RawImage>();
+        img.texture = CreateCircleTexture(64, new Color32(255, 220, 80, 230));
+        img.raycastTarget = false;
+        img.color = Color.white;
+    }
+
+    void CreateAdVirtuaPlaceholder()
+    {
+        GameObject go = new GameObject("AdVirtua");
+        go.transform.SetParent(canvas.transform, false);
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0, 1);
+        rt.anchorMax = new Vector2(0, 1);
+        rt.pivot = new Vector2(0, 1);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = new Vector2(720, 405);
+
+        Image img = go.AddComponent<Image>();
+        img.color = new Color32(26, 29, 34, 255);
+    }
+
+    Text CreateText(string name, Vector2 pos, Vector2 size, TextAnchor align, int fontSize)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(canvas.transform, false);
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0, 1);
+        rt.anchorMax = new Vector2(0, 1);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = new Vector2(pos.x, -pos.y);
+        rt.sizeDelta = size;
+
+        Text txt = go.AddComponent<Text>();
+        txt.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+        if (txt.font == null) txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        txt.fontSize = fontSize;
+        txt.alignment = align;
+        txt.color = Color.white;
+        return txt;
+    }
+
+    void CreateHeaderText()
+    {
+        walletText = CreateText("WalletText", new Vector2(80, 470), new Vector2(300, 40), TextAnchor.UpperLeft, 22);
+        walletText.text = "COIN: ---";
+    }
+
+    void CreateResultText()
+    {
+        resultText = CreateText("ResultText", new Vector2(360, 1115), new Vector2(600, 90), TextAnchor.MiddleCenter, 22);
+        resultText.text = "";
+    }
+
     void CreateHelpButton()
     {
-        // layout.json: help x=660 y=709 w=32 h=32 (SAFE coordinates)
-        AddButton("Help", new Vector2(660, 405 + 709), new Vector2(32, 32));
+        Image img;
+        AddButton("Help", new Vector2(660, 405 + 709), new Vector2(32, 32), () => ToggleHelp(), out img);
     }
 
     void CreateBetButtons()
     {
-        // layout.json: bet_2..bet_20 y=755 w=95 h=52 (SAFE coordinates)
-        string[] bets = new[] { "2", "4", "6", "8", "20" };
         float[] xs = new[] { 16f, 119f, 222f, 325f, 428f };
-        for (int i = 0; i < bets.Length; i++)
+        for (int i = 0; i < 5; i++)
         {
-            AddButton("Bet" + bets[i], new Vector2(xs[i], 405 + 755), new Vector2(95, 52));
+            int bet = int.Parse(betLabels[i]);
+            Image img;
+            Button btn = AddButton("Bet" + betLabels[i], new Vector2(xs[i], 405 + 755), new Vector2(95, 52), () => ToggleBet(bet), out img);
+            betButtons[i] = btn;
+            betButtonImages[i] = img;
         }
     }
 
     void CreateSpinButton()
     {
-        // layout.json: spin x=536 y=755 w=168 h=52 (SAFE coordinates)
-        AddButton("Spin", new Vector2(536, 405 + 755), new Vector2(168, 52));
+        Image img;
+        spinButton = AddButton("Spin", new Vector2(536, 405 + 755), new Vector2(168, 52), () => OnSpin(), out img);
+        spinButtonImage = img;
+
+        GameObject txtGO = new GameObject("SpinText");
+        txtGO.transform.SetParent(spinButton.transform, false);
+        RectTransform trt = txtGO.AddComponent<RectTransform>();
+        trt.anchorMin = Vector2.zero;
+        trt.anchorMax = Vector2.one;
+        trt.pivot = new Vector2(0.5f, 0.5f);
+        trt.anchoredPosition = Vector2.zero;
+        trt.sizeDelta = Vector2.zero;
+
+        spinButtonText = txtGO.AddComponent<Text>();
+        spinButtonText.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+        if (spinButtonText.font == null) spinButtonText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        spinButtonText.fontSize = 26;
+        spinButtonText.alignment = TextAnchor.MiddleCenter;
+        spinButtonText.color = Color.white;
+        spinButtonText.text = "SPIN";
     }
 
-    void AddButton(string name, Vector2 pos, Vector2 size)
+    Button AddButton(string name, Vector2 pos, Vector2 size, Action onClick, out Image image)
     {
         GameObject go = new GameObject(name);
-        go.transform.SetParent(GameObject.Find("Canvas").transform, false);
+        go.transform.SetParent(canvas.transform, false);
         RectTransform rt = go.AddComponent<RectTransform>();
         rt.anchorMin = new Vector2(0, 1);
         rt.anchorMax = new Vector2(0, 1);
@@ -111,56 +243,432 @@ public class WarukyureBoard : MonoBehaviour
         rt.anchoredPosition = new Vector2(pos.x, -pos.y);
         rt.sizeDelta = size;
 
-        Image img = go.AddComponent<Image>();
-        img.color = new Color(0, 0, 0, 0);
+        image = go.AddComponent<Image>();
+        image.color = new Color(0, 0, 0, 0);
 
         Button btn = go.AddComponent<Button>();
-        btn.onClick.AddListener(() => ShowNotConnected());
+        btn.onClick.AddListener(() => onClick());
+        return btn;
     }
 
-    void ShowNotConnected()
+    // ----------------- interaction -----------------
+    void ToggleBet(int bet)
     {
-        if (messagePanel != null)
+        if (isRunning) return;
+        if (selectedBets.Contains(bet)) selectedBets.Remove(bet);
+        else selectedBets.Add(bet);
+        UpdateBetButtonState();
+    }
+
+    void UpdateBetButtonState()
+    {
+        for (int i = 0; i < 5; i++)
         {
-            Destroy(messagePanel);
-            messagePanel = null;
+            int bet = int.Parse(betLabels[i]);
+            bool on = selectedBets.Contains(bet);
+            betButtonImages[i].color = on ? new Color32(255, 215, 0, 120) : new Color(0, 0, 0, 0);
+        }
+    }
+
+    void OnSpin()
+    {
+        if (isRunning)
+        {
+            skipRequested = true;
             return;
         }
-
-        Canvas canvas = GameObject.Find("Canvas").GetComponent<Canvas>();
-
-        GameObject panel = new GameObject("MessagePanel");
-        panel.transform.SetParent(canvas.transform, false);
-        RectTransform rt = panel.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.5f, 0.5f);
-        rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = Vector2.zero;
-        rt.sizeDelta = new Vector2(360, 120);
-
-        Image img = panel.AddComponent<Image>();
-        img.color = new Color32(50, 50, 50, 230);
-
-        GameObject textGO = new GameObject("Text");
-        textGO.transform.SetParent(panel.transform, false);
-        RectTransform trt = textGO.AddComponent<RectTransform>();
-        trt.anchorMin = Vector2.zero;
-        trt.anchorMax = Vector2.one;
-        trt.pivot = new Vector2(0.5f, 0.5f);
-        trt.anchoredPosition = Vector2.zero;
-        trt.sizeDelta = Vector2.zero;
-
-        Text txt = textGO.AddComponent<Text>();
-        txt.text = "未接続";
-        txt.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
-        if (txt.font == null)
+        if (selectedBets.Count == 0)
         {
-            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            resultText.text = "BETを1つ以上選んでください";
+            return;
         }
-        txt.fontSize = 28;
-        txt.alignment = TextAnchor.MiddleCenter;
-        txt.color = Color.white;
+        StartCoroutine(SpinRound());
+    }
 
-        messagePanel = panel;
+    void ToggleHelp()
+    {
+        if (isRunning) return;
+        resultText.text = "2/4/6/8/20 を選んで SPIN\n数字に止まれば number × 倍率 × 100 枚";
+    }
+
+    void UpdateHeader()
+    {
+        walletText.text = "COIN: " + wallet.ToString("N0");
+    }
+
+    // ----------------- API -----------------
+    IEnumerator InitSession()
+    {
+        token = PlayerPrefs.GetString(TOKEN_KEY, "");
+        if (!string.IsNullOrEmpty(token))
+        {
+            string json = "{\"action\":\"state\",\"token\":\"" + token + "\"}";
+            string error = null;
+            string body = null;
+            yield return StartCoroutine(ApiPost(json, null, (b) => body = b, (e) => error = e));
+            if (string.IsNullOrEmpty(error) && !string.IsNullOrEmpty(body))
+            {
+                var res = JsonUtility.FromJson<StateResponse>(body);
+                if (res != null && res.state != null)
+                {
+                    wallet = res.state.wallet;
+                    ballMask = res.state.ballMask;
+                    UpdateHeader();
+                    yield break;
+                }
+            }
+        }
+
+        string initJson = "{\"action\":\"init\"}";
+        string initBody = null;
+        string initErr = null;
+        yield return StartCoroutine(ApiPost(initJson, null, (b) => initBody = b, (e) => initErr = e));
+        if (!string.IsNullOrEmpty(initErr))
+        {
+            resultText.text = "通信エラー: " + initErr;
+            yield break;
+        }
+        var initRes = JsonUtility.FromJson<InitResponse>(initBody);
+        if (initRes != null)
+        {
+            token = initRes.token;
+            PlayerPrefs.SetString(TOKEN_KEY, token);
+            wallet = initRes.state.wallet;
+            ballMask = initRes.state.ballMask;
+            UpdateHeader();
+        }
+    }
+
+    IEnumerator SpinRound()
+    {
+        isRunning = true;
+        skipRequested = false;
+        spinButtonText.text = "SKIP";
+        resultText.text = "";
+        UpdateBetButtonState();
+
+        currentRunId = System.Guid.NewGuid().ToString();
+
+        // prepare
+        string prepareJson = "{\"action\":\"prepare\",\"token\":\"" + token + "\",\"runId\":\"" + currentRunId + "\"}";
+        string prepareBody = null;
+        string prepareErr = null;
+        yield return StartCoroutine(ApiPost(prepareJson, currentRunId, (b) => prepareBody = b, (e) => prepareErr = e));
+        if (!string.IsNullOrEmpty(prepareErr))
+        {
+            EndRound("通信エラー: " + prepareErr);
+            yield break;
+        }
+
+        // resolve
+        int[] bets = new int[selectedBets.Count];
+        selectedBets.CopyTo(bets);
+        Array.Sort(bets);
+        string betStr = string.Join(",", bets);
+        string resolveJson = "{\"action\":\"resolve\",\"token\":\"" + token + "\",\"runId\":\"" + currentRunId + "\",\"bets\":[" + betStr + "]}";
+        string resolveBody = null;
+        string resolveErr = null;
+        yield return StartCoroutine(ApiPost(resolveJson, currentRunId, (b) => resolveBody = b, (e) => resolveErr = e));
+        if (!string.IsNullOrEmpty(resolveErr))
+        {
+            EndRound("通信エラー: " + resolveErr);
+            yield break;
+        }
+
+        lastResult = JsonUtility.FromJson<ResolveResponse>(resolveBody);
+        if (lastResult == null)
+        {
+            EndRound("レスポンス解析エラー");
+            yield break;
+        }
+
+        wallet = lastResult.state.wallet;
+        ballMask = lastResult.state.ballMask;
+        UpdateHeader();
+
+        // lamp animation
+        var path = BuildLampPath(lastResult.pathId, lastResult.stopId);
+        if (path != null && path.Count > 0)
+            lampRect.anchoredPosition = path[0];
+        yield return StartCoroutine(RunLamp(path));
+
+        if (!skipRequested)
+        {
+            float hold = 0f;
+            while (hold < HOLD_DURATION)
+            {
+                hold += Time.deltaTime;
+                if (skipRequested) break;
+                yield return null;
+            }
+        }
+
+        ShowResult(lastResult);
+        EndRound("");
+    }
+
+    void EndRound(string error)
+    {
+        isRunning = false;
+        skipRequested = false;
+        spinButtonText.text = "SPIN";
+        if (!string.IsNullOrEmpty(error)) resultText.text = error;
+    }
+
+    IEnumerator ApiPost(string json, string idemKey, Action<string> onOk, Action<string> onErr)
+    {
+        UnityWebRequest req = new UnityWebRequest(API_URL, "POST");
+        byte[] body = Encoding.UTF8.GetBytes(json);
+        req.uploadHandler = new UploadHandlerRaw(body);
+        req.downloadHandler = new DownloadHandlerBuffer();
+        req.SetRequestHeader("Content-Type", "application/json");
+        if (!string.IsNullOrEmpty(idemKey))
+            req.SetRequestHeader("Idempotency-Key", idemKey);
+
+        yield return req.SendWebRequest();
+
+        if (req.result != UnityWebRequest.Result.Success || req.responseCode != 200)
+        {
+            string msg = $"HTTP {req.responseCode}";
+            if (!string.IsNullOrEmpty(req.error)) msg += " " + req.error;
+            onErr(msg);
+        }
+        else
+        {
+            onOk(req.downloadHandler.text);
+        }
+    }
+
+    // ----------------- lamp path -----------------
+    List<Vector2> BuildLampPath(string pathId, string stopId)
+    {
+        string home;
+        string sourceCell;
+        string sourceTrack;
+        string targetCell = null;
+        string targetTrack = null;
+        string stopCell = stopId;
+
+        if (pathId == "outer")
+        {
+            home = "o_01";
+            sourceTrack = "outer";
+            sourceCell = stopId;
+        }
+        else
+        {
+            var warp = BoardData.Warp[pathId];
+            sourceCell = warp.source;
+            targetCell = warp.target;
+            targetTrack = warp.targetTrack;
+            sourceTrack = BoardData.GetTrack(sourceCell);
+            home = sourceTrack == "outer" ? "o_01" : "i_01";
+        }
+
+        int sourceIndex = BoardData.GetIndex(sourceCell);
+        int homeIndex = BoardData.GetIndex(home);
+        string[] srcArr = BoardData.GetTrackArray(sourceTrack);
+        int srcL = srcArr.Length;
+        int sourceDist = (sourceIndex - homeIndex + srcL) % srcL;
+
+        int naturalSteps = sourceDist;
+        int targetDist = 0;
+        string[] tgtArr = null;
+        int tgtL = 0;
+
+        if (pathId != "outer")
+        {
+            naturalSteps += 1; // warp step
+            if (targetTrack != "castle")
+            {
+                tgtArr = BoardData.GetTrackArray(targetTrack);
+                tgtL = tgtArr.Length;
+                int targetIndex = BoardData.GetIndex(targetCell);
+                int stopIndex = BoardData.GetIndex(stopId);
+                targetDist = (stopIndex - targetIndex + tgtL) % tgtL;
+                naturalSteps += targetDist;
+            }
+        }
+
+        int lapCount = 0;
+        if (naturalSteps < MIN_PATH_STEPS)
+        {
+            int need = MIN_PATH_STEPS - naturalSteps;
+            lapCount = (need + srcL - 1) / srcL;
+        }
+
+        List<string> cells = new List<string>();
+        // source track: home + laps + to source
+        cells.Add(home);
+        for (int lap = 0; lap < lapCount; lap++)
+        {
+            for (int i = 1; i <= srcL; i++)
+                cells.Add(srcArr[(homeIndex + i) % srcL]);
+        }
+        for (int i = 1; i <= sourceDist; i++)
+            cells.Add(srcArr[(homeIndex + i) % srcL]);
+
+        // warp + target track
+        if (pathId != "outer")
+        {
+            cells.Add(targetCell);
+            if (targetTrack != "castle")
+            {
+                int targetIndex = BoardData.GetIndex(targetCell);
+                for (int i = 1; i <= targetDist; i++)
+                    cells.Add(tgtArr[(targetIndex + i) % tgtL]);
+            }
+        }
+
+        List<Vector2> path = new List<Vector2>();
+        foreach (var cid in cells)
+        {
+            Vector2 c;
+            if (BoardData.TryGetCenter(cid, out c))
+                path.Add(new Vector2(c.x, -c.y));
+        }
+        return path;
+    }
+
+    float EaseOutCubic(float t)
+    {
+        return 1f - Mathf.Pow(1f - t, 3f);
+    }
+
+    IEnumerator RunLamp(List<Vector2> path)
+    {
+        if (path == null || path.Count < 2)
+        {
+            if (path != null && path.Count > 0)
+                lampRect.anchoredPosition = path[path.Count - 1];
+            yield break;
+        }
+
+        int segments = path.Count - 1;
+        float elapsed = 0f;
+        while (elapsed < RUN_DURATION)
+        {
+            if (skipRequested)
+            {
+                lampRect.anchoredPosition = path[path.Count - 1];
+                yield break;
+            }
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / RUN_DURATION);
+            float p = EaseOutCubic(t);
+            float f = p * segments;
+            int idx = Mathf.FloorToInt(f);
+            float frac = f - idx;
+            if (idx >= segments)
+            {
+                lampRect.anchoredPosition = path[path.Count - 1];
+            }
+            else
+            {
+                lampRect.anchoredPosition = Vector2.Lerp(path[idx], path[idx + 1], frac);
+            }
+            yield return null;
+        }
+        lampRect.anchoredPosition = path[path.Count - 1];
+    }
+
+    // ----------------- result -----------------
+    void ShowResult(ResolveResponse r)
+    {
+        StringBuilder sb = new StringBuilder();
+        if (r.primaryType == "out")
+        {
+            sb.Append("はずれ");
+        }
+        else if (r.primaryType == "number")
+        {
+            sb.Append($"数字 {r.number} × {r.multiplier} = {r.awardBreakdown.number}枚");
+        }
+        else if (r.primaryType == "castle")
+        {
+            sb.Append($"城 90 = {r.awardBreakdown.castle}枚");
+        }
+        else if (r.primaryType == "ball")
+        {
+            string name = "???";
+            if (r.collection != null && r.collection.ballType >= 0 && r.collection.ballType < 4)
+                name = ballNames[r.collection.ballType];
+            sb.Append($"BALL {name} ゲット");
+        }
+
+        if (r.bonusOutcome != null && r.awardBreakdown.jackpot > 0)
+        {
+            sb.Append($"\nJACKPOT {r.awardBreakdown.jackpot}枚");
+        }
+
+        sb.Append($"\n合計 +{r.awardBreakdown.total} / 残高 {r.state.wallet:N0}");
+        resultText.text = sb.ToString();
+    }
+
+    // ----------------- JSON data classes -----------------
+    [Serializable]
+    public class StateData
+    {
+        public int wallet;
+        public int ballMask;
+    }
+
+    [Serializable]
+    public class InitResponse
+    {
+        public string uid;
+        public string token;
+        public StateData state;
+    }
+
+    [Serializable]
+    public class StateResponse
+    {
+        public StateData state;
+    }
+
+    [Serializable]
+    public class AwardBreakdown
+    {
+        public int wager;
+        public int number;
+        public int castle;
+        public int jackpot;
+        public int total;
+        public int net;
+    }
+
+    [Serializable]
+    public class Collection
+    {
+        public int ballType;
+        public int maskBefore;
+        public int maskAfter;
+        public bool isNew;
+    }
+
+    [Serializable]
+    public class BonusOutcome
+    {
+        public int stopIndex;
+        public int award;
+    }
+
+    [Serializable]
+    public class ResolveResponse
+    {
+        public string runId;
+        public string stopId;
+        public string pathId;
+        public string primaryType;
+        public int number;
+        public int multiplier;
+        public string track;
+        public int[] bets;
+        public AwardBreakdown awardBreakdown;
+        public Collection collection;
+        public BonusOutcome bonusOutcome;
+        public int effectTier;
+        public StateData state;
     }
 }

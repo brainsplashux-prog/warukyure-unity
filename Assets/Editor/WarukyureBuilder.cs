@@ -24,7 +24,7 @@ public static class WarukyureBuilder
         // Configure player
         PlayerSettings.companyName = "poicasi";
         PlayerSettings.productName = "warukyure";
-        PlayerSettings.bundleVersion = "0.0.5";
+        PlayerSettings.bundleVersion = "0.0.6";
         PlayerSettings.defaultWebScreenWidth = 720;
         PlayerSettings.defaultWebScreenHeight = 1280;
 
