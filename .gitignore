@@ -1,0 +1,44 @@
+# ===== Unity generated / regenerable =====
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Ll]ogs/
+/[Mm]emoryCaptures/
+/[Uu]ser[Ss]ettings/
+/[Bb]uilds/
+/[Bb]uild/
+
+# ===== WebGL build output & local serve scripts live in Builds/ (ignored above) =====
+
+# ===== generated screenshots =====
+/[Aa]ssets/[Ss]creenshots/
+/[Aa]ssets/[Ss]creenshots.meta
+
+# ===== IDE / OS =====
+.vs/
+.idea/
+.gradle/
+ExportedObj/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.DS_Store
+Thumbs.db
+
+# ===== build artifacts =====
+*.apk
+*.aab
+*.app
+*.unitypackage
+crashlytics-build.properties
+sysinfo.txt

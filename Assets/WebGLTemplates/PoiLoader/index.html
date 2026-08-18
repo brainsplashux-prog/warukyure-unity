@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Unity Web Player | {{{ PRODUCT_NAME }}}</title>
+    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <link rel="stylesheet" href="TemplateData/style.css">
+
+    <!-- 取得順最適化: loader.js の解析完了を待たず wasm/data のDLを即開始する -->
+    <link rel="preload" href="Build/{{{ LOADER_FILENAME }}}" as="script">
+#if USE_WASM
+    <link rel="preload" href="Build/{{{ CODE_FILENAME }}}" as="fetch" crossorigin="anonymous">
+#endif
+    <link rel="preload" href="Build/{{{ FRAMEWORK_FILENAME }}}" as="script">
+    <link rel="preload" href="Build/{{{ DATA_FILENAME }}}" as="fetch" crossorigin="anonymous">
+
+    <!-- POI-LOADER-KIT v1 BEGIN (generated from poicasi-org/loader/v1 — do not edit here) -->
+<style>#poi-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  transition: opacity .55s ease;
+  background-color: var(--poi-bg, #0b0b14);
+  background-image:
+    radial-gradient(circle 1.2px at 18% 22%, rgba(255, 255, 255, .55) 0%, rgba(0, 0, 0, 0) 100%),
+    radial-gradient(circle 1px at 62% 14%, rgba(255, 255, 255, .40) 0%, rgba(0, 0, 0, 0) 100%),
+    radial-gradient(circle 1.4px at 82% 34%, rgba(255, 255, 255, .50) 0%, rgba(0, 0, 0, 0) 100%),
+    radial-gradient(circle 1px at 38% 40%, rgba(255, 255, 255, .30) 0%, rgba(0, 0, 0, 0) 100%),
+    radial-gradient(circle 1.2px at 8% 46%, rgba(255, 255, 255, .35) 0%, rgba(0, 0, 0, 0) 100%),
+    radial-gradient(circle 1px at 92% 12%, rgba(255, 255, 255, .35) 0%, rgba(0, 0, 0, 0) 100%),
+    radial-gradient(ellipse 120% 55% at 50% calc(100% - var(--poi-ground-h)), rgba(120, 110, 185, .22) 0%, rgba(120, 110, 185, .08) 45%, rgba(0, 0, 0, 0) 72%);
+  background-repeat: no-repeat;
+  color: var(--poi-accent, #C8963E);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --poi-actor-size: min(46vw, 180px);
+  --poi-ground-h: calc(50% - (var(--poi-actor-size) / 2));
+}
+
+#poi-loading.poi-done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.poi-loader-active #unity-loading-bar {
+  display: none !important;
+}
+
+.poi-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.poi-scene[data-variant="stroll"] {
+  --poi-foot-pad: .1426;
+}
+
+.poi-scene[data-variant="float"] {
+  --poi-foot-pad: .1738;
+}
+
+.poi-scene[data-variant="coin"] {
+  --poi-foot-pad: .1738;
+}
+
+.poi-scene[data-variant="ninja"] {
+  --poi-foot-pad: .0801;
+}
+
+.poi-scene::before {
+  content: '';
+  position: absolute;
+  top: 14%;
+  right: 12%;
+  width: calc(var(--poi-actor-size) * .34);
+  height: calc(var(--poi-actor-size) * .34);
+  border-radius: 50%;
+  background-color: #F3EBD2;
+  opacity: .85;
+  box-shadow: 0 0 calc(var(--poi-actor-size) * .3) rgba(243, 235, 210, .22);
+  pointer-events: none;
+}
+
+.poi-bg-far,
+.poi-bg-near {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 200%;
+  height: calc(100% - var(--poi-ground-h));
+  background-repeat: repeat-x;
+  background-position: 0 100%;
+}
+
+.poi-bg-far {
+  background-image: radial-gradient(ellipse 20vw 7vw at 50% 100%, rgba(150, 140, 200, .16) 0%, rgba(150, 140, 200, .16) 60%, rgba(0, 0, 0, 0) 62%);
+  background-size: 40vw 100%;
+  animation: poi-bg-far calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-bg-near {
+  background-image: radial-gradient(ellipse 8vw 1.5vw at 50% 100%, rgba(34, 30, 62, .92) 0%, rgba(34, 30, 62, .92) 60%, rgba(0, 0, 0, 0) 62%);
+  background-size: 20vw 100%;
+  animation: poi-bg-near calc(3s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% - var(--poi-ground-h));
+  height: var(--poi-ground-h);
+  background-image: linear-gradient(to bottom, rgba(160, 150, 210, .10) 0%, rgba(0, 0, 0, .10) 45%, rgba(0, 0, 0, .28) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+  pointer-events: none;
+}
+
+.poi-props {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.poi-props > i {
+  display: none;
+  position: absolute;
+}
+
+.poi-cel {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.poi-cross {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  animation: poi-cross calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-hop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  animation: poi-hop calc(.5s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-tilt {
+  position: absolute;
+  left: 0;
+  top: 0;
+  animation: poi-tilt calc(1s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-actor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--poi-actor-size);
+  aspect-ratio: 1 / 1;
+  margin-left: calc(var(--poi-actor-size) / -2);
+  margin-top: calc(var(--poi-actor-size) * (var(--poi-foot-pad, 0) - .5));
+  background-image: var(--poi-img);
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, .28));
+  transform-origin: center center;
+  animation: poi-breathe calc(2s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-shadow-cross {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + (var(--poi-actor-size) / 2));
+  animation: poi-shadow-cross calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-shadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--poi-actor-size) * .6);
+  height: calc(var(--poi-actor-size) * .12);
+  margin-left: calc(var(--poi-actor-size) * -.3);
+  margin-top: calc(var(--poi-actor-size) * -.06);
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, .62);
+  transform-origin: center center;
+  animation: poi-shadow-scale calc(.5s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-foot {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(86vw, 420px);
+  text-align: center;
+  pointer-events: none;
+}
+
+.poi-bar {
+  width: 100%;
+  height: 6px;
+  background-color: rgba(255, 255, 255, .12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.poi-bar > i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background-color: var(--poi-accent, #C8963E);
+  transition: transform .35s cubic-bezier(.4, 0, .2, 1);
+}
+.poi-scene[data-variant] .poi-bg-far,
+.poi-scene[data-variant] .poi-bg-near,
+.poi-scene[data-variant] .poi-cross,
+.poi-scene[data-variant] .poi-hop,
+.poi-scene[data-variant] .poi-tilt,
+.poi-scene[data-variant] .poi-actor,
+.poi-scene[data-variant] .poi-shadow-cross,
+.poi-scene[data-variant] .poi-shadow {
+  will-change: transform;
+}
+
+
+.poi-txt {
+  margin-top: 10px;
+  font-size: 13px;
+  letter-spacing: .05em;
+  opacity: .9;
+}
+
+/* --- float --- */
+.poi-scene[data-variant="float"] .poi-cross,
+.poi-scene[data-variant="float"] .poi-shadow-cross {
+  animation: none;
+  transform: translateX(0);
+}
+
+.poi-scene[data-variant="float"] .poi-hop {
+  animation: poi-float calc(3s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="float"] .poi-tilt {
+  animation: poi-sway calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="float"] .poi-shadow {
+  animation: poi-shadow-float calc(3s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="float"] .poi-bg-far,
+.poi-scene[data-variant="float"] .poi-bg-near {
+  animation: none;
+}
+
+.poi-scene[data-variant="float"] .poi-bg-far {
+  transform: translateX(-40vw);
+}
+
+.poi-scene[data-variant="float"] .poi-bg-near {
+  transform: translateX(-20vw);
+}
+
+.poi-scene[data-variant="float"] .poi-props > i {
+  display: block;
+  bottom: -8vh;
+  width: calc(var(--poi-actor-size) * .1);
+  height: calc(var(--poi-actor-size) * .1);
+  border-radius: 50%;
+  background-image: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, .7) 0%, rgba(255, 255, 255, .12) 40%, rgba(0, 0, 0, 0) 72%);
+  background-color: rgba(200, 190, 255, .22);
+  box-shadow: 0 0 calc(var(--poi-actor-size) * .18) rgba(220, 210, 255, .18);
+  opacity: .8;
+  will-change: transform, opacity;
+  animation: poi-orb calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-scene[data-variant="float"] .poi-props > i:nth-child(1) { left: 16vw; --poi-ox: 16vw; animation-delay: -6s; }
+.poi-scene[data-variant="float"] .poi-props > i:nth-child(2) { left: 38vw; --poi-ox: 38vw; animation-delay: -1.5s; }
+.poi-scene[data-variant="float"] .poi-props > i:nth-child(3) { left: 62vw; --poi-ox: 62vw; animation-delay: -3s; }
+.poi-scene[data-variant="float"] .poi-props > i:nth-child(4) { left: 84vw; --poi-ox: 84vw; animation-delay: -4.5s; }
+
+/* --- coin --- */
+.poi-scene[data-variant="coin"] .poi-cross,
+.poi-scene[data-variant="coin"] .poi-shadow-cross {
+  animation: none;
+  transform: translateX(0);
+}
+
+.poi-scene[data-variant="coin"] .poi-hop {
+  animation: poi-hop-coin calc(.75s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="coin"] .poi-tilt {
+  animation: poi-tilt-coin calc(1.5s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="coin"] .poi-shadow {
+  animation: poi-shadow-scale calc(.75s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="coin"] .poi-bg-far,
+.poi-scene[data-variant="coin"] .poi-bg-near {
+  animation: none;
+}
+
+.poi-scene[data-variant="coin"] .poi-bg-far {
+  transform: translateX(-40vw);
+}
+
+.poi-scene[data-variant="coin"] .poi-bg-near {
+  transform: translateX(-20vw);
+}
+
+.poi-scene[data-variant="coin"] .poi-props > i {
+  display: block;
+  left: calc(50% - (var(--poi-actor-size) * .055));
+  top: calc(50% + (var(--poi-actor-size) * (var(--poi-foot-pad) - .055)));
+  width: calc(var(--poi-actor-size) * .11);
+  height: calc(var(--poi-actor-size) * .11);
+  border-radius: 50%;
+  background-image:
+    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, .55) 0%, rgba(255, 255, 255, 0) 55%),
+    radial-gradient(circle, rgba(240, 190, 80, 1) 0%, rgba(180, 130, 30, 1) 62%, rgba(120, 85, 15, 1) 100%);
+  background-color: rgba(240, 190, 80, .95);
+  box-shadow:
+    0 0 calc(var(--poi-actor-size) * .08) rgba(240, 190, 80, .5),
+    inset 0 0 0 2px rgba(255, 255, 255, .25),
+    inset 0 0 0 4px rgba(200, 150, 40, .55);
+  will-change: transform, opacity;
+  animation: poi-coin calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-scene[data-variant="coin"] .poi-props > i:nth-child(1) { --poi-cx: -18vw; animation-delay: -6s; }
+.poi-scene[data-variant="coin"] .poi-props > i:nth-child(2) { --poi-cx: -6vw; animation-delay: -1.5s; }
+.poi-scene[data-variant="coin"] .poi-props > i:nth-child(3) { --poi-cx: 6vw; animation-delay: -3s; }
+.poi-scene[data-variant="coin"] .poi-props > i:nth-child(4) { --poi-cx: 18vw; animation-delay: -4.5s; }
+
+/* --- heli --- */
+.poi-scene[data-variant="heli"] .poi-cross,
+.poi-scene[data-variant="heli"] .poi-shadow-cross {
+  animation: none;
+  transform: translateX(0);
+}
+
+.poi-scene[data-variant="heli"] .poi-actor {
+  width: calc(var(--poi-actor-size) * 1.45);
+  margin-left: calc(var(--poi-actor-size) * -.725);
+  margin-top: calc(var(--poi-actor-size) * -1.05);
+}
+
+.poi-scene[data-variant="heli"] .poi-hop {
+  animation: poi-hover calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="heli"] .poi-tilt {
+  animation: poi-sway-heli calc(3s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="heli"] .poi-shadow {
+  animation: poi-shadow-heli calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="heli"] .poi-bg-far {
+  background-image:
+    radial-gradient(ellipse 11vw 3.4vw at 24% 26%, rgba(190, 182, 235, .22) 0%, rgba(190, 182, 235, .14) 50%, rgba(0, 0, 0, 0) 80%),
+    radial-gradient(ellipse 8vw 2.6vw at 68% 52%, rgba(190, 182, 235, .16) 0%, rgba(190, 182, 235, .10) 50%, rgba(0, 0, 0, 0) 80%);
+  background-size:
+    40vw 100%,
+    40vw 100%;
+  background-position:
+    0 0,
+    0 0;
+  background-repeat:
+    repeat-x,
+    repeat-x;
+  animation: poi-bg-far calc(3s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-scene[data-variant="heli"] .poi-bg-near {
+  background-image:
+    linear-gradient(to right, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 12%, rgba(34, 34, 60, .85) 12%, rgba(34, 34, 60, .85) 52%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0) 100%),
+    linear-gradient(to right, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 30%, rgba(22, 22, 42, .96) 30%, rgba(22, 22, 42, .96) 62%, rgba(0, 0, 0, 0) 62%, rgba(0, 0, 0, 0) 100%),
+    linear-gradient(to right, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 58%, rgba(34, 34, 60, .85) 58%, rgba(34, 34, 60, .85) 88%, rgba(0, 0, 0, 0) 88%, rgba(0, 0, 0, 0) 100%),
+    linear-gradient(to right, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 6%, rgba(22, 22, 42, .96) 6%, rgba(22, 22, 42, .96) 30%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 100%);
+  background-size:
+    10vw 20%,
+    5vw 28%,
+    10vw 14%,
+    5vw 24%;
+  background-position:
+    0 100%,
+    2vw 100%,
+    6vw 100%,
+    12vw 100%;
+  background-repeat: repeat-x;
+  animation: poi-bg-near-heli calc(1.5s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-scene[data-variant="heli"] .poi-ground {
+  opacity: .55;
+}
+
+.poi-scene[data-variant="heli"] .poi-props > i {
+  display: none;
+}
+/* --- ninja --- */
+.poi-scene[data-variant="ninja"] .poi-cross {
+  z-index: 1;
+  animation: poi-ninja-rise calc(6s * var(--poi-anim-speed, 1)) ease-out infinite;
+}
+
+.poi-scene[data-variant="ninja"] .poi-hop {
+  animation: poi-ninja-breath calc(3s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="ninja"] .poi-tilt {
+  animation: poi-ninja-lean calc(3s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="ninja"] .poi-shadow-cross {
+  animation: none;
+  transform: translateX(0);
+}
+
+.poi-scene[data-variant="ninja"] .poi-shadow {
+  animation: poi-ninja-shadow calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="ninja"] .poi-bg-far,
+.poi-scene[data-variant="ninja"] .poi-bg-near {
+  animation: none;
+}
+
+.poi-scene[data-variant="ninja"] .poi-bg-far {
+  transform: translateX(-40vw);
+}
+
+.poi-scene[data-variant="ninja"] .poi-bg-near {
+  transform: translateX(-20vw);
+}
+
+.poi-scene[data-variant="ninja"] .poi-props > i:nth-child(1) {
+  display: block;
+  left: calc(50% - (var(--poi-actor-size) * .09));
+  top: calc(50% - (var(--poi-actor-size) * .35));
+  width: calc(var(--poi-actor-size) * .18);
+  height: calc(var(--poi-actor-size) * .18);
+  border-radius: 4px;
+  background-image:
+    linear-gradient(45deg, rgba(0, 0, 0, 0) 45%, rgba(207, 211, 224, .92) 50%, rgba(0, 0, 0, 0) 55%),
+    linear-gradient(135deg, rgba(0, 0, 0, 0) 45%, rgba(207, 211, 224, .92) 50%, rgba(0, 0, 0, 0) 55%),
+    radial-gradient(circle, rgba(207, 211, 224, .92) 0%, rgba(207, 211, 224, .92) 22%, rgba(0, 0, 0, 0) 26%);
+  background-color: rgba(0, 0, 0, 0);
+  box-shadow: 0 0 calc(var(--poi-actor-size) * .06) rgba(207, 211, 224, .35);
+  will-change: transform, opacity;
+  animation: poi-shuriken calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-scene[data-variant="ninja"] .poi-props > i:nth-child(2) {
+  display: block;
+  z-index: 2;
+  left: calc(50% - (var(--poi-actor-size) * .45));
+  top: calc(50% - (var(--poi-actor-size) * .45));
+  width: calc(var(--poi-actor-size) * .9);
+  height: calc(var(--poi-actor-size) * .9);
+  border-radius: 50%;
+  background-image: radial-gradient(circle, rgba(226, 226, 236, .85) 0%, rgba(226, 226, 236, .45) 40%, rgba(0, 0, 0, 0) 72%);
+  filter: blur(calc(var(--poi-actor-size) * .08));
+  will-change: transform, opacity;
+  animation: poi-smoke calc(6s * var(--poi-anim-speed, 1)) ease-out infinite;
+}
+
+.poi-scene[data-variant="ninja"] .poi-props > i:nth-child(3),
+.poi-scene[data-variant="ninja"] .poi-props > i:nth-child(4) {
+  display: none;
+}
+
+/* --- rise --- */
+.poi-scene[data-variant="rise"] {
+  --poi-foot-pad: .1426;
+}
+
+.poi-scene[data-variant="rise"] .poi-cross {
+  animation: poi-rise-cross calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-hop {
+  animation: poi-rise-hop calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-tilt {
+  animation: poi-rise-tilt calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-actor {
+  background-image: none;
+}
+
+.poi-scene[data-variant="rise"] .poi-cel-1,
+.poi-scene[data-variant="rise"] .poi-cel-2,
+.poi-scene[data-variant="rise"] .poi-cel-3,
+.poi-scene[data-variant="rise"] .poi-cel-4 {
+  display: block;
+}
+
+.poi-scene[data-variant="rise"] .poi-cel-1 {
+  background-image: var(--poi-cel-1);
+  background-position: center;
+  animation: poi-cel-run calc(6s * var(--poi-anim-speed, 1)) steps(1, end) infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-cel-2 {
+  background-image: var(--poi-cel-2);
+  background-position: center calc(50% + var(--poi-actor-size) * .0176);
+  animation: poi-cel-trip calc(6s * var(--poi-anim-speed, 1)) steps(1, end) infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-cel-3 {
+  background-image: var(--poi-cel-3);
+  background-position: center calc(50% + var(--poi-actor-size) * .1035);
+  animation: poi-cel-fallen calc(6s * var(--poi-anim-speed, 1)) steps(1, end) infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-cel-4 {
+  background-image: var(--poi-cel-4);
+  background-position: center calc(50% + var(--poi-actor-size) * .0312);
+  animation: poi-cel-main calc(6s * var(--poi-anim-speed, 1)) steps(1, end) infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-shadow-cross {
+  animation: poi-rise-cross calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-shadow {
+  animation: poi-rise-shadow calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-bg-far {
+  animation: poi-bg-far-rise calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-bg-near {
+  animation: poi-bg-near-rise calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+}
+
+.poi-scene[data-variant="rise"] .poi-props > i {
+  display: none;
+}
+
+
+@keyframes poi-cross {
+  0%, 100% { transform: translateX(calc(50vw + var(--poi-actor-size))); opacity: 0; }
+  2%, 97% { opacity: 0; }
+  3%, 93% { opacity: 1; }
+  93% { transform: translateX(calc(-50vw - var(--poi-actor-size))); }
+  95% { transform: translateX(calc(-50vw - var(--poi-actor-size))); }
+  98% { transform: translateX(calc(50vw + var(--poi-actor-size))); }
+}
+
+@keyframes poi-hop {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+@keyframes poi-tilt {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes poi-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+@keyframes poi-shadow-cross {
+  0%, 100% { transform: translateX(calc(50vw + var(--poi-actor-size))); opacity: 0; }
+  2%, 97% { opacity: 0; }
+  3%, 93% { opacity: 1; }
+  93% { transform: translateX(calc(-50vw - var(--poi-actor-size))); }
+  95% { transform: translateX(calc(-50vw - var(--poi-actor-size))); }
+  98% { transform: translateX(calc(50vw + var(--poi-actor-size))); }
+}
+
+@keyframes poi-shadow-scale {
+  0%, 100% { transform: scale(1); opacity: .6; }
+  50% { transform: scale(.72); opacity: .35; }
+}
+
+@keyframes poi-bg-far {
+  0% { transform: translateX(-40vw); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes poi-bg-near {
+  0% { transform: translateX(-20vw); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes poi-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes poi-sway {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes poi-shadow-float {
+  0%, 100% { transform: scale(1); opacity: .6; }
+  50% { transform: scale(.8); opacity: .4; }
+}
+
+@keyframes poi-hop-coin {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-16px); }
+}
+
+@keyframes poi-tilt-coin {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes poi-hover {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-16px); }
+  50% { transform: translateY(0); }
+  75% { transform: translateY(9px); }
+}
+
+@keyframes poi-sway-heli {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50% { transform: rotate(2.5deg); }
+}
+
+@keyframes poi-shadow-heli {
+  0%, 50%, 100% { transform: scale(1); opacity: .32; }
+  25% { transform: scale(.7); opacity: .2; }
+  75% { transform: scale(.85); opacity: .28; }
+}
+
+@keyframes poi-orb {
+  0%, 100% { transform: translateY(0); opacity: 0; }
+  12% { opacity: .5; }
+  50% { transform: translateY(-70vh); opacity: .15; }
+  88% { opacity: 0; }
+}
+
+@keyframes poi-coin {
+  0%, 100% { transform: translate(var(--poi-cx), -60vh) scale(.9); opacity: 0; }
+  3% { opacity: 1; }
+  20% { transform: translate(0, 0) scale(.45); opacity: 1; }
+  24% { transform: translate(0, 0) scale(0); opacity: 0; }
+}
+
+@keyframes poi-bg-near-heli {
+  0% { transform: translateX(-20vw); }
+  100% { transform: translateX(0); }
+}
+
+
+@keyframes poi-ninja-rise {
+  0%, 100% { transform: translate(0, 140px); opacity: 0; }
+  5% { transform: translate(0, 0); opacity: 1; }
+  90% { transform: translate(0, 0); opacity: 1; }
+  95% { transform: translate(0, -12px); opacity: 0; }
+}
+
+@keyframes poi-ninja-breath {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes poi-ninja-lean {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(1.5deg); }
+}
+
+@keyframes poi-ninja-shadow {
+  0%, 100% { transform: scale(1); opacity: 0; }
+  5% { transform: scale(.85); opacity: .5; }
+  45% { transform: scale(.92); opacity: .5; }
+  90% { transform: scale(.85); opacity: .5; }
+  95% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes poi-shuriken {
+  0%, 41.5% { transform: translateX(60vw) rotate(0deg); opacity: 0; }
+  42% { transform: translateX(56vw) rotate(120deg); opacity: 1; }
+  52% { transform: translateX(-56vw) rotate(1560deg); opacity: 1; }
+  52.5%, 100% { transform: translateX(-60vw) rotate(1680deg); opacity: 0; }
+}
+
+@keyframes poi-smoke {
+  0%, 88% { transform: scale(0); opacity: 0; }
+  91% { transform: scale(1); opacity: .62; }
+  98% { transform: scale(1.9); opacity: 0; }
+  99%, 100% { transform: scale(0); opacity: 0; }
+}
+
+@keyframes poi-rise-cross {
+  0% { transform: translateX(26vw); }
+  30% { transform: translateX(0); }
+  95% { transform: translateX(0); }
+  100% { transform: translateX(26vw); }
+}
+
+@keyframes poi-rise-hop {
+  0%, 2.5% { transform: translateY(0); }
+  5% { transform: translateY(-14px); }
+  7.5% { transform: translateY(0); }
+  10% { transform: translateY(-14px); }
+  12.5% { transform: translateY(0); }
+  15% { transform: translateY(-14px); }
+  17.5% { transform: translateY(0); }
+  20% { transform: translateY(-14px); }
+  22.5% { transform: translateY(0); }
+  25% { transform: translateY(-14px); }
+  27.5% { transform: translateY(0); }
+  30% { transform: translateY(-14px); }
+  58% { transform: translateY(0); }
+  66% { transform: translateY(-8px); }
+  70% { transform: translateY(0); }
+  95% { transform: translateY(0); }
+  97.5% { transform: translateY(-14px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes poi-rise-tilt {
+  0% { transform: rotate(-3deg); }
+  5% { transform: rotate(3deg); }
+  10% { transform: rotate(-3deg); }
+  15% { transform: rotate(3deg); }
+  20% { transform: rotate(-3deg); }
+  25% { transform: rotate(3deg); }
+  30% { transform: rotate(8deg); }
+  40% { transform: rotate(16deg); }
+  44% { transform: rotate(0deg); }
+  58% { transform: rotate(0deg); }
+  68% { transform: rotate(360deg); }
+  100% { transform: rotate(357deg); }
+}
+
+@keyframes poi-rise-shadow {
+  0%, 2.5% { transform: scale(1); opacity: .5; }
+  5% { transform: scale(.72); opacity: .5; }
+  7.5% { transform: scale(1); opacity: .5; }
+  10% { transform: scale(.72); opacity: .5; }
+  12.5% { transform: scale(1); opacity: .5; }
+  15% { transform: scale(.72); opacity: .5; }
+  17.5% { transform: scale(1); opacity: .5; }
+  20% { transform: scale(.72); opacity: .5; }
+  22.5% { transform: scale(1); opacity: .5; }
+  25% { transform: scale(.72); opacity: .5; }
+  27.5% { transform: scale(1); opacity: .5; }
+  30% { transform: scale(.72); opacity: .5; }
+  40% { transform: scale(1.5, .6); opacity: .5; }
+  44% { transform: scale(1.5, .6); opacity: .5; }
+  58% { transform: scale(1.5, .6); opacity: .5; }
+  66% { transform: scale(1.2); opacity: .5; }
+  70% { transform: scale(1); opacity: .5; }
+  95% { transform: scale(1); opacity: .5; }
+  97.5% { transform: scale(.72); opacity: .5; }
+  100% { transform: scale(1); opacity: .5; }
+}
+
+@keyframes poi-bg-far-rise {
+  0% { transform: translateX(-40vw); }
+  30% { transform: translateX(0); }
+  30.01% { transform: translateX(-40vw); }
+  100% { transform: translateX(-40vw); }
+}
+
+@keyframes poi-bg-near-rise {
+  0% { transform: translateX(-20vw); }
+  30% { transform: translateX(0); }
+  30.01% { transform: translateX(-20vw); }
+  100% { transform: translateX(-20vw); }
+}
+
+@keyframes poi-cel-run {
+  0% { opacity: 1; animation-timing-function: steps(1, end); }
+  28% { opacity: 1; animation-timing-function: steps(1, end); }
+  32% { opacity: 0; animation-timing-function: steps(1, end); }
+  93% { opacity: 0; animation-timing-function: steps(1, end); }
+  97% { opacity: 1; animation-timing-function: steps(1, end); }
+  100% { opacity: 1; animation-timing-function: steps(1, end); }
+}
+
+@keyframes poi-cel-trip {
+  0% { opacity: 0; animation-timing-function: steps(1, end); }
+  28% { opacity: 0; animation-timing-function: steps(1, end); }
+  32% { opacity: 1; animation-timing-function: steps(1, end); }
+  38% { opacity: 1; animation-timing-function: steps(1, end); }
+  42% { opacity: 0; animation-timing-function: steps(1, end); }
+  100% { opacity: 0; animation-timing-function: steps(1, end); }
+}
+
+@keyframes poi-cel-fallen {
+  0% { opacity: 0; animation-timing-function: steps(1, end); }
+  38% { opacity: 0; animation-timing-function: steps(1, end); }
+  42% { opacity: 1; animation-timing-function: steps(1, end); }
+  60% { opacity: 1; animation-timing-function: steps(1, end); }
+  64% { opacity: 0; animation-timing-function: steps(1, end); }
+  100% { opacity: 0; animation-timing-function: steps(1, end); }
+}
+
+@keyframes poi-cel-main {
+  0% { opacity: 0; animation-timing-function: steps(1, end); }
+  60% { opacity: 0; animation-timing-function: steps(1, end); }
+  64% { opacity: 1; animation-timing-function: steps(1, end); }
+  93% { opacity: 1; animation-timing-function: steps(1, end); }
+  97% { opacity: 0; animation-timing-function: steps(1, end); }
+  100% { opacity: 0; animation-timing-function: steps(1, end); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poi-cross,
+  .poi-shadow-cross {
+    animation: none;
+    transform: translateX(0);
+  }
+
+  .poi-bg-far,
+  .poi-bg-near {
+    animation: none;
+    transform: translateX(-40vw);
+  }
+
+  .poi-bg-near {
+    transform: translateX(-20vw);
+  }
+
+  .poi-tilt {
+    animation: none;
+    transform: rotate(0);
+  }
+
+  .poi-actor {
+    animation: none;
+    transform: scale(1);
+  }
+
+  .poi-hop {
+    animation: poi-hop-reduce calc(1.5s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-shadow {
+    animation: poi-shadow-reduce calc(1.5s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+  .poi-scene[data-variant="ninja"] .poi-cross {
+    animation: poi-ninja-rise-reduce calc(6s * var(--poi-anim-speed, 1)) ease-out infinite;
+  }
+
+  .poi-scene[data-variant="ninja"] .poi-hop {
+    animation: poi-ninja-breath-reduce calc(3s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="ninja"] .poi-tilt {
+    animation: poi-ninja-lean-reduce calc(3s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="ninja"] .poi-shadow {
+    animation: poi-ninja-shadow-reduce calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="ninja"] .poi-props > i:nth-child(1) {
+    animation: none;
+    opacity: 0;
+  }
+
+  .poi-scene[data-variant="ninja"] .poi-props > i:nth-child(2) {
+    animation: poi-smoke-reduce calc(6s * var(--poi-anim-speed, 1)) ease-out infinite;
+  }
+
+  .poi-scene[data-variant="rise"] .poi-cross {
+    animation: poi-rise-cross-reduce calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="rise"] .poi-hop {
+    animation: poi-rise-hop-reduce calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="rise"] .poi-tilt {
+    animation: poi-rise-tilt-reduce calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="rise"] .poi-shadow {
+    animation: poi-rise-shadow-reduce calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="rise"] .poi-bg-far {
+    animation: none;
+    transform: translateX(-40vw);
+  }
+
+  .poi-scene[data-variant="rise"] .poi-bg-near {
+    animation: none;
+    transform: translateX(-20vw);
+  }
+
+}
+
+@keyframes poi-hop-reduce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes poi-shadow-reduce {
+  0%, 100% { transform: scale(1); opacity: .6; }
+  50% { transform: scale(.88); opacity: .5; }
+}
+
+/* --- reduced-motion overrides for new variants --- */
+@media (prefers-reduced-motion: reduce) {
+  .poi-scene[data-variant="float"] .poi-hop {
+    animation: poi-float-reduce calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="float"] .poi-tilt,
+  .poi-scene[data-variant="heli"] .poi-tilt {
+    animation: none;
+    transform: rotate(0);
+  }
+
+  .poi-scene[data-variant="float"] .poi-shadow {
+    animation: poi-shadow-float-reduce calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="float"] .poi-props > i {
+    animation: poi-orb-reduce calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+  }
+
+  .poi-scene[data-variant="coin"] .poi-hop {
+    animation: poi-hop-reduce calc(1.5s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="coin"] .poi-tilt {
+    animation: poi-sway-reduce calc(3s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="coin"] .poi-shadow {
+    animation: poi-shadow-reduce calc(1.5s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="coin"] .poi-props > i {
+    animation: poi-coin-reduce calc(6s * var(--poi-anim-speed, 1)) linear infinite;
+  }
+
+  .poi-scene[data-variant="heli"] .poi-hop {
+    animation: poi-hover-reduce calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="heli"] .poi-shadow {
+    animation: poi-shadow-heli-reduce calc(6s * var(--poi-anim-speed, 1)) ease-in-out infinite;
+  }
+
+  .poi-scene[data-variant="heli"] .poi-bg-near {
+    animation: none;
+    transform: translateX(-20vw);
+  }
+}
+
+@keyframes poi-float-reduce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes poi-sway-reduce {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
+}
+
+@keyframes poi-shadow-float-reduce {
+  0%, 100% { transform: scale(1); opacity: .6; }
+  50% { transform: scale(.9); opacity: .5; }
+}
+
+@keyframes poi-orb-reduce {
+  0%, 100% { transform: translateY(0); opacity: 0; }
+  12% { opacity: .2; }
+  50% { transform: translateY(-20vh); opacity: .05; }
+  88% { opacity: 0; }
+}
+
+@keyframes poi-coin-reduce {
+  0%, 100% { transform: translate(var(--poi-cx), -20vh) scale(.9); opacity: 0; }
+  3% { opacity: 1; }
+  20% { transform: translate(0, 0) scale(.6); opacity: 1; }
+  24% { transform: translate(0, 0) scale(0); opacity: 0; }
+}
+
+@keyframes poi-hover-reduce {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-5px); }
+  50% { transform: translateY(0); }
+  75% { transform: translateY(3px); }
+}
+
+@keyframes poi-shadow-heli-reduce {
+  0%, 50%, 100% { transform: scale(1); opacity: .32; }
+  25% { transform: scale(.9); opacity: .26; }
+  75% { transform: scale(.95); opacity: .29; }
+}
+
+@keyframes poi-ninja-rise-reduce {
+  0%, 100% { transform: translate(0, 40px); opacity: 0; }
+  6% { transform: translate(0, 0); opacity: 1; }
+  90% { transform: translate(0, 0); opacity: 1; }
+  95% { transform: translate(0, -6px); opacity: 0; }
+}
+
+@keyframes poi-ninja-breath-reduce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@keyframes poi-ninja-lean-reduce {
+  0%, 100% { transform: rotate(-.5deg); }
+  50% { transform: rotate(.5deg); }
+}
+
+@keyframes poi-ninja-shadow-reduce {
+  0%, 100% { transform: scale(1); opacity: 0; }
+  6% { transform: scale(.9); opacity: .35; }
+  90% { transform: scale(.9); opacity: .35; }
+  95% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes poi-smoke-reduce {
+  0%, 88% { transform: scale(0); opacity: 0; }
+  91% { transform: scale(1); opacity: .3; }
+  98% { transform: scale(1.3); opacity: 0; }
+  99%, 100% { transform: scale(0); opacity: 0; }
+}
+
+@keyframes poi-rise-cross-reduce {
+  0%, 100% { transform: translateX(0); }
+}
+
+@keyframes poi-rise-hop-reduce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes poi-rise-tilt-reduce {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
+}
+
+@keyframes poi-rise-shadow-reduce {
+  0%, 100% { transform: scale(1); opacity: .5; }
+  50% { transform: scale(.9); opacity: .5; }
+}
+</style>
+<script>(function () {
+  'use strict';
+
+  var BASE_IMG = 'https://lp.poicasi.co.jp/shared/poinoshin/v1/';
+  var FALLBACK_IMG = 'poi_main.png';
+  var VARIANTS = {
+    stroll: { img: 'poi_run.webp' },
+    float:  { img: 'poi_main.webp' },
+    coin:   { img: 'poi_main.webp' },
+    heli:   { img: 'poi_heli.webp' },
+    ninja:  { img: 'poi_ninja.webp' },
+    rise:   { imgs: ['poi_run.webp', 'poi_trip.webp', 'poi_fallen.webp', 'poi_main.webp'] }
+  };
+  var DEFAULT_POOL = ['stroll', 'float', 'coin', 'heli', 'ninja', 'rise'];
+  var ALLOWED_SPEED = [0.25, 0.5, 1, 2, 4];
+
+  var loadingEl = null;
+  var target = 0;
+  var shown = 0;
+  var creepCap = 0.85;
+  var isDone = false;
+  var progressTimer = null;
+  var isMounted = false;
+  var doneRequested = false;
+  var mountListener = null;
+
+  var exitingEl = null;
+  var exitingTimer = null;
+  var exitingTimeout = null;
+  var exitingId = 0;
+  var loadTestImage = null;
+
+  function getQuery(name) {
+    var re = new RegExp('[?&]' + name + '(?:=([^&]*)|(?=&|$))');
+    var m = re.exec(location.search);
+    if (!m) return null;
+    try {
+      return m[1] === undefined ? '1' : decodeURIComponent(m[1]);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearMount() {
+    if (mountListener) {
+      try {
+        document.removeEventListener('DOMContentLoaded', mountListener);
+      } catch (e) {}
+      mountListener = null;
+    }
+  }
+
+  function clearImageTest() {
+    if (loadTestImage) {
+      try { loadTestImage.onload = null; } catch (e) {}
+      try { loadTestImage.onerror = null; } catch (e) {}
+      loadTestImage = null;
+    }
+  }
+
+  function addPreload(url) {
+    var link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'image';
+    link.href = url;
+    var head = document.head || document.getElementsByTagName('head')[0];
+    if (head) head.appendChild(link);
+  }
+
+  function setImage(el, base, name) {
+    if (!el) return;
+    el.style.setProperty('--poi-img', 'url(' + base + name + ')');
+  }
+
+  function setCelImages(el, base, names) {
+    if (!el || !names) return;
+    for (var i = 0; i < names.length; i++) {
+      el.style.setProperty('--poi-cel-' + (i + 1), 'url(' + base + names[i] + ')');
+    }
+  }
+
+  function tryFallback(el, base, variant) {
+    if (!el) return;
+    var v = VARIANTS[variant];
+    if (v && v.imgs) {
+      el.style.setProperty('--poi-cel-1', 'url(' + base + FALLBACK_IMG + ')');
+      addPreload(base + FALLBACK_IMG);
+    } else {
+      setImage(el, base, FALLBACK_IMG);
+      addPreload(base + FALLBACK_IMG);
+    }
+  }
+
+  function pickVariant(pool) {
+    var forced = getQuery('poi_v');
+    if (forced && VARIANTS[forced] && pool.indexOf(forced) >= 0) return forced;
+    try {
+      var stored = sessionStorage.getItem('poi_variant');
+      if (stored && pool.indexOf(stored) >= 0) return stored;
+    } catch (e) {}
+    return pool[Math.floor(Math.random() * pool.length)] || 'stroll';
+  }
+
+  function updateProgress() {
+    if (!loadingEl) return;
+    shown += (target - shown) * 0.18;
+    if (!isDone && shown > creepCap) shown = creepCap;
+    var pct = Math.round(shown * 100);
+    var bar = loadingEl.querySelector('.poi-bar > i');
+    var txt = loadingEl.querySelector('.poi-txt');
+    if (bar) bar.style.transform = 'scaleX(' + (pct / 100) + ')';
+    if (txt) txt.textContent = 'Loading… ' + pct + '%';
+  }
+
+  function finish() {
+    if (exitingId === 0) return;
+    var id = exitingId;
+    exitingId = 0;
+    if (exitingEl && exitingEl.parentNode) {
+      exitingEl.parentNode.removeChild(exitingEl);
+    }
+    if (exitingTimer) {
+      clearInterval(exitingTimer);
+    }
+    if (exitingTimeout) {
+      clearTimeout(exitingTimeout);
+    }
+    exitingEl = null;
+    exitingTimer = null;
+    exitingTimeout = null;
+    clearImageTest();
+    document.documentElement.classList.remove('poi-loader-active');
+    isMounted = false;
+    doneRequested = true;
+  }
+
+  function cleanupNow() {
+    doneRequested = true;
+    clearMount();
+    if (progressTimer) {
+      clearInterval(progressTimer);
+      progressTimer = null;
+    }
+    if (loadingEl) {
+      var el = loadingEl;
+      loadingEl = null;
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }
+    clearImageTest();
+    document.documentElement.classList.remove('poi-loader-active');
+    isMounted = false;
+  }
+
+  function poiLoadingAbort() {
+    if (exitingId) {
+      finish();
+    } else {
+      cleanupNow();
+    }
+  }
+  window.poiLoadingAbort = poiLoadingAbort;
+
+  window.poiMountLoading = function (opts) {
+    if (window.POI_LOADER_DISABLED === true) return;
+    if (isMounted || doneRequested) return;
+
+    opts = opts || {};
+
+    if (window.POI_LOADER_ENABLED === false) return;
+    if (getQuery('poi') === '0') return;
+    try {
+      if (localStorage.getItem('poi_off') === '1') return;
+    } catch (e) {}
+
+    isMounted = true;
+
+    var speed = getQuery('poi_speed');
+    if (speed !== null) {
+      var n = Number(speed);
+      if (Number.isFinite(n) && ALLOWED_SPEED.indexOf(n) >= 0) {
+        document.documentElement.style.setProperty('--poi-anim-speed', String(n));
+      }
+    }
+
+    var imgBase = opts.imgBase || BASE_IMG;
+    if (imgBase.slice(-1) !== '/') imgBase += '/';
+
+    var pool = DEFAULT_POOL;
+    if (Array.isArray(opts.variants)) {
+      pool = opts.variants.filter(function (x) { return VARIANTS[x]; });
+      if (!pool.length) pool = DEFAULT_POOL;
+    }
+
+    var variant = pickVariant(pool);
+    try {
+      sessionStorage.setItem('poi_variant', variant);
+    } catch (e) {}
+
+    var bg = opts.bg || '#0b0b14';
+    var accent = opts.accent || '#C8963E';
+
+    var el = document.createElement('div');
+    el.id = 'poi-loading';
+    el.style.setProperty('--poi-bg', bg);
+    el.style.setProperty('--poi-accent', accent);
+
+    el.innerHTML =
+      '<div class="poi-scene" data-variant="' + variant + '">' +
+        '<div class="poi-bg-far"></div>' +
+        '<div class="poi-bg-near"></div>' +
+        '<div class="poi-ground"></div>' +
+        '<div class="poi-props"><i></i><i></i><i></i><i></i></div>' +
+        '<div class="poi-cross">' +
+          '<div class="poi-hop">' +
+            '<div class="poi-tilt">' +
+              '<div class="poi-actor">' +
+                '<i class="poi-cel poi-cel-1"></i>' +
+                '<i class="poi-cel poi-cel-2"></i>' +
+                '<i class="poi-cel poi-cel-3"></i>' +
+                '<i class="poi-cel poi-cel-4"></i>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="poi-shadow-cross">' +
+          '<div class="poi-shadow"></div>' +
+        '</div>' +
+        '<div class="poi-foot">' +
+          '<div class="poi-bar"><i></i></div>' +
+          '<div class="poi-txt">Loading… 0%</div>' +
+        '</div>' +
+      '</div>';
+
+    var mount = function () {
+      clearMount();
+      if (doneRequested) {
+        isMounted = false;
+        return;
+      }
+      loadingEl = el;
+      document.body.appendChild(loadingEl);
+      document.documentElement.classList.add('poi-loader-active');
+      progressTimer = setInterval(updateProgress, 40);
+
+      var v = VARIANTS[variant];
+      var selected;
+
+      if (v && v.imgs) {
+        setCelImages(loadingEl, imgBase, v.imgs);
+        selected = imgBase + v.imgs[0];
+        for (var i = 0; i < v.imgs.length; i++) {
+          addPreload(imgBase + v.imgs[i]);
+        }
+      } else if (v && v.img) {
+        selected = imgBase + v.img;
+        setImage(loadingEl, imgBase, v.img);
+        addPreload(selected);
+      } else {
+        selected = imgBase + FALLBACK_IMG;
+        tryFallback(loadingEl, imgBase, variant);
+      }
+
+      loadTestImage = new Image();
+      loadTestImage.onload = function () {};
+      loadTestImage.onerror = function () { tryFallback(loadingEl, imgBase, variant); };
+      loadTestImage.src = selected;
+    };
+
+    if (document.body) {
+      mount();
+    } else {
+      mountListener = mount;
+      document.addEventListener('DOMContentLoaded', mountListener);
+    }
+  };
+
+  window.poiSetLoadProgress = function (v) {
+    var n = Number(v);
+    if (!Number.isFinite(n)) return;
+    target = Math.max(0, Math.min(1, n));
+  };
+
+  window.poiLoadingDone = function () {
+    if (exitingId) {
+      finish();
+      return;
+    }
+    if (!loadingEl) {
+      doneRequested = true;
+      clearMount();
+      isMounted = false;
+      return;
+    }
+
+    doneRequested = true;
+    clearMount();
+
+    isDone = true;
+    target = 1;
+    shown = 1;
+    creepCap = 1;
+    updateProgress();
+
+    exitingEl = loadingEl;
+    exitingTimer = progressTimer;
+    loadingEl = null;
+    progressTimer = null;
+
+    exitingEl.classList.add('poi-done');
+    exitingId = (exitingId % 0x7FFFFFFF) + 1;
+
+    exitingEl.addEventListener('transitionend', function (e) {
+      if (e.target === exitingEl && e.propertyName === 'opacity') finish();
+    });
+    exitingTimeout = setTimeout(finish, 800);
+  };
+})();</script>
+    <!-- POI-LOADER-KIT v1 END -->
+
+    <!-- COMMON-HEADER-KIT v1 BEGIN -->
+    <style>
+      :root {
+        /* 2026-08-09社長裁定(案C): 56px固定。vw可変をやめ全機種で高さ・余白を一定にする。
+           タップ目標48pxを維持し上下余白4pxずつ＝視認性/押しやすさを落とさない下限。 */
+        --common-header-height: 56px;
+      }
+
+      .common-header-bar {
+        position: relative;
+        width: 100%;
+        height: 56px;
+        height: var(--common-header-height);
+        background: #F3E1C9;
+        z-index: 100;
+        --common-header-icon-size: 48px;
+        --common-header-pill-height: 46px;
+        --common-header-pill-font: clamp(14px, 3.733vw, 16px);
+      }
+
+      /* ピル数値は FormatBalance 仕様。最大5文字（例: 9999K）を表示し、レイアウト検証用に最悪幅 "9999K" を使用。 */
+      .common-header-coin-pill,
+      .common-header-yen-pill {
+        position: absolute;
+        top: 50%;
+        width: calc((100% - 3 * var(--common-header-icon-size) - 40px) / 2);
+        height: var(--common-header-pill-height);
+        transform: translateY(-50%);
+        background: #FBF4EC;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+      }
+      .common-header-coin-pill { left: 8px; }
+      .common-header-yen-pill { left: calc(16px + (100% - 3 * var(--common-header-icon-size) - 40px) / 2); }
+
+      .common-header-pill-badge {
+        position: relative;
+        left: max(-6%, -7px);
+        height: 90%;
+        aspect-ratio: 1 / 1;
+        flex-shrink: 0;
+      }
+      .common-header-pill-badge img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .common-header-pill-text {
+        font-family: -apple-system, "Hiragino Sans", sans-serif;
+        font-weight: 700;
+        font-size: var(--common-header-pill-font);
+        color: #6B4A1E;
+        white-space: nowrap;
+        margin-left: max(-6%, -7px);
+      }
+
+      .common-header-ad-icon,
+      .common-header-exchange-icon,
+      .common-header-hamburger-icon {
+        position: absolute;
+        top: 50%;
+        height: var(--common-header-icon-size);
+        aspect-ratio: 1 / 1;
+        transform: translateY(-50%);
+      }
+      .common-header-ad-icon { left: calc(100% - 3 * var(--common-header-icon-size) - 16px); }
+      .common-header-exchange-icon { left: calc(100% - 2 * var(--common-header-icon-size) - 8px); }
+      .common-header-hamburger-icon { left: calc(100% - var(--common-header-icon-size)); }
+      .common-header-ad-icon img,
+      .common-header-exchange-icon img,
+      .common-header-hamburger-icon img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      /* Existing Unity canvas should sit below the common header */
+      body #unity-container.unity-desktop {
+        top: calc(50% + (var(--common-header-height) / 2));
+      }
+
+      body #unity-container.unity-mobile {
+        top: var(--common-header-height);
+        height: calc(100% - var(--common-header-height));
+      }
+    </style>
+    <!-- COMMON-HEADER-KIT v1 END -->
+
+    <!-- POICASI-UID v1: ポイカジ全ゲーム合算ランキング用の匿名ID（P3-B）。
+         window.POICASI_UID を用意するだけ。失敗してもゲームは一切ブロックしない。 -->
+    <script src="/portal/poicasi-uid.js"></script>
+
+    <!-- poifx/v1 jackpot overlay (approved kit, loaded frozen from shared URL). -->
+    <link rel="stylesheet" href="https://lp.poicasi.co.jp/shared/poifx/v1/poi-fx.css">
+    <script src="https://lp.poicasi.co.jp/shared/poifx/v1/poi-fx.js"></script>
+    <style>#poi-fx { z-index: 50 !important; }</style>
+
+  </head>
+  <body>
+    <!-- SIMULATOR-BADGE v1 BEGIN: ?demo=1 のときだけ「シミュレータ／賞金対象外」を全期間表示する。
+         通常起動(demo=1なし)ではこのブロックは何も行わない(早期return)。
+         C#側 DetectDemoMode と同一アルゴリズム: '#'以降を切り捨て、'?'以降を'&'で分割、
+         最初に現れた'demo'キーのraw value が'1'のみdemo。URLデコードは行わない。 -->
+    <script>(function () {
+      function isDemoUrl(url) {
+        if (!url) return false;
+        var hashIdx = url.indexOf('#');
+        if (hashIdx >= 0) url = url.substring(0, hashIdx);
+        var qIdx = url.indexOf('?');
+        if (qIdx < 0) return false;
+        var query = url.substring(qIdx + 1);
+        var pairs = query.split('&');
+        for (var i = 0; i < pairs.length; i++) {
+          var pair = pairs[i];
+          var eq = pair.indexOf('=');
+          if (eq < 0) continue;
+          var key = pair.substring(0, eq);
+          var value = pair.substring(eq + 1);
+          if (key === 'demo') return value === '1';
+        }
+        return false;
+      }
+      try {
+        window.__poiIsDemo = isDemoUrl(window.location.href);
+        if (!window.__poiIsDemo) return;
+        var badge = document.createElement('div');
+        badge.textContent = 'シミュレータ／賞金対象外';
+        badge.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9999;padding:4px 8px;'
+          + 'background:rgba(0,0,0,.6);color:#fff;font-size:12px;line-height:1.5;white-space:nowrap;'
+          + 'pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;'
+          + 'border-radius:4px;';
+        // demo=1 ではフルスクリーンボタン自体を隠す（下部 onclick 側で実施）ため、
+        // バッジは body 直下に置いたままでよい（フルスクリーン要素は常に canvas＝
+        // canvas の子は描画されないので、付け替えでは解決しない）。
+        document.body.appendChild(badge);
+      } catch (e) { /* デモ判定に失敗しても通常プレイを妨げない */ }
+    })();</script>
+    <!-- SIMULATOR-BADGE v1 END -->
+    <div class="common-header-bar">
+      <div class="common-header-coin-pill">
+        <div class="common-header-pill-badge"><img src="TemplateData/common_header_coin_icon.png" alt=""></div>
+        <span class="common-header-pill-text">9999K</span>
+      </div>
+      <div class="common-header-yen-pill">
+        <div class="common-header-pill-badge"><img src="TemplateData/common_header_yen_icon.png" alt=""></div>
+        <span class="common-header-pill-text">9999K</span>
+      </div>
+      <div class="common-header-ad-icon"><img src="TemplateData/common_header_ad_icon.png" alt=""></div>
+      <div class="common-header-exchange-icon"><img src="TemplateData/common_header_exchange_icon.png" alt=""></div>
+      <div class="common-header-hamburger-icon"><img src="TemplateData/common_header_hamburger_icon.png" alt=""></div>
+    </div>
+    <script>poiMountLoading({variants:['ninja'], imgBase:'https://lp.poicasi.co.jp/shared/poinoshin/v1/'});</script>
+    <div id="unity-container" class="unity-desktop">
+      <canvas id="unity-canvas" width={{{ WIDTH }}} height={{{ HEIGHT }}} tabindex="-1"></canvas>
+      <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+      </div>
+      <div id="unity-warning"> </div>
+      <div id="unity-footer">
+        <div id="unity-logo-title-footer"></div>
+        <div id="unity-fullscreen-button"></div>
+
+        <div id="unity-build-title">{{{ PRODUCT_NAME }}}</div>
+      </div>
+    </div>
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+
+      // Shows a temporary message banner/ribbon for a few seconds, or
+      // a permanent error message on top of the canvas if type=='error'.
+      // If type=='warning', a yellow highlight color is used.
+      // Modify or remove this function to customize the visually presented
+      // way that non-critical warnings and error messages are presented to the
+      // user.
+      function unityShowBanner(msg, type) {
+        var warningBanner = document.querySelector("#unity-warning");
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        else {
+          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+          setTimeout(function() {
+            warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 5000);
+        }
+        updateBannerVisibility();
+      }
+
+      var buildUrl = "Build";
+      var cb = "";
+      var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}" + cb;
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}" + cb,
+        frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}" + cb,
+#if USE_THREADS
+        workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}" + cb,
+#endif
+#if USE_WASM
+        codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}" + cb,
+#endif
+#if SYMBOLS_FILENAME
+        symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}" + cb,
+#endif
+        streamingAssetsUrl: "StreamingAssets" + cb,
+        companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+        productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+        productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+        showBanner: unityShowBanner,
+        cacheControl: function (url) { return "no-store"; },
+        // errorHandler: function(err, url, line) {
+        //    alert("error " + err + " occurred at line " + line);
+        //    // Return 'true' if you handled this error and don't want Unity
+        //    // to process it further, 'false' otherwise.
+        //    return true;
+        // },
+      };
+
+      // By default, Unity keeps WebGL canvas render target size matched with
+      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
+      // Set this to false if you want to decouple this synchronization from
+      // happening inside the engine, and you would instead like to size up
+      // the canvas DOM size and WebGL render target sizes yourself.
+      // config.matchWebGLToCanvasSize = false;
+
+      // If you would like all file writes inside Unity Application.persistentDataPath
+      // directory to automatically persist so that the contents are remembered when
+      // the user revisits the site the next time, uncomment the following line:
+      // config.autoSyncPersistentDataPath = true;
+      // This autosyncing is currently not the default behavior to avoid regressing
+      // existing user projects that might rely on the earlier manual
+      // JS_FileSystem_Sync() behavior, but in future Unity version, this will be
+      // expected to change.
+
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        // Mobile device style: fill the whole browser client area with the game canvas:
+
+        var meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+        document.getElementsByTagName('head')[0].appendChild(meta);
+        document.querySelector("#unity-container").className = "unity-mobile";
+        canvas.className = "unity-mobile";
+
+        // To lower canvas resolution on mobile devices to gain some
+        // performance, uncomment the following line:
+        // config.devicePixelRatio = 1;
+
+#if SHOW_DIAGNOSTICS
+        // position the diagnostics icon in the corner on the canvas
+        let diagnostics_icon = document.getElementById("diagnostics-icon");
+        diagnostics_icon.style.position = "fixed";
+        diagnostics_icon.style.bottom = "10px";
+        diagnostics_icon.style.right = "0px";
+        canvas.after(diagnostics_icon);
+#endif
+
+      } else {
+        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
+        canvas.style.width = "{{{ WIDTH }}}px";
+        canvas.style.height = "{{{ HEIGHT }}}px";
+      }
+
+#if BACKGROUND_FILENAME
+      canvas.style.background = "url('" + buildUrl + "/{{{ BACKGROUND_FILENAME.replace(/'/g, '%27') }}}') center / cover";
+#endif
+      document.querySelector("#unity-loading-bar").style.display = "block";
+
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onerror = function () {
+        if (window.poiLoadingAbort) window.poiLoadingAbort();
+      };
+      script.onload = () => {
+        try {
+        createUnityInstance(canvas, config, (progress) => {
+          window.poiSetLoadProgress(progress);
+          document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
+              }).then((unityInstance) => {
+                window.poiLoadingDone();
+                document.querySelector("#unity-loading-bar").style.display = "none";
+
+                document.querySelector("#unity-fullscreen-button").onclick = () => {
+                  unityInstance.SetFullscreen(1);
+                };
+
+                // SIMULATOR-BADGE v1: demo=1 のときだけフルスクリーンボタンを隠す。
+                // Unity の SetFullscreen は必ず canvas 自身を fullscreen 要素にする
+                // （lib/DOM.js JS_DOM_UnityCanvasSelector → Module['canvas'].id）ため、
+                // フルスクリーン中は canvas 外のバッジが描画されない＝「シミュレータ／
+                // 賞金対象外」の常時表示（社長裁定）を満たせない。フルスクリーン経路は
+                // このボタン1箇所のみ（C#側に fullscreen 呼び出しなし）。
+                // 通常起動（demo=1なし）では従来どおりボタンは表示される。
+                if (window.__poiIsDemo) {
+                  document.querySelector("#unity-fullscreen-button").style.display = "none";
+                }
+
+#if DEVELOPMENT_PLAYER
+                var profile = unityProfiler.createButton(unityInstance);
+                profile.style.marginLeft = '5px';
+                document.querySelector("#unity-build-title").appendChild(profile);
+
+                // Unloading web content from DOM so that browser GC can run can be tricky to get right.
+                // This code snippet shows how to correctly implement a Unity content Unload mechanism to a web page.
+
+                // Unloading Unity content enables a web page to reclaim the memory used by Unity, e.g. for
+                // the purpose of later loading another Unity content instance on the _same_ web page.
+
+                // When using this functionality, take caution to carefully make sure to clear all JavaScript code,
+                // DOM element and event handler references to the old content you may have retained, or
+                // otherwise the browser's garbage collector will be unable to reclaim the old page.
+
+                // N.b. Unity content does _not_ need to be manually unloaded when the user is navigating away from
+                // the current page to another web page. The browser will take care to clear memory of old visited
+                // pages automatically. This functionality is only needed if you want to switch between loading
+                // multiple Unity builds on a single web page.
+                var quit = document.createElement("button");
+                quit.style = "margin-left: 5px; background-color: lightgray; border: none; padding: 5px; cursor: pointer";
+                quit.innerHTML = "Unload";
+                document.querySelector("#unity-build-title").appendChild(quit);
+                quit.onclick = () => {
+                  // Quit Unity application execution
+                  unityInstance.Quit().then(() => {
+                    unityProfiler.shutDown();
+                    // Remove DOM elements from the page so GC can run
+                    document.querySelector("#unity-container").remove();
+                    canvas = null;
+                    // Remover script elements from the page so GC can run
+                    script.remove();
+                    script = null;
+                  });
+                };
+#endif
+              }).catch((message) => {
+                if (window.poiLoadingAbort) window.poiLoadingAbort();
+                alert(message);
+              });
+            } catch (e) {
+              if (window.poiLoadingAbort) window.poiLoadingAbort();
+            }
+          };
+
+      document.body.appendChild(script);
+
+    </script>
+  </body>
+</html>
