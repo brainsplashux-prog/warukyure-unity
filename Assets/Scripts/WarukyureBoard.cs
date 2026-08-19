@@ -51,7 +51,9 @@ public class WarukyureBoard : MonoBehaviour
     private int lampMidSegments = 0;
     private readonly List<Vector2> lampSizes = new List<Vector2>();
     private readonly List<string> lampTracks = new List<string>();
+    private readonly List<string> lampCells = new List<string>();
     private readonly Dictionary<string, Texture2D> lampTex = new Dictionary<string, Texture2D>();
+    private readonly Dictionary<string, GameObject> cellDimmerObjects = new Dictionary<string, GameObject>();
     private readonly HashSet<int> selectedBets = new HashSet<int>();
     private ResolveResponse lastResult;
     private readonly string[] betLabels = { "2", "4", "6", "8", "20" };
@@ -61,6 +63,7 @@ public class WarukyureBoard : MonoBehaviour
     private long lastErrorCode = 0;
     private string lastErrorBody = null;
     private bool spinRetried = false;
+    private string currentLampCellId = null;
 
     // ----------------- JACKPOT challenge overlay -----------------
     private GameObject jackpotPanel;
@@ -124,10 +127,10 @@ public class WarukyureBoard : MonoBehaviour
 
     void CreateBoardImage()
     {
-        Texture2D tex = Resources.Load<Texture2D>("art_final");
+        Texture2D tex = Resources.Load<Texture2D>("art_final_v2");
         if (tex == null)
         {
-            Debug.LogError("[Warukyure] art_final texture not found.");
+            Debug.LogError("[Warukyure] art_final_v2 texture not found.");
             return;
         }
 
@@ -240,6 +243,7 @@ public class WarukyureBoard : MonoBehaviour
             im.texture = dimTex[track];
             im.color = new Color(0f, 0f, 0f, 0.45f); // 消灯マス
             im.raycastTarget = false;
+            cellDimmerObjects[kv.Key] = go;
         }
     }
 
@@ -262,6 +266,8 @@ public class WarukyureBoard : MonoBehaviour
         img.texture = LampTexFor("outer");
         img.raycastTarget = false;
         img.color = Color.white;
+
+        if (cellDimmerObjects.TryGetValue("o_01", out GameObject dim)) { dim.SetActive(false); currentLampCellId = "o_01"; }
     }
 
     Texture2D LampTexFor(string track)
@@ -269,17 +275,24 @@ public class WarukyureBoard : MonoBehaviour
         if (!lampTex.ContainsKey(track))
         {
             Vector2 s = CellSizeForTrack(track);
-            lampTex[track] = CreateRoundedRectTexture((int)s.x, (int)s.y, 5f, new Color32(255, 225, 90, 255));
+            lampTex[track] = CreateRoundedRectTexture((int)s.x, (int)s.y, 5f, new Color32(255, 225, 90, 120));
         }
         return lampTex[track];
     }
 
     void ApplyLampCell(int idx)
     {
-        if (idx < 0 || idx >= lampSizes.Count) return;
+        if (idx < 0 || idx >= lampCells.Count) return;
+        string cellId = lampCells[idx];
+        if (cellId == currentLampCellId) return;
+        if (cellDimmerObjects.TryGetValue(cellId, out GameObject currentDim))
+            currentDim.SetActive(false);
+        if (!string.IsNullOrEmpty(currentLampCellId) && cellDimmerObjects.TryGetValue(currentLampCellId, out GameObject prevDim))
+            prevDim.SetActive(true);
         lampRect.sizeDelta = lampSizes[idx];
         RawImage ri = lampRect.GetComponent<RawImage>();
         if (ri != null) ri.texture = LampTexFor(lampTracks[idx]);
+        currentLampCellId = cellId;
     }
 
     void CreateAdVirtuaPlaceholder()
@@ -484,7 +497,7 @@ public class WarukyureBoard : MonoBehaviour
     void CreateHelpButton()
     {
         Image img;
-        AddButton("Help", new Vector2(660, 405 + 709), new Vector2(32, 32), () => ToggleHelp(), out img);
+        AddButton("Help", new Vector2(660, 405 + 655), new Vector2(32, 32), () => ToggleHelp(), out img);
     }
 
     void CreateBetButtons()
@@ -494,7 +507,7 @@ public class WarukyureBoard : MonoBehaviour
         {
             int bet = int.Parse(betLabels[i]);
             Image img;
-            Button btn = AddButton("Bet" + betLabels[i], new Vector2(xs[i], 405 + 755), new Vector2(95, 52), () => ToggleBet(bet), out img);
+            Button btn = AddButton("Bet" + betLabels[i], new Vector2(xs[i], 405 + 701), new Vector2(95, 52), () => ToggleBet(bet), out img);
             betButtons[i] = btn;
             betButtonImages[i] = img;
         }
@@ -503,7 +516,7 @@ public class WarukyureBoard : MonoBehaviour
     void CreateSpinButton()
     {
         Image img;
-        spinButton = AddButton("Spin", new Vector2(536, 405 + 755), new Vector2(168, 52), () => OnSpin(), out img);
+        spinButton = AddButton("Spin", new Vector2(536, 405 + 701), new Vector2(168, 52), () => OnSpin(), out img);
         spinButtonImage = img;
 
         GameObject txtGO = new GameObject("SpinText");
@@ -892,6 +905,7 @@ public class WarukyureBoard : MonoBehaviour
         List<Vector2> path = new List<Vector2>();
         lampSizes.Clear();
         lampTracks.Clear();
+        lampCells.Clear();
         foreach (var cid in cells)
         {
             Vector2 c;
@@ -900,6 +914,7 @@ public class WarukyureBoard : MonoBehaviour
                 path.Add(new Vector2(c.x, -c.y));
                 lampSizes.Add(CellSizeForTrack(BoardData.GetTrack(cid)));
                 lampTracks.Add(BoardData.GetTrack(cid));
+                lampCells.Add(cid);
             }
         }
         return path;
