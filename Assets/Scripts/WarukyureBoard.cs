@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.Scripting;
 using UnityEngine.UI;
 
 public class WarukyureBoard : MonoBehaviour
@@ -81,6 +82,7 @@ public class WarukyureBoard : MonoBehaviour
         CreateJackpotChallengeUI();
 
         StartCoroutine(InitSession());
+        TryDebugForceFx();
     }
 
     // ----------------- setup -----------------
@@ -1047,7 +1049,65 @@ public class WarukyureBoard : MonoBehaviour
         poiFxPending = false;
     }
 
+    // ----------------- DEV-only forced effect debug -----------------
+    bool IsDevUrl(string url)
+    {
+        return url.Contains("warukyure-dev") ||
+               url.Contains("localhost") ||
+               url.Contains("127.0.0.1");
+    }
+
+    string GetQueryParam(string url, string key)
+    {
+        int q = url.IndexOf('?');
+        if (q < 0) return null;
+        string query = url.Substring(q + 1);
+        string[] pairs = query.Split('&');
+        foreach (var p in pairs)
+        {
+            int eq = p.IndexOf('=');
+            if (eq < 0) continue;
+            string k = Uri.UnescapeDataString(p.Substring(0, eq));
+            if (k == key) return Uri.UnescapeDataString(p.Substring(eq + 1));
+        }
+        return null;
+    }
+
+    void TryDebugForceFx()
+    {
+        string url = Application.absoluteURL;
+        if (!IsDevUrl(url)) return;
+
+        string fx = GetQueryParam(url, "fx");
+        if (string.IsNullOrEmpty(fx)) return;
+
+        if (fx == "big" || fx == "mega")
+        {
+            int amount = fx == "mega" ? 10000 : 3200;
+            // オーバーレイだけを発火。JsonUtility も同時に検証する。
+            string testJson = "{\"fx\":{\"tier\":\"" + fx + "\",\"amount\":" + amount + "}}";
+            var r = JsonUtility.FromJson<ResolveResponse>(testJson);
+            Debug.Log("[fx-debug] parsed fx=" + (r?.fx?.tier ?? "null") + " amount=" + (r?.fx?.amount));
+            if (r?.fx != null && !string.IsNullOrEmpty(r.fx.tier) && r.fx.amount > 0)
+            {
+                StartCoroutine(RunPoiFx(r.fx.tier, r.fx.amount));
+            }
+        }
+        else if (fx == "jp")
+        {
+            // 演出だけ発火（抽選・残高更新なし）
+            var fake = new ResolveResponse
+            {
+                bonusOutcome = new BonusOutcome { stopIndex = 0, award = 3000 },
+                awardBreakdown = new AwardBreakdown { wager = 500, number = 0, castle = 0, jackpot = 3000, total = 3000, net = 2500 },
+                fx = null
+            };
+            StartCoroutine(RunJackpotChallenge(fake));
+        }
+    }
+
     // ----------------- JSON data classes -----------------
+    [Preserve]
     [Serializable]
     public class StateData
     {
@@ -1055,6 +1115,7 @@ public class WarukyureBoard : MonoBehaviour
         public int ballMask;
     }
 
+    [Preserve]
     [Serializable]
     public class InitResponse
     {
@@ -1063,12 +1124,14 @@ public class WarukyureBoard : MonoBehaviour
         public StateData state;
     }
 
+    [Preserve]
     [Serializable]
     public class StateResponse
     {
         public StateData state;
     }
 
+    [Preserve]
     [Serializable]
     public class AwardBreakdown
     {
@@ -1080,6 +1143,7 @@ public class WarukyureBoard : MonoBehaviour
         public int net;
     }
 
+    [Preserve]
     [Serializable]
     public class Collection
     {
@@ -1089,6 +1153,7 @@ public class WarukyureBoard : MonoBehaviour
         public bool isNew;
     }
 
+    [Preserve]
     [Serializable]
     public class BonusOutcome
     {
@@ -1096,6 +1161,7 @@ public class WarukyureBoard : MonoBehaviour
         public int award;
     }
 
+    [Preserve]
     [Serializable]
     public class FxData
     {
@@ -1103,6 +1169,7 @@ public class WarukyureBoard : MonoBehaviour
         public int amount;
     }
 
+    [Preserve]
     [Serializable]
     public class ResolveResponse
     {
