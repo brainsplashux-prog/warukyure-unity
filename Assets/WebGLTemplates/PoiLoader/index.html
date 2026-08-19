@@ -1480,6 +1480,31 @@
     </style>
     <!-- COMMON-HEADER-KIT v1 END -->
 
+    <!-- warukyure-local: iOS Safari の large/small viewport 差でSPIN/BETが隠れる件の是正
+         (2026-08-19 社長報告「画面が入り切ってなくてボタンが押せないね」)
+         position:fixed への height:100% は iOS では large viewport に解決されるため、
+         見えている small viewport の下端がツールバー裏に入り、スクロール不能になる。
+         100svh + aspect-ratio 720/1224 で常に全体が収まるようにする。
+         ★テンプレートに焼き込み済み(2026-08-19)。以前は配信後のindex.htmlを手で直していたため
+           再ビルドのたびに消えていた(v0.0.12で実際に退行)。ここから消すな。 -->
+    <style>
+      body #unity-container.unity-mobile {
+        position: fixed;
+        left: 50%;
+        top: var(--common-header-height);
+        transform: translateX(-50%);
+        width: auto;
+        height: calc(100svh - var(--common-header-height));
+        aspect-ratio: 720 / 1224;
+        max-width: 100vw;
+      }
+      body #unity-container.unity-mobile #unity-canvas {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+
+
     <!-- POICASI-UID v1: ポイカジ全ゲーム合算ランキング用の匿名ID（P3-B）。
          window.POICASI_UID を用意するだけ。失敗してもゲームは一切ブロックしない。 -->
     <script src="/portal/poicasi-uid.js"></script>
