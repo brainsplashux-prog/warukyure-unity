@@ -47,8 +47,7 @@ public class WarukyureBoard : MonoBehaviour
     private string currentRunId;
     private bool isRunning;
     private bool skipRequested;
-    private int lampFastSegments = 0;
-    private int lampMidSegments = 0;
+    private readonly List<float> lampSegSpeeds = new List<float>();
     private readonly List<Vector2> lampSizes = new List<Vector2>();
     private readonly List<string> lampTracks = new List<string>();
     private readonly List<string> lampCells = new List<string>();
@@ -861,7 +860,6 @@ public class WarukyureBoard : MonoBehaviour
         string[] srcArr = BoardData.GetTrackArray(sourceTrack);
         int srcL = srcArr.Length;
 
-        int targetDist = 0;
         string[] tgtArr = null;
         int tgtL = 0;
 
@@ -871,50 +869,58 @@ public class WarukyureBoard : MonoBehaviour
             {
                 tgtArr = BoardData.GetTrackArray(targetTrack);
                 tgtL = tgtArr.Length;
-                int targetIndex = BoardData.GetIndex(targetCell);
-                int stopIndex = BoardData.GetIndex(stopId);
-                targetDist = (stopIndex - targetIndex + tgtL) % tgtL;
             }
         }
 
-        lampFastSegments = LAMP_LAPS_FAST * srcL;
-        lampMidSegments = Mathf.RoundToInt(LAMP_LAPS_MID * srcL);
-        int lapSegments = lampFastSegments + lampMidSegments;
-
-        // 周回の終点から source までの残り。homeIndex 起点に戻すと境目でワープするので必ず続きから。
-        int runIn = ((sourceIndex - homeIndex - lapSegments) % srcL + srcL) % srcL;
+        int srcFast = LAMP_LAPS_FAST * srcL;
+        int srcMid  = Mathf.RoundToInt(LAMP_LAPS_MID * srcL);
+        int srcLap  = srcFast + srcMid;
+        int runIn = ((sourceIndex - homeIndex - srcLap) % srcL + srcL) % srcL;
 
         List<string> cells = new List<string>();
-        // source track: home から一続きに 周回 + 残り
-        cells.Add(home);
-        for (int i = 1; i <= lapSegments + runIn; i++)
+        List<float> cellSpeeds = new List<float>();
+        cells.Add(home);        cellSpeeds.Add(0f);
+        for (int i = 1; i <= srcLap + runIn; i++)
+        {
             cells.Add(srcArr[(homeIndex + i) % srcL]);
+            cellSpeeds.Add(i <= srcFast ? LAMP_SPEED_FAST : (i <= srcLap ? LAMP_SPEED_MID : LAMP_SPEED_SLOW));
+        }
 
         // warp + target track
         if (pathId != "outer")
         {
-            cells.Add(targetCell);
+            cells.Add(targetCell);  cellSpeeds.Add(LAMP_SPEED_SLOW);   // ワープの1手は低速のまま（移動先を認識させる）
             if (targetTrack != "castle")
             {
                 int targetIndex = BoardData.GetIndex(targetCell);
-                for (int i = 1; i <= targetDist; i++)
+                int stopIndex   = BoardData.GetIndex(stopId);
+                int tFast = LAMP_LAPS_FAST * tgtL;
+                int tMid  = Mathf.RoundToInt(LAMP_LAPS_MID * tgtL);
+                int tLap  = tFast + tMid;
+                int tRunIn = ((stopIndex - targetIndex - tLap) % tgtL + tgtL) % tgtL;
+                for (int i = 1; i <= tLap + tRunIn; i++)
+                {
                     cells.Add(tgtArr[(targetIndex + i) % tgtL]);
+                    cellSpeeds.Add(i <= tFast ? LAMP_SPEED_FAST : (i <= tLap ? LAMP_SPEED_MID : LAMP_SPEED_SLOW));
+                }
             }
         }
 
         List<Vector2> path = new List<Vector2>();
+        lampSegSpeeds.Clear();
         lampSizes.Clear();
         lampTracks.Clear();
         lampCells.Clear();
-        foreach (var cid in cells)
+        for (int i = 0; i < cells.Count; i++)
         {
             Vector2 c;
-            if (BoardData.TryGetCenter(cid, out c))
+            if (BoardData.TryGetCenter(cells[i], out c))
             {
                 path.Add(new Vector2(c.x, -c.y));
-                lampSizes.Add(CellSizeForTrack(BoardData.GetTrack(cid)));
-                lampTracks.Add(BoardData.GetTrack(cid));
-                lampCells.Add(cid);
+                lampSizes.Add(CellSizeForTrack(BoardData.GetTrack(cells[i])));
+                lampTracks.Add(BoardData.GetTrack(cells[i]));
+                lampCells.Add(cells[i]);
+                if (path.Count > 1) lampSegSpeeds.Add(cellSpeeds[i]);
             }
         }
         return path;
@@ -938,8 +944,6 @@ public class WarukyureBoard : MonoBehaviour
         }
 
         int segments = path.Count - 1;
-        int fastEnd = Mathf.Min(lampFastSegments, segments);
-        int midEnd = Mathf.Min(lampFastSegments + lampMidSegments, segments);
 
         float virt = 0f; // 進んだマス数（連続値）
         while (virt < segments)
@@ -950,9 +954,7 @@ public class WarukyureBoard : MonoBehaviour
                 ApplyLampCell(lampSizes.Count - 1);
                 yield break;
             }
-            float speed = virt < fastEnd
-                ? LAMP_SPEED_FAST
-                : (virt < midEnd ? LAMP_SPEED_MID : LAMP_SPEED_SLOW);
+            float speed = (lampSegSpeeds.Count == 0) ? LAMP_SPEED_SLOW : lampSegSpeeds[Mathf.Clamp(Mathf.FloorToInt(virt), 0, lampSegSpeeds.Count - 1)];
             virt = Mathf.Min(segments, virt + speed * Time.deltaTime);
             int idx = Mathf.FloorToInt(virt);
             if (idx > segments) idx = segments;
