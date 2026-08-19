@@ -1098,77 +1098,31 @@ public class WarukyureBoard : MonoBehaviour
         yield return FadeJackpotPanel(1f);
 
         int stopIndex = r.bonusOutcome.stopIndex;
-        float hold = 0f;
 
-        // ライトを一度消灯してからアニメ開始
+        // 既存の自前ランプ群は LampAnnouncer の背後に残るため非表示にする
         for (int i = 0; i < 5; i++)
         {
-            jackpotLampRects[i].sizeDelta = new Vector2(90, 90);
-            jackpotLampTexts[i].color = new Color32(200, 200, 200, 255);
+            if (jackpotLampRects[i] != null) jackpotLampRects[i].gameObject.SetActive(false);
         }
 
-        // インジケータを左端から右へ流す。目標は stopIndex。
-        // 仮想インデックスを stopIndex より少し先まで動かし、最後に stopIndex で止まる。
-        const int fullLaps = 4;
-        float endVirtual = fullLaps * 5 + stopIndex;
-        float startVirtual = 0f;
-        float elapsed = 0f;
-        const float RUN_TIME = 2.2f;
-
-        jackpotIndicatorRect.anchoredPosition = new Vector2(GetJackpotX(0), -409.5f);
-
-        while (elapsed < RUN_TIME)
+        // Babeltower8192 と同じ 5 ランプ演出。停止位置はサーバー指定値を再生する。
+        string[] labels = { "3000", "1000", "JACKPOT", "1000", "5000" };
+        Color[] labelColors =
         {
-            if (skipRequested)
-            {
-                // SKIP: 即座に stopIndex に飛ばす
-                elapsed = RUN_TIME;
-            }
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / RUN_TIME);
-            float p = EaseOutCubic(t);
-            float v = Mathf.Lerp(startVirtual, endVirtual, p);
-            int baseIndex = Mathf.FloorToInt(v) % 5;
-            float frac = v - Mathf.Floor(v);
-            if (baseIndex < 0) baseIndex += 5;
-            int nextIndex = (baseIndex + 1) % 5;
-            float x = Mathf.Lerp(GetJackpotX(baseIndex), GetJackpotX(nextIndex), frac);
-            jackpotIndicatorRect.anchoredPosition = new Vector2(x, -409.5f);
+            new Color(1f, 0.94f, 0.80f),
+            new Color(1f, 0.94f, 0.80f),
+            new Color(1f, 0.85f, 0.40f),
+            new Color(1f, 0.94f, 0.80f),
+            new Color(1f, 0.94f, 0.80f)
+        };
 
-            // 現在のランプを少し大きく
-            for (int i = 0; i < 5; i++)
-            {
-                bool on = (i == baseIndex);
-                jackpotLampRects[i].sizeDelta = on ? new Vector2(100, 100) : new Vector2(90, 90);
-                jackpotLampTexts[i].color = on ? new Color32(255, 255, 255, 255) : new Color32(200, 200, 200, 255);
-            }
-
-            yield return null;
-        }
-
-        // 停止位置を確定
-        jackpotIndicatorRect.anchoredPosition = new Vector2(GetJackpotX(stopIndex), -409.5f);
-        for (int i = 0; i < 5; i++)
-        {
-            bool on = (i == stopIndex);
-            jackpotLampRects[i].sizeDelta = on ? new Vector2(110, 110) : new Vector2(90, 90);
-            jackpotLampTexts[i].color = on ? new Color32(255, 220, 80, 255) : new Color32(120, 120, 120, 255);
-        }
-
-        // 0.5秒の溜め
-        hold = 0f;
-        while (hold < HOLD_DURATION)
-        {
-            if (skipRequested) break;
-            hold += Time.deltaTime;
-            yield return null;
-        }
+        yield return LampAnnouncer.Run(labels, stopIndex, labelColors, () => skipRequested);
 
         // 獲得枚数表示
         jackpotAwardText.text = $"{r.bonusOutcome.award}枚";
 
         // 0.3秒の表示溜め
-        hold = 0f;
+        float hold = 0f;
         while (hold < 0.3f)
         {
             if (skipRequested) break;
