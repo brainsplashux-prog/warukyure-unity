@@ -501,21 +501,24 @@ public class WarukyureBoard : MonoBehaviour
 
     void CreateBetButtons()
     {
+        // 帯を y=697..818 に焼き直したため、BETピルの実測外形は texture y=705..800（高さ96）
         float[] xs = new[] { 16f, 119f, 222f, 325f, 428f };
         for (int i = 0; i < 5; i++)
         {
             int bet = int.Parse(betLabels[i]);
             Image img;
-            Button btn = AddButton("Bet" + betLabels[i], new Vector2(xs[i], 405 + 701), new Vector2(95, 52), () => ToggleBet(bet), out img);
+            Button btn = AddButton("Bet" + betLabels[i], new Vector2(xs[i], 405 + 705), new Vector2(95, 96), () => ToggleBet(bet), out img);
             betButtons[i] = btn;
-            betButtonImages[i] = img;
+            // 光りは板絵のピル枠に合わせた角丸で出す（矩形ベタ塗りだと枠からはみ出て見える）
+            betButtonImages[i] = AddGlowOverlay(btn.transform, new Vector2(76, 78), 12);
         }
     }
 
     void CreateSpinButton()
     {
         Image img;
-        spinButton = AddButton("Spin", new Vector2(536, 405 + 701), new Vector2(168, 52), () => OnSpin(), out img);
+        // SPINは板絵側で1.25倍に貼り直したため、外形は texture x=528..697 / y=719..786
+        spinButton = AddButton("Spin", new Vector2(528, 405 + 719), new Vector2(170, 68), () => OnSpin(), out img);
         spinButtonImage = img;
 
         GameObject txtGO = new GameObject("SpinText");
@@ -530,10 +533,55 @@ public class WarukyureBoard : MonoBehaviour
         spinButtonText = txtGO.AddComponent<Text>();
         spinButtonText.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
         if (spinButtonText.font == null) spinButtonText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        spinButtonText.fontSize = 26;
+        spinButtonText.fontSize = 32;
         spinButtonText.alignment = TextAnchor.MiddleCenter;
         spinButtonText.color = Color.white;
         spinButtonText.text = "SPIN";
+    }
+
+    /// <summary>角丸ピル型のソフトなスプライトを生成する（ボタンの光り用）。</summary>
+    static Sprite MakeRoundedSprite(int w, int h, int radius, float feather)
+    {
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+        tex.filterMode = FilterMode.Bilinear;
+        Color[] px = new Color[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                // 角丸矩形の符号付き距離（内側が負）
+                float dx = Mathf.Abs(x + 0.5f - w * 0.5f) - (w * 0.5f - radius);
+                float dy = Mathf.Abs(y + 0.5f - h * 0.5f) - (h * 0.5f - radius);
+                float d = Mathf.Sqrt(Mathf.Max(dx, 0f) * Mathf.Max(dx, 0f) + Mathf.Max(dy, 0f) * Mathf.Max(dy, 0f))
+                          + Mathf.Min(Mathf.Max(dx, dy), 0f) - radius;
+                float aa = Mathf.Clamp01(0.5f - d / feather);
+                px[y * w + x] = new Color(1f, 1f, 1f, aa);
+            }
+        }
+        tex.SetPixels(px);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+    }
+
+    /// <summary>ボタンの当たり判定はそのままに、枠に合わせた光りだけを子に載せる。</summary>
+    Image AddGlowOverlay(Transform parent, Vector2 size, int radius)
+    {
+        GameObject go = new GameObject("Glow");
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = size;
+
+        Image im = go.AddComponent<Image>();
+        im.sprite = MakeRoundedSprite(Mathf.RoundToInt(size.x), Mathf.RoundToInt(size.y), radius, 2.5f);
+        im.type = Image.Type.Simple;
+        im.raycastTarget = false;
+        im.color = new Color(0, 0, 0, 0);
+        return im;
     }
 
     Button AddButton(string name, Vector2 pos, Vector2 size, Action onClick, out Image image)
@@ -570,7 +618,7 @@ public class WarukyureBoard : MonoBehaviour
         {
             int bet = int.Parse(betLabels[i]);
             bool on = selectedBets.Contains(bet);
-            betButtonImages[i].color = on ? new Color32(255, 215, 0, 120) : new Color(0, 0, 0, 0);
+            betButtonImages[i].color = on ? new Color32(255, 205, 60, 190) : new Color(0, 0, 0, 0);
         }
     }
 
