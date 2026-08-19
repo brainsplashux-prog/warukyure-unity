@@ -1617,12 +1617,6 @@
         </div>
       </div>
       <div id="unity-warning"> </div>
-      <div id="unity-footer">
-        <div id="unity-logo-title-footer"></div>
-        <div id="unity-fullscreen-button"></div>
-
-        <div id="unity-build-title">{{{ PRODUCT_NAME }}}</div>
-      </div>
     </div>
     <script>
       var canvas = document.querySelector("#unity-canvas");
@@ -1746,20 +1740,6 @@
                 window.poiLoadingDone();
                 document.querySelector("#unity-loading-bar").style.display = "none";
 
-                document.querySelector("#unity-fullscreen-button").onclick = () => {
-                  unityInstance.SetFullscreen(1);
-                };
-
-                // SIMULATOR-BADGE v1: demo=1 のときだけフルスクリーンボタンを隠す。
-                // Unity の SetFullscreen は必ず canvas 自身を fullscreen 要素にする
-                // （lib/DOM.js JS_DOM_UnityCanvasSelector → Module['canvas'].id）ため、
-                // フルスクリーン中は canvas 外のバッジが描画されない＝「シミュレータ／
-                // 賞金対象外」の常時表示（社長裁定）を満たせない。フルスクリーン経路は
-                // このボタン1箇所のみ（C#側に fullscreen 呼び出しなし）。
-                // 通常起動（demo=1なし）では従来どおりボタンは表示される。
-                if (window.__poiIsDemo) {
-                  document.querySelector("#unity-fullscreen-button").style.display = "none";
-                }
 
 #if DEVELOPMENT_PLAYER
                 var profile = unityProfiler.createButton(unityInstance);
