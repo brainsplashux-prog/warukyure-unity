@@ -1403,7 +1403,9 @@
       }
 
       .common-header-bar {
-        position: relative;
+        position: fixed;
+        top: 0;
+        left: 0;
         width: 100%;
         height: 56px;
         height: var(--common-header-height);
@@ -1473,15 +1475,8 @@
         object-fit: contain;
       }
 
-      /* Existing Unity canvas should sit below the common header */
-      body #unity-container.unity-desktop {
-        top: calc(50% + (var(--common-header-height) / 2));
-      }
-
-      body #unity-container.unity-mobile {
-        top: var(--common-header-height);
-        height: calc(100% - var(--common-header-height));
-      }
+      /* 規約(game-layout-standard §2): ヘッダーAは純粋なHTMLオーバーレイ。
+         #unity-container の top/height を外から変更しない(2026-08-06 ColorSortで実害)。 */
     </style>
     <!-- COMMON-HEADER-KIT v1 END -->
 
