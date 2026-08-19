@@ -23,7 +23,7 @@ public class WarukyureBoard : MonoBehaviour
     const float LAMP_SPEED_MID  = 10f;  // 「今のスピードの半分」
     const float LAMP_SPEED_SLOW = 5f;   // 「1秒間に5マス」
     const int   LAMP_LAPS_FAST  = 2;    // 高速で2周
-    const int   LAMP_LAPS_MID   = 1;    // 半速で1周
+    const float LAMP_LAPS_MID   = 0.5f; // 「ちょっと早い」が長いので半周で遅いに切り替える（2026-08-19 社長指示）
 
     // ----------------- UI references -----------------
     private Canvas canvas;
@@ -49,7 +49,9 @@ public class WarukyureBoard : MonoBehaviour
     private bool skipRequested;
     private int lampFastSegments = 0;
     private int lampMidSegments = 0;
-    private readonly List<float> lampSizes = new List<float>();
+    private readonly List<Vector2> lampSizes = new List<Vector2>();
+    private readonly List<string> lampTracks = new List<string>();
+    private readonly Dictionary<string, Texture2D> lampTex = new Dictionary<string, Texture2D>();
     private readonly HashSet<int> selectedBets = new HashSet<int>();
     private ResolveResponse lastResult;
     private readonly string[] betLabels = { "2", "4", "6", "8", "20" };
@@ -144,26 +146,51 @@ public class WarukyureBoard : MonoBehaviour
         img.raycastTarget = false;
     }
 
-    // マスの実寸（BoardDataのセル間ピッチから算出: outer=54, ring4=61, loop2=38）
-    static float CellSizeForTrack(string track)
+    // マスの実寸（art_final.png のピクセル実測。outer 34x34 / ring4 36x36 / loop2 26x29・角丸r=5）
+    static Vector2 CellSizeForTrack(string track)
     {
         switch (track)
         {
-            case "loop2": return 34f;
-            case "ring4": return 54f;
-            case "castle": return 60f;
-            default:      return 50f; // outer
+            case "loop2":  return new Vector2(26f, 29f);
+            case "ring4":  return new Vector2(36f, 36f);
+            case "castle": return new Vector2(36f, 36f); // 暗色は付けないがランプは通る
+            default:       return new Vector2(34f, 34f); // outer
         }
     }
 
-    Texture2D CreateSquareTexture(int size, Color color)
+    // 角丸矩形テクスチャ。マス絵の角丸(r=5)に合わせる。4xスーパーサンプルでアンチエイリアス。
+    Texture2D CreateRoundedRectTexture(int w, int h, float radius, Color color)
     {
-        Texture2D t = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        Color[] px = new Color[size * size];
-        for (int i = 0; i < px.Length; i++) px[i] = color;
+        const int SS = 4;
+        int W = w * SS, H = h * SS;
+        float r = radius * SS;
+        Texture2D t = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        t.wrapMode = TextureWrapMode.Clamp;
+        t.filterMode = FilterMode.Bilinear;
+        Color[] px = new Color[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int hit = 0;
+                for (int sy = 0; sy < SS; sy++)
+                {
+                    for (int sx = 0; sx < SS; sx++)
+                    {
+                        float px2 = x * SS + sx + 0.5f;
+                        float py2 = y * SS + sy + 0.5f;
+                        float dx = Mathf.Max(r - px2, px2 - (W - r), 0f);
+                        float dy = Mathf.Max(r - py2, py2 - (H - r), 0f);
+                        if (dx * dx + dy * dy <= r * r) hit++;
+                    }
+                }
+                Color c = color;
+                c.a = color.a * (hit / (float)(SS * SS));
+                px[y * w + x] = c;
+            }
+        }
         t.SetPixels(px);
         t.Apply();
-        t.filterMode = FilterMode.Bilinear;
         return t;
     }
 
@@ -188,13 +215,18 @@ public class WarukyureBoard : MonoBehaviour
     }
 
     // art_final は焼き込み1枚絵のためマス単体オブジェクトが無い。
-    // 各マス中心に半透明の黒い正方形を重ね、マスだけを暗くする（＝消灯状態）。
+    // 各マスの実寸・角丸に完全一致させた半透明の黒を重ね、マスだけを暗くする（＝消灯状態）。
+    // 城は暗くしない（2026-08-19 社長指示「城は黒いのなしで」）。
     void CreateCellDimmers()
     {
-        Texture2D dimTex = CreateSquareTexture(8, Color.white);
+        Dictionary<string, Texture2D> dimTex = new Dictionary<string, Texture2D>();
         foreach (var kv in BoardData.CellCenters)
         {
-            float s = CellSizeForTrack(BoardData.GetTrack(kv.Key));
+            string track = BoardData.GetTrack(kv.Key);
+            if (track == "castle") continue; // 城は暗くしない
+            Vector2 s = CellSizeForTrack(track);
+            if (!dimTex.ContainsKey(track))
+                dimTex[track] = CreateRoundedRectTexture((int)s.x, (int)s.y, 5f, Color.white);
             GameObject go = new GameObject("dim_" + kv.Key);
             go.transform.SetParent(canvas.transform, false);
             RectTransform rt = go.AddComponent<RectTransform>();
@@ -202,10 +234,10 @@ public class WarukyureBoard : MonoBehaviour
             rt.anchorMax = new Vector2(0, 1);
             rt.pivot = new Vector2(0.5f, 0.5f);
             rt.anchoredPosition = new Vector2(kv.Value.x, -kv.Value.y);
-            rt.sizeDelta = new Vector2(s, s);
+            rt.sizeDelta = s;
             go.AddComponent<CanvasRenderer>();
             RawImage im = go.AddComponent<RawImage>();
-            im.texture = dimTex;
+            im.texture = dimTex[track];
             im.color = new Color(0f, 0f, 0f, 0.45f); // 消灯マス
             im.raycastTarget = false;
         }
@@ -223,13 +255,31 @@ public class WarukyureBoard : MonoBehaviour
         Vector2 start;
         BoardData.TryGetCenter("o_01", out start);
         lampRect.anchoredPosition = new Vector2(start.x, -start.y);
-        lampRect.sizeDelta = new Vector2(50, 50);
+        lampRect.sizeDelta = new Vector2(34, 34);
 
         go.AddComponent<CanvasRenderer>();
         RawImage img = go.AddComponent<RawImage>();
-        img.texture = CreateSquareTexture(8, new Color32(255, 225, 90, 255));
+        img.texture = LampTexFor("outer");
         img.raycastTarget = false;
         img.color = Color.white;
+    }
+
+    Texture2D LampTexFor(string track)
+    {
+        if (!lampTex.ContainsKey(track))
+        {
+            Vector2 s = CellSizeForTrack(track);
+            lampTex[track] = CreateRoundedRectTexture((int)s.x, (int)s.y, 5f, new Color32(255, 225, 90, 255));
+        }
+        return lampTex[track];
+    }
+
+    void ApplyLampCell(int idx)
+    {
+        if (idx < 0 || idx >= lampSizes.Count) return;
+        lampRect.sizeDelta = lampSizes[idx];
+        RawImage ri = lampRect.GetComponent<RawImage>();
+        if (ri != null) ri.texture = LampTexFor(lampTracks[idx]);
     }
 
     void CreateAdVirtuaPlaceholder()
@@ -815,18 +865,15 @@ public class WarukyureBoard : MonoBehaviour
             }
         }
 
-        int lapCount = LAMP_LAPS_FAST + LAMP_LAPS_MID;
         lampFastSegments = LAMP_LAPS_FAST * srcL;
-        lampMidSegments = LAMP_LAPS_MID * srcL;
+        lampMidSegments = Mathf.RoundToInt(LAMP_LAPS_MID * srcL);
+        int lapSegments = lampFastSegments + lampMidSegments;
 
         List<string> cells = new List<string>();
         // source track: home + laps + to source
         cells.Add(home);
-        for (int lap = 0; lap < lapCount; lap++)
-        {
-            for (int i = 1; i <= srcL; i++)
-                cells.Add(srcArr[(homeIndex + i) % srcL]);
-        }
+        for (int i = 1; i <= lapSegments; i++)
+            cells.Add(srcArr[(homeIndex + i) % srcL]);
         for (int i = 1; i <= sourceDist; i++)
             cells.Add(srcArr[(homeIndex + i) % srcL]);
 
@@ -844,6 +891,7 @@ public class WarukyureBoard : MonoBehaviour
 
         List<Vector2> path = new List<Vector2>();
         lampSizes.Clear();
+        lampTracks.Clear();
         foreach (var cid in cells)
         {
             Vector2 c;
@@ -851,6 +899,7 @@ public class WarukyureBoard : MonoBehaviour
             {
                 path.Add(new Vector2(c.x, -c.y));
                 lampSizes.Add(CellSizeForTrack(BoardData.GetTrack(cid)));
+                lampTracks.Add(BoardData.GetTrack(cid));
             }
         }
         return path;
@@ -868,8 +917,7 @@ public class WarukyureBoard : MonoBehaviour
             if (path != null && path.Count > 0)
             {
                 lampRect.anchoredPosition = path[path.Count - 1];
-                if (lampSizes.Count > 0)
-                    lampRect.sizeDelta = new Vector2(lampSizes[lampSizes.Count - 1], lampSizes[lampSizes.Count - 1]);
+                ApplyLampCell(lampSizes.Count - 1);
             }
             yield break;
         }
@@ -884,8 +932,7 @@ public class WarukyureBoard : MonoBehaviour
             if (skipRequested)
             {
                 lampRect.anchoredPosition = path[path.Count - 1];
-                if (lampSizes.Count > 0)
-                    lampRect.sizeDelta = new Vector2(lampSizes[lampSizes.Count - 1], lampSizes[lampSizes.Count - 1]);
+                ApplyLampCell(lampSizes.Count - 1);
                 yield break;
             }
             float speed = virt < fastEnd
@@ -895,13 +942,11 @@ public class WarukyureBoard : MonoBehaviour
             int idx = Mathf.FloorToInt(virt);
             if (idx > segments) idx = segments;
             lampRect.anchoredPosition = path[idx];
-            if (idx < lampSizes.Count)
-                lampRect.sizeDelta = new Vector2(lampSizes[idx], lampSizes[idx]);
+            ApplyLampCell(idx);
             yield return null;
         }
         lampRect.anchoredPosition = path[path.Count - 1];
-        if (lampSizes.Count > 0)
-            lampRect.sizeDelta = new Vector2(lampSizes[lampSizes.Count - 1], lampSizes[lampSizes.Count - 1]);
+        ApplyLampCell(lampSizes.Count - 1);
     }
 
     // ----------------- result -----------------
