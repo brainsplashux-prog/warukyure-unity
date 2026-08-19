@@ -49,12 +49,16 @@ public class WarukyureBoard : MonoBehaviour
     private bool skipRequested;
     private int lampFastSegments = 0;
     private int lampMidSegments = 0;
+    private readonly List<float> lampSizes = new List<float>();
     private readonly HashSet<int> selectedBets = new HashSet<int>();
     private ResolveResponse lastResult;
     private readonly string[] betLabels = { "2", "4", "6", "8", "20" };
     private readonly string[] ballNames = { "うさぎ", "ねこ", "くま", "ことり" };
     private readonly string[] jpAwardLabels = { "3000", "1000", "30000", "1000", "5000" };
     private Coroutine overlayRoutine;
+    private long lastErrorCode = 0;
+    private string lastErrorBody = null;
+    private bool spinRetried = false;
 
     // ----------------- JACKPOT challenge overlay -----------------
     private GameObject jackpotPanel;
@@ -81,6 +85,7 @@ public class WarukyureBoard : MonoBehaviour
         gameObject.name = "WarukyureBoard";
         SetupCanvas();
         CreateBoardImage();
+        CreateCellDimmers();
         CreateLamp();
         CreateAdVirtuaPlaceholder();
         CreateHeaderText();
@@ -136,8 +141,30 @@ public class WarukyureBoard : MonoBehaviour
         go.AddComponent<CanvasRenderer>();
         RawImage img = go.AddComponent<RawImage>();
         img.texture = tex;
-        img.color = new Color(0.55f, 0.55f, 0.62f, 1f); // 社長指示: マスを暗くしてランプの濃淡を出す
         img.raycastTarget = false;
+    }
+
+    // マスの実寸（BoardDataのセル間ピッチから算出: outer=54, ring4=61, loop2=38）
+    static float CellSizeForTrack(string track)
+    {
+        switch (track)
+        {
+            case "loop2": return 34f;
+            case "ring4": return 54f;
+            case "castle": return 60f;
+            default:      return 50f; // outer
+        }
+    }
+
+    Texture2D CreateSquareTexture(int size, Color color)
+    {
+        Texture2D t = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        Color[] px = new Color[size * size];
+        for (int i = 0; i < px.Length; i++) px[i] = color;
+        t.SetPixels(px);
+        t.Apply();
+        t.filterMode = FilterMode.Bilinear;
+        return t;
     }
 
     Texture2D CreateCircleTexture(int size, Color color)
@@ -160,6 +187,30 @@ public class WarukyureBoard : MonoBehaviour
         return tex;
     }
 
+    // art_final は焼き込み1枚絵のためマス単体オブジェクトが無い。
+    // 各マス中心に半透明の黒い正方形を重ね、マスだけを暗くする（＝消灯状態）。
+    void CreateCellDimmers()
+    {
+        Texture2D dimTex = CreateSquareTexture(8, Color.white);
+        foreach (var kv in BoardData.CellCenters)
+        {
+            float s = CellSizeForTrack(BoardData.GetTrack(kv.Key));
+            GameObject go = new GameObject("dim_" + kv.Key);
+            go.transform.SetParent(canvas.transform, false);
+            RectTransform rt = go.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0, 1);
+            rt.anchorMax = new Vector2(0, 1);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(kv.Value.x, -kv.Value.y);
+            rt.sizeDelta = new Vector2(s, s);
+            go.AddComponent<CanvasRenderer>();
+            RawImage im = go.AddComponent<RawImage>();
+            im.texture = dimTex;
+            im.color = new Color(0f, 0f, 0f, 0.45f); // 消灯マス
+            im.raycastTarget = false;
+        }
+    }
+
     void CreateLamp()
     {
         GameObject go = new GameObject("Lamp");
@@ -172,11 +223,11 @@ public class WarukyureBoard : MonoBehaviour
         Vector2 start;
         BoardData.TryGetCenter("o_01", out start);
         lampRect.anchoredPosition = new Vector2(start.x, -start.y);
-        lampRect.sizeDelta = new Vector2(38, 38);
+        lampRect.sizeDelta = new Vector2(50, 50);
 
         go.AddComponent<CanvasRenderer>();
         RawImage img = go.AddComponent<RawImage>();
-        img.texture = CreateCircleTexture(64, new Color32(255, 220, 80, 255));
+        img.texture = CreateSquareTexture(8, new Color32(255, 225, 90, 255));
         img.raycastTarget = false;
         img.color = Color.white;
     }
@@ -603,8 +654,15 @@ public class WarukyureBoard : MonoBehaviour
         yield return StartCoroutine(ApiPost(prepareJson, currentRunId, (b) => prepareBody = b, (e) => prepareErr = e));
         if (!string.IsNullOrEmpty(prepareErr))
         {
-            EndRound("通信エラー: " + prepareErr);
-            yield break;
+            // 409＝前回の中断ランが残留している。そのrunIdを引き継いでresolveし、復帰させる。
+            // 放置すると以後prepareが永久に409になり遊べなくなる（2026-08-19 社長報告）。
+            string stuckId = (lastErrorCode == 409) ? ExtractStuckRunId(lastErrorBody) : null;
+            if (string.IsNullOrEmpty(stuckId))
+            {
+                EndRound("通信エラー: " + prepareErr);
+                yield break;
+            }
+            currentRunId = stuckId;
         }
 
         // resolve
@@ -618,6 +676,13 @@ public class WarukyureBoard : MonoBehaviour
         yield return StartCoroutine(ApiPost(resolveJson, currentRunId, (b) => resolveBody = b, (e) => resolveErr = e));
         if (!string.IsNullOrEmpty(resolveErr))
         {
+            if (lastErrorCode == 409 && !spinRetried)
+            {
+                spinRetried = true;
+                isRunning = false;
+                yield return StartCoroutine(SpinRound()); // 新しいrunIdで1回だけやり直す
+                yield break;
+            }
             EndRound("通信エラー: " + resolveErr);
             yield break;
         }
@@ -657,7 +722,21 @@ public class WarukyureBoard : MonoBehaviour
         isRunning = false;
         skipRequested = false;
         spinButtonText.text = "SPIN";
+        if (string.IsNullOrEmpty(error)) spinRetried = false;
         if (!string.IsNullOrEmpty(error)) ShowResultOverlay(error, -1f);
+    }
+
+    // 409ボディ {"error":"...","run":{"runId":"xxxx",...}} から runId を取り出す
+    string ExtractStuckRunId(string body)
+    {
+        if (string.IsNullOrEmpty(body)) return null;
+        const string key = "\"runId\":\"";
+        int i = body.IndexOf(key, StringComparison.Ordinal);
+        if (i < 0) return null;
+        i += key.Length;
+        int j = body.IndexOf('"', i);
+        if (j <= i) return null;
+        return body.Substring(i, j - i);
     }
 
     IEnumerator ApiPost(string json, string idemKey, Action<string> onOk, Action<string> onErr)
@@ -674,12 +753,16 @@ public class WarukyureBoard : MonoBehaviour
 
         if (req.result != UnityWebRequest.Result.Success || req.responseCode != 200)
         {
+            lastErrorCode = req.responseCode;
+            lastErrorBody = req.downloadHandler != null ? req.downloadHandler.text : null;
             string msg = $"HTTP {req.responseCode}";
             if (!string.IsNullOrEmpty(req.error)) msg += " " + req.error;
             onErr(msg);
         }
         else
         {
+            lastErrorCode = 0;
+            lastErrorBody = null;
             onOk(req.downloadHandler.text);
         }
     }
@@ -760,11 +843,15 @@ public class WarukyureBoard : MonoBehaviour
         }
 
         List<Vector2> path = new List<Vector2>();
+        lampSizes.Clear();
         foreach (var cid in cells)
         {
             Vector2 c;
             if (BoardData.TryGetCenter(cid, out c))
+            {
                 path.Add(new Vector2(c.x, -c.y));
+                lampSizes.Add(CellSizeForTrack(BoardData.GetTrack(cid)));
+            }
         }
         return path;
     }
@@ -779,7 +866,11 @@ public class WarukyureBoard : MonoBehaviour
         if (path == null || path.Count < 2)
         {
             if (path != null && path.Count > 0)
+            {
                 lampRect.anchoredPosition = path[path.Count - 1];
+                if (lampSizes.Count > 0)
+                    lampRect.sizeDelta = new Vector2(lampSizes[lampSizes.Count - 1], lampSizes[lampSizes.Count - 1]);
+            }
             yield break;
         }
 
@@ -793,6 +884,8 @@ public class WarukyureBoard : MonoBehaviour
             if (skipRequested)
             {
                 lampRect.anchoredPosition = path[path.Count - 1];
+                if (lampSizes.Count > 0)
+                    lampRect.sizeDelta = new Vector2(lampSizes[lampSizes.Count - 1], lampSizes[lampSizes.Count - 1]);
                 yield break;
             }
             float speed = virt < fastEnd
@@ -800,13 +893,15 @@ public class WarukyureBoard : MonoBehaviour
                 : (virt < midEnd ? LAMP_SPEED_MID : LAMP_SPEED_SLOW);
             virt = Mathf.Min(segments, virt + speed * Time.deltaTime);
             int idx = Mathf.FloorToInt(virt);
-            if (idx >= segments)
-                lampRect.anchoredPosition = path[segments];
-            else
-                lampRect.anchoredPosition = Vector2.Lerp(path[idx], path[idx + 1], virt - idx);
+            if (idx > segments) idx = segments;
+            lampRect.anchoredPosition = path[idx];
+            if (idx < lampSizes.Count)
+                lampRect.sizeDelta = new Vector2(lampSizes[idx], lampSizes[idx]);
             yield return null;
         }
         lampRect.anchoredPosition = path[path.Count - 1];
+        if (lampSizes.Count > 0)
+            lampRect.sizeDelta = new Vector2(lampSizes[lampSizes.Count - 1], lampSizes[lampSizes.Count - 1]);
     }
 
     // ----------------- result -----------------
