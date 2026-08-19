@@ -1512,7 +1512,46 @@
     <!-- poifx/v1 jackpot overlay (approved kit, loaded frozen from shared URL). -->
     <link rel="stylesheet" href="https://lp.poicasi.co.jp/shared/poifx/v1/poi-fx.css">
     <script src="https://lp.poicasi.co.jp/shared/poifx/v1/poi-fx.js"></script>
-    <style>#poi-fx { z-index: 50 !important; }</style>
+    <style>#poi-fx { z-index: 10000 !important; }</style>
+    <script>
+    // WebGL メインループ内から poiFxJackpot が呼ばれた際に
+    // ブラウザにスタイル更新・CSS アニメーション開始の機会を与えるため、
+    // 演出実行中に requestAnimationFrame ベースで style flush を行う。
+    (function(){
+      if (typeof window.poiFxJackpot !== 'function') return;
+      var _orig = window.poiFxJackpot;
+      function flush(){
+        var root = document.getElementById('poi-fx');
+        if (!root) return;
+        getComputedStyle(root).opacity;
+        getComputedStyle(root).visibility;
+        var actor = root.querySelector('.poi-fx-actor');
+        if (actor) { getComputedStyle(actor).opacity; getComputedStyle(actor).transform; }
+        var wrap = root.querySelector('.poi-fx-actor-wrap');
+        if (wrap) { getComputedStyle(wrap).opacity; getComputedStyle(wrap).transform; }
+        var num = root.querySelector('.poi-num');
+        if (num) { getComputedStyle(num).opacity; getComputedStyle(num).transform; }
+        document.getAnimations();
+      }
+      function rafLoop(){
+        if (!window.__poiFxActive) return;
+        flush();
+        requestAnimationFrame(rafLoop);
+      }
+      function wrapped(opts){
+        if (window.__poiFxActive) { _orig(opts); return; }
+        window.__poiFxActive = true;
+        var oldDone = opts.onDone;
+        opts.onDone = function(){
+          window.__poiFxActive = false;
+          if (oldDone) oldDone();
+        };
+        _orig(opts);
+        requestAnimationFrame(rafLoop);
+      }
+      window.poiFxJackpot = wrapped;
+    })();
+    </script>
 
   </head>
   <body>

@@ -84,6 +84,16 @@ public class WarukyureBoard : MonoBehaviour
     private static extern void PoiFxSkip();
 #endif
 
+    void Awake()
+    {
+        // WebGL のメインループを requestAnimationFrame ベースにし、
+        // ブラウザのスタイル更新／CSS アニメーション開始機会を確保する。
+#if UNITY_WEBGL && !UNITY_EDITOR
+        QualitySettings.vSyncCount = 1;
+        Application.targetFrameRate = -1;
+#endif
+    }
+
     void Start()
     {
         gameObject.name = "WarukyureBoard";
@@ -1221,6 +1231,9 @@ public class WarukyureBoard : MonoBehaviour
     {
         poiFxPending = true;
 #if UNITY_WEBGL && !UNITY_EDITOR
+        // 現在のフレームのレンダリング／rAF 完了後にブラウザ側演出を発火し、
+        // ブラウザにスタイル更新の機会を与える。
+        yield return new WaitForEndOfFrame();
         PoiFxJackpot(tier, amount, "枚", gameObject.name, "OnPoiFxDone");
 #else
         Debug.Log($"[poifx] {tier} {amount}枚");
