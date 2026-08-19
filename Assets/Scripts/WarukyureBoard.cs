@@ -18,6 +18,13 @@ public class WarukyureBoard : MonoBehaviour
     const float HOLD_DURATION = 0.5f;
     const int MIN_PATH_STEPS = 35;
 
+    // 社長指示(2026-08-19)の3段階ルーレット
+    const float LAMP_SPEED_FAST = 20f;  // マス/秒。従来＝約40マスを2.0秒＝約20マス/秒 と等速
+    const float LAMP_SPEED_MID  = 10f;  // 「今のスピードの半分」
+    const float LAMP_SPEED_SLOW = 5f;   // 「1秒間に5マス」
+    const int   LAMP_LAPS_FAST  = 2;    // 高速で2周
+    const int   LAMP_LAPS_MID   = 1;    // 半速で1周
+
     // ----------------- UI references -----------------
     private Canvas canvas;
     private RectTransform lampRect;
@@ -40,6 +47,8 @@ public class WarukyureBoard : MonoBehaviour
     private string currentRunId;
     private bool isRunning;
     private bool skipRequested;
+    private int lampFastSegments = 0;
+    private int lampMidSegments = 0;
     private readonly HashSet<int> selectedBets = new HashSet<int>();
     private ResolveResponse lastResult;
     private readonly string[] betLabels = { "2", "4", "6", "8", "20" };
@@ -127,7 +136,7 @@ public class WarukyureBoard : MonoBehaviour
         go.AddComponent<CanvasRenderer>();
         RawImage img = go.AddComponent<RawImage>();
         img.texture = tex;
-        img.color = Color.white;
+        img.color = new Color(0.55f, 0.55f, 0.62f, 1f); // 社長指示: マスを暗くしてランプの濃淡を出す
         img.raycastTarget = false;
     }
 
@@ -163,11 +172,11 @@ public class WarukyureBoard : MonoBehaviour
         Vector2 start;
         BoardData.TryGetCenter("o_01", out start);
         lampRect.anchoredPosition = new Vector2(start.x, -start.y);
-        lampRect.sizeDelta = new Vector2(34, 34);
+        lampRect.sizeDelta = new Vector2(38, 38);
 
         go.AddComponent<CanvasRenderer>();
         RawImage img = go.AddComponent<RawImage>();
-        img.texture = CreateCircleTexture(64, new Color32(255, 220, 80, 230));
+        img.texture = CreateCircleTexture(64, new Color32(255, 220, 80, 255));
         img.raycastTarget = false;
         img.color = Color.white;
     }
@@ -707,14 +716,12 @@ public class WarukyureBoard : MonoBehaviour
         int srcL = srcArr.Length;
         int sourceDist = (sourceIndex - homeIndex + srcL) % srcL;
 
-        int naturalSteps = sourceDist;
         int targetDist = 0;
         string[] tgtArr = null;
         int tgtL = 0;
 
         if (pathId != "outer")
         {
-            naturalSteps += 1; // warp step
             if (targetTrack != "castle")
             {
                 tgtArr = BoardData.GetTrackArray(targetTrack);
@@ -722,16 +729,12 @@ public class WarukyureBoard : MonoBehaviour
                 int targetIndex = BoardData.GetIndex(targetCell);
                 int stopIndex = BoardData.GetIndex(stopId);
                 targetDist = (stopIndex - targetIndex + tgtL) % tgtL;
-                naturalSteps += targetDist;
             }
         }
 
-        int lapCount = 0;
-        if (naturalSteps < MIN_PATH_STEPS)
-        {
-            int need = MIN_PATH_STEPS - naturalSteps;
-            lapCount = (need + srcL - 1) / srcL;
-        }
+        int lapCount = LAMP_LAPS_FAST + LAMP_LAPS_MID;
+        lampFastSegments = LAMP_LAPS_FAST * srcL;
+        lampMidSegments = LAMP_LAPS_MID * srcL;
 
         List<string> cells = new List<string>();
         // source track: home + laps + to source
@@ -781,28 +784,26 @@ public class WarukyureBoard : MonoBehaviour
         }
 
         int segments = path.Count - 1;
-        float elapsed = 0f;
-        while (elapsed < RUN_DURATION)
+        int fastEnd = Mathf.Min(lampFastSegments, segments);
+        int midEnd = Mathf.Min(lampFastSegments + lampMidSegments, segments);
+
+        float virt = 0f; // 進んだマス数（連続値）
+        while (virt < segments)
         {
             if (skipRequested)
             {
                 lampRect.anchoredPosition = path[path.Count - 1];
                 yield break;
             }
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / RUN_DURATION);
-            float p = EaseOutCubic(t);
-            float f = p * segments;
-            int idx = Mathf.FloorToInt(f);
-            float frac = f - idx;
+            float speed = virt < fastEnd
+                ? LAMP_SPEED_FAST
+                : (virt < midEnd ? LAMP_SPEED_MID : LAMP_SPEED_SLOW);
+            virt = Mathf.Min(segments, virt + speed * Time.deltaTime);
+            int idx = Mathf.FloorToInt(virt);
             if (idx >= segments)
-            {
-                lampRect.anchoredPosition = path[path.Count - 1];
-            }
+                lampRect.anchoredPosition = path[segments];
             else
-            {
-                lampRect.anchoredPosition = Vector2.Lerp(path[idx], path[idx + 1], frac);
-            }
+                lampRect.anchoredPosition = Vector2.Lerp(path[idx], path[idx + 1], virt - idx);
             yield return null;
         }
         lampRect.anchoredPosition = path[path.Count - 1];
