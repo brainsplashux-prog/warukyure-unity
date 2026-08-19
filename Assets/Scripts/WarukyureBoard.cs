@@ -847,7 +847,6 @@ public class WarukyureBoard : MonoBehaviour
         int homeIndex = BoardData.GetIndex(home);
         string[] srcArr = BoardData.GetTrackArray(sourceTrack);
         int srcL = srcArr.Length;
-        int sourceDist = (sourceIndex - homeIndex + srcL) % srcL;
 
         int targetDist = 0;
         string[] tgtArr = null;
@@ -869,12 +868,13 @@ public class WarukyureBoard : MonoBehaviour
         lampMidSegments = Mathf.RoundToInt(LAMP_LAPS_MID * srcL);
         int lapSegments = lampFastSegments + lampMidSegments;
 
+        // 周回の終点から source までの残り。homeIndex 起点に戻すと境目でワープするので必ず続きから。
+        int runIn = ((sourceIndex - homeIndex - lapSegments) % srcL + srcL) % srcL;
+
         List<string> cells = new List<string>();
-        // source track: home + laps + to source
+        // source track: home から一続きに 周回 + 残り
         cells.Add(home);
-        for (int i = 1; i <= lapSegments; i++)
-            cells.Add(srcArr[(homeIndex + i) % srcL]);
-        for (int i = 1; i <= sourceDist; i++)
+        for (int i = 1; i <= lapSegments + runIn; i++)
             cells.Add(srcArr[(homeIndex + i) % srcL]);
 
         // warp + target track
