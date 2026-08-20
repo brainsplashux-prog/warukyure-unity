@@ -127,6 +127,7 @@ public class WarukyureBoard : MonoBehaviour
         CreateCellDimmers();
         CreateLamp();
         CreateAdVirtuaPlaceholder();
+        CreateAdPrLabel(); // ad-monetization.md L85 ステマ規制/景表法 PR表記
         AdVirtuaMonitorSetup.Setup();
         gameObject.AddComponent<AdVirtuaResizeWatcher>();
         CreateHeaderText();
@@ -395,6 +396,46 @@ public class WarukyureBoard : MonoBehaviour
 
         // ダーク板は本物の Ad-Virtua 3D モニターへ置き換える。
         // 枠（位置・サイズ）の意味だけを保つ空の RectTransform として残す。
+    }
+
+    // 広告枠の「PR」表記（ステマ規制・景表法。正本 ~/.claude/manuals/ad-monetization.md L85）。
+    // 🛑 Ad-Virtua は常に最前面（同 §「最前面ルール」・例外なし）のため、広告矩形の内側へ
+    //    重ねることは構造的に不可能。よって広告帯(720x405)の直下＝枠に接する左隅へ常時表示する。
+    //    サウンドボタン(§2b)が右隅・帯直下なので、左右で対になる位置になる。
+    void CreateAdPrLabel()
+    {
+        const float bandBottom = 405f;
+        const float margin = 18f;
+        const float w = 56f;
+        const float h = 28f;
+
+        GameObject plate = new GameObject("AdPrLabelPlate");
+        plate.transform.SetParent(canvas.transform, false);
+        RectTransform prt = plate.AddComponent<RectTransform>();
+        prt.anchorMin = new Vector2(0, 1);
+        prt.anchorMax = new Vector2(0, 1);
+        prt.pivot = new Vector2(0, 1);
+        prt.anchoredPosition = new Vector2(margin, -(bandBottom + margin));
+        prt.sizeDelta = new Vector2(w, h);
+        Image bg = plate.AddComponent<Image>();
+        bg.color = new Color(0f, 0f, 0f, 0.62f);
+        bg.raycastTarget = false;
+
+        GameObject label = new GameObject("AdPrLabelText");
+        label.transform.SetParent(plate.transform, false);
+        RectTransform lrt = label.AddComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero;
+        lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero;
+        lrt.offsetMax = Vector2.zero;
+        Text t = label.AddComponent<Text>();
+        t.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+        if (t.font == null) t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        t.fontSize = 20;
+        t.alignment = TextAnchor.MiddleCenter;
+        t.color = Color.white;
+        t.raycastTarget = false;
+        t.text = "PR";
     }
 
     Text CreateText(string name, Vector2 pos, Vector2 size, TextAnchor align, int fontSize)
