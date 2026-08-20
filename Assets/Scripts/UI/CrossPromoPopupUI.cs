@@ -57,7 +57,7 @@ public static class CrossPromoPopupUI
         NewFullscreenImage(rootRt, "Dim", DimColor);
 
         float cardWidth = Mathf.Min(600f, rootRt.rect.width * 0.86f);
-        var card = NewCenteredImage(rootRt, "ModalCard", CardColor, new Vector2(cardWidth, 600f), Vector2.zero);
+        var card = NewCenteredImage(rootRt, "ModalCard", CardColor, new Vector2(cardWidth, 600f), new Vector2(0f, -200f));
         var cardRt = card.rectTransform;
 
         NewCenteredText(cardRt, "Title", font, "他のゲームもあるよ！", 44, DarkText, FontStyle.Bold,

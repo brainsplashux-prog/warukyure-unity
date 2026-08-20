@@ -1026,7 +1026,7 @@ public class WarukyureBoard : MonoBehaviour
 
         // クロスプロモ: ラウンド終了（＝リザルト表示）時のみ発火。プレイ中には割り込まない。
         // 通信エラー時は出さない。同一セッション1回までの制御は PoiPlayTime 側が持つ。
-        if (string.IsNullOrEmpty(error)) CrossPromoPopupUI.ShowIfEligible(canvas, null);
+        if (string.IsNullOrEmpty(error)) CrossPromoPopupUI.ShowIfEligible(canvas, Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium"));
     }
 
     // 409ボディ {"error":"...","run":{"runId":"xxxx",...}} から runId を取り出す
