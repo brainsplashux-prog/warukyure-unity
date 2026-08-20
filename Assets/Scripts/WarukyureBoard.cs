@@ -135,6 +135,7 @@ public class WarukyureBoard : MonoBehaviour
         CreateSpinButton();
         CreateResultOverlay();
         CreateJackpotChallengeUI();
+        gameObject.AddComponent<SoundMuteButton>(); // game-layout-standard.md §2b 共通サウンドミュートボタン
 
         StartCoroutine(InitSession());
         StartCoroutine(TryDebugForceFx());
