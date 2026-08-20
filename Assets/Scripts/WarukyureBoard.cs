@@ -57,6 +57,10 @@ public class WarukyureBoard : MonoBehaviour
     private ResolveResponse lastResult;
     private readonly string[] betLabels = { "2", "4", "6", "8", "20" };
     private readonly string[] ballNames = { "うさぎ", "ねこ", "くま", "ことり" };
+    // 城下コレクションパネルの4玉（art_final_v4 はパネル内が空。玉は実行時に重ねる）
+    private readonly RawImage[] collectionBalls = new RawImage[4];
+    private readonly Texture2D[] ballTexOn = new Texture2D[4];
+    private readonly Texture2D[] ballTexOff = new Texture2D[4];
     private readonly string[] jpAwardLabels = { "3000", "1000", "30000", "1000", "5000" };
     private Coroutine overlayRoutine;
     private long lastErrorCode = 0;
@@ -162,10 +166,10 @@ public class WarukyureBoard : MonoBehaviour
 
     void CreateBoardImage()
     {
-        Texture2D tex = Resources.Load<Texture2D>("art_final_v3");
+        Texture2D tex = Resources.Load<Texture2D>("art_final_v4");
         if (tex == null)
         {
-            Debug.LogError("[Warukyure] art_final_v3 texture not found.");
+            Debug.LogError("[Warukyure] art_final_v4 texture not found.");
             return;
         }
 
@@ -182,6 +186,53 @@ public class WarukyureBoard : MonoBehaviour
         RawImage img = go.AddComponent<RawImage>();
         img.texture = tex;
         img.raycastTarget = false;
+
+        CreateCollectionBalls(rt);
+    }
+
+    // art_final_v2 実測: パネル内枠 x463..587 / y233..331。2x2 のセル中心に直径42ptの玉を置く。
+    static readonly Vector2[] CollectionBallPos =
+    {
+        new Vector2(494.25f, 257.75f), new Vector2(556.75f, 257.75f),
+        new Vector2(494.25f, 306.25f), new Vector2(556.75f, 306.25f)
+    };
+    const float CollectionBallSize = 42f;
+
+    void CreateCollectionBalls(RectTransform boardRect)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            ballTexOn[i] = Resources.Load<Texture2D>("ball_c" + i);
+            ballTexOff[i] = Resources.Load<Texture2D>("ball_g" + i);
+
+            GameObject bgo = new GameObject("CollectionBall" + i);
+            bgo.transform.SetParent(boardRect, false);
+            RectTransform brt = bgo.AddComponent<RectTransform>();
+            brt.anchorMin = new Vector2(0, 1);
+            brt.anchorMax = new Vector2(0, 1);
+            brt.pivot = new Vector2(0.5f, 0.5f);
+            brt.sizeDelta = new Vector2(CollectionBallSize, CollectionBallSize);
+            brt.anchoredPosition = new Vector2(CollectionBallPos[i].x, -CollectionBallPos[i].y);
+
+            bgo.AddComponent<CanvasRenderer>();
+            RawImage bimg = bgo.AddComponent<RawImage>();
+            bimg.raycastTarget = false;
+            collectionBalls[i] = bimg;
+        }
+        UpdateCollectionPanel();
+    }
+
+    // 未取得はグレー（影だけ）、取得済みはキャラ色の玉。ballMask の各ビットで切替える。
+    void UpdateCollectionPanel()
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            if (collectionBalls[i] == null) continue;
+            bool got = (ballMask & (1 << i)) != 0;
+            Texture2D t = got ? ballTexOn[i] : ballTexOff[i];
+            if (t != null) collectionBalls[i].texture = t;
+            collectionBalls[i].enabled = (t != null);
+        }
     }
 
     // マスの実寸（art_final.png のピクセル実測。outer 34x34 / ring4 36x36 / loop2 26x29・角丸r=5）
@@ -683,6 +734,7 @@ public class WarukyureBoard : MonoBehaviour
     void UpdateHeader()
     {
         walletText.text = $"合計 +{lastTotal} / 残高 {wallet:N0}";
+        UpdateCollectionPanel();
     }
 
     // ----------------- overlay -----------------
@@ -868,6 +920,7 @@ public class WarukyureBoard : MonoBehaviour
 
         wallet = lastResult.state.wallet;
         ballMask = lastResult.state.ballMask;
+        UpdateCollectionPanel();
 
         // lamp animation
         var path = BuildLampPath(lastResult.pathId, lastResult.stopId);
