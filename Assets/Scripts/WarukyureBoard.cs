@@ -686,8 +686,32 @@ public class WarukyureBoard : MonoBehaviour
         image.color = new Color(0, 0, 0, 0);
 
         Button btn = go.AddComponent<Button>();
-        btn.onClick.AddListener(() => onClick());
+        // conformance: button-feedback（全buttonに約0.1秒・1.05倍→戻る反応）。
+        // pivot が (0,1) のため拡大は左上基準で伸びる。anchoredPosition を同時に
+        // 補正して見かけ上は中心から拡大させ、静止時の座標は一切変えない。
+        btn.onClick.AddListener(() => { StartCoroutine(PressFeedback(rt)); onClick(); });
         return btn;
+    }
+
+    IEnumerator PressFeedback(RectTransform rt)
+    {
+        const float DUR = 0.1f;
+        const float PEAK = 1.05f;
+        Vector2 basePos = rt.anchoredPosition;
+        Vector2 size = rt.sizeDelta;
+        float t = 0f;
+        while (t < DUR)
+        {
+            t += Time.deltaTime;
+            float p = Mathf.Clamp01(t / DUR);
+            float k = 1f - Mathf.Abs(p * 2f - 1f); // 0→1→0
+            float sc = Mathf.Lerp(1f, PEAK, k);
+            rt.localScale = new Vector3(sc, sc, 1f);
+            rt.anchoredPosition = basePos + new Vector2(-size.x * (sc - 1f) * 0.5f, size.y * (sc - 1f) * 0.5f);
+            yield return null;
+        }
+        rt.localScale = Vector3.one;
+        rt.anchoredPosition = basePos;
     }
 
     // ----------------- interaction -----------------
@@ -738,14 +762,15 @@ public class WarukyureBoard : MonoBehaviour
     }
 
     // ----------------- overlay -----------------
-    void ShowResultOverlay(string text, float displayDuration)
+    void ShowResultOverlay(string text, float displayDuration, bool blocking = true)
     {
         if (resultPanel == null) return;
         resultPanelText.text = text;
         resultPanel.SetActive(true);
-        resultPanelGroup.blocksRaycasts = true;
+        resultPanelGroup.blocksRaycasts = blocking;
         if (overlayRoutine != null) StopCoroutine(overlayRoutine);
-        overlayRoutine = StartCoroutine(OverlayRoutine(displayDuration));
+        // 非ブロッキング時は fade も詰め、表示開始〜消滅を displayDuration 内に収める。
+        overlayRoutine = StartCoroutine(OverlayRoutine(displayDuration, blocking ? 0.3f : 0.1f));
     }
 
     void DismissResultOverlay()
@@ -761,24 +786,24 @@ public class WarukyureBoard : MonoBehaviour
         resultPanel.SetActive(false);
     }
 
-    IEnumerator OverlayRoutine(float displayDuration)
+    IEnumerator OverlayRoutine(float displayDuration, float fade = 0.3f)
     {
-        yield return FadeOverlay(1f);
+        yield return FadeOverlay(1f, fade);
         if (displayDuration > 0)
         {
             yield return new WaitForSeconds(displayDuration);
-            yield return FadeOverlay(0f);
+            yield return FadeOverlay(0f, fade);
             resultPanelGroup.blocksRaycasts = false;
             resultPanel.SetActive(false);
         }
         overlayRoutine = null;
     }
 
-    IEnumerator FadeOverlay(float target)
+    IEnumerator FadeOverlay(float target, float fade = 0.3f)
     {
         float start = resultPanelGroup.alpha;
         float t = 0f;
-        const float FADE = 0.3f;
+        float FADE = fade;
         while (t < FADE)
         {
             t += Time.deltaTime;
@@ -1178,7 +1203,10 @@ public class WarukyureBoard : MonoBehaviour
             sb.Append($"BALL {name} ゲット");
         }
 
-        ShowResultOverlay(sb.ToString(), 1.5f);
+        // conformance: loss-fast（外れ→次入力可能まで0.4秒以内）。
+        // 当たりは従来どおり 1.5 秒ブロック、外れだけ非ブロッキングの短表示にする。
+        bool isLoss = r.primaryType == "out";
+        ShowResultOverlay(sb.ToString(), isLoss ? 0.4f : 1.5f, !isLoss);
     }
 
     // ----------------- JACKPOT challenge flow -----------------
