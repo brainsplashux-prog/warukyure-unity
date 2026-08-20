@@ -357,14 +357,11 @@ public static class LampAnnouncer
         for (int i = 0; i < LampCount; i++)
         {
             bool jackpot = i == 2;
-            Color color = jackpot ? new Color32(255, 221, 92, 255) : new Color32(172, 176, 187, 255);
+            Color color = jackpot ? new Color32(255, 221, 92, 255) : new Color32(255, 246, 224, 255);
             Text label = CreateLabel(panelGo.transform, "label" + i, labels[i], font, LabelLeft[i], color, jackpot);
-            if (jackpot)
-            {
-                var outline = label.gameObject.AddComponent<Outline>();
-                outline.effectColor = new Color32(95, 49, 7, 255);
-                outline.effectDistance = new Vector2(1f, -1f);
-            }
+            var outline = label.gameObject.AddComponent<Outline>();
+            outline.effectColor = jackpot ? new Color32(95, 49, 7, 255) : new Color32(52, 30, 6, 235);
+            outline.effectDistance = new Vector2(1.5f, -1.5f);
         }
 
         void SetLampActive(int index, bool active)
