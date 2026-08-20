@@ -1,33 +1,20 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Babeltower8192 LampAnnouncer の warukyure 向け移植。
-///
-/// 5 つのランプが左から右へ走り、サーバーですでに決まった winningIndex の
-/// 位置で停止する。クライアントは抽選せず、あくまで演出を再生する。
-///
-/// 元実装からの変更点は warukyure 側の仕様・フォントに合わせたもののみ:
-///   - TextMeshProUGUI → UnityEngine.UI.Text（プロジェクトに TMP フォントアセットが無いため）
-///   - ラベル色・パネル縦位置を warukyure の JACKPOT チャレンジ配置に合わせる
-///   - SKIP 対応のため shouldSkip コールバックを追加（元の減速カーブは維持）
-///   - パネル背景を warukyure 盤面トンマナ（緑の芝＋青い水＋金の枠）に差し替え、
-///     ランプ本体は Resources/lamp/lit* ・ lamp/off をそのまま使う
+/// Five-lamp announcement for the warukyure JACKPOT challenge.
+/// The server supplies winningIndex; this class only presents that result.
 /// </summary>
 public static class LampAnnouncer
 {
-    // The panel is rendered at 640x128 and the game lays out at 720 wide,
-    // so it is shown one-to-one.  Lamp centres come from the Blender socket
-    // positions (-4, -2, 0, 2, 4 on a 10.4-wide slab), which is a 2/10.4
-    // fraction of the width between neighbours.
     private const float PanelWidth = 640f;
-    private const float PanelHeight = 128f;
+    private const float PanelHeight = 200f;
     private const float LampSpacing = PanelWidth * 2f / 10.4f;
 
-    // Approved timing: 0.1s per lamp for six laps, 0.2s for two more, then
-    // 0.5s per lamp until it lands.
+    // Approved timing. Do not change these values independently of the game design.
     private const float FastStep = 0.1f;
     private const float MidStep = 0.2f;
     private const float SlowStep = 0.5f;
@@ -35,23 +22,33 @@ public static class LampAnnouncer
     private const int FastLaps = 6;
     private const int MidLaps = 2;
 
-    // ランプを切り抜くとき、マスクで丸くくり抜く範囲。
-    // ベージュのリングを残しつつ、周りの石板は背景に置き換えるために
-    // マスクはリングすぐ外側（半径 38）で切る。
     private const int LampDiameter = 80;
     private const int LampMaskDiameter = 76;
+    private const float SourceLampHeight = 128f;
+    private const float SourceLampCenterY = 64f;
+
+    private static readonly float[] LabelLeft = { 55f, 178f, 279f, 424f, 547f };
+    private static readonly float[] RingLeft = { 32f, 155f, 0f, 401f, 524f };
 
     private static Texture2D[] litFrames;
     private static Texture2D offFrame;
+    private static Texture2D panelBackground;
+    private static Texture2D centerBezelOff;
+    private static Texture2D centerBezelOn;
+    private static Texture2D sideRing;
+    private static Texture2D jackpotPlate;
     private static Sprite maskSprite;
+    private static Font labelFont;
 
-    // パネル背景色は art_final_v2.png から実際にサンプリングした値（推測無し）
-    // grass: art_final_v2 上部の芝 (x 150-600, y 80-130) 平均
-    // water: art_final_v2 右下の水 (x 500-570, y 520-560) 平均
-    // gold: art_final_v2 盤面金枠 4 辺の平均
-    private static readonly Color32 GrassColor = new Color32(115, 154, 82, 255);
-    private static readonly Color32 WaterColor = new Color32(73, 118, 122, 255);
-    private static readonly Color32 GoldColor = new Color32(236, 211, 168, 255);
+    private sealed class GlowSample
+    {
+        public Text text;
+        public Vector2 direction;
+        public float baseRadius;
+        public float blurRadiusScale;
+        public float weight;
+        public bool stroke;
+    }
 
     private static void LoadFrames()
     {
@@ -59,7 +56,13 @@ public static class LampAnnouncer
         litFrames = new Texture2D[LampCount];
         for (int i = 0; i < LampCount; i++)
             litFrames[i] = Resources.Load<Texture2D>("lamp/lit" + i);
+
         offFrame = Resources.Load<Texture2D>("lamp/off");
+        panelBackground = Resources.Load<Texture2D>("jpvault/panel_bg");
+        centerBezelOff = Resources.Load<Texture2D>("jpvault/bezel_center_off");
+        centerBezelOn = Resources.Load<Texture2D>("jpvault/bezel_center_on");
+        sideRing = Resources.Load<Texture2D>("jpvault/ring_side");
+        jackpotPlate = Resources.Load<Texture2D>("jpvault/label_plate_jackpot");
     }
 
     private static Sprite MaskSprite()
@@ -70,64 +73,174 @@ public static class LampAnnouncer
         Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         tex.wrapMode = TextureWrapMode.Clamp;
         tex.filterMode = FilterMode.Bilinear;
-
         Color32 white = new Color32(255, 255, 255, 255);
         Color32 clear = new Color32(0, 0, 0, 0);
-        Color32[] px = new Color32[size * size];
+        Color32[] pixels = new Color32[size * size];
         Vector2 center = new Vector2(size / 2f, size / 2f);
-        float r = size / 2f - 1f;
+        float radius = size / 2f - 1f;
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
-                float d = Vector2.Distance(center, new Vector2(x, y));
-                px[y * size + x] = d <= r ? white : clear;
-            }
-        }
-
-        tex.SetPixels32(px);
-        tex.Apply();
-        maskSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
-        return maskSprite;
-    }
-
-    private static Texture2D MakePanelTexture()
-    {
-        int w = (int)PanelWidth;
-        int h = (int)PanelHeight;
-        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
-        tex.wrapMode = TextureWrapMode.Clamp;
-        tex.filterMode = FilterMode.Bilinear;
-
-        Color32[] pixels = new Color32[w * h];
-        const int borderH = 8;
-        const int borderW = 8;
-
-        // 芝（上）と水（下）を緩やかな波状の境界で分ける
-        for (int x = 0; x < w; x++)
-        {
-            int boundary = (int)(h * 0.5f
-                + 8f * Mathf.Sin(x * 0.018f)
-                + 4f * Mathf.Sin(x * 0.06f + 1f));
-
-            for (int y = 0; y < h; y++)
-            {
-                int idx = y * w + x;
-                bool border = y < borderH || y >= h - borderH || x < borderW || x >= w - borderW;
-                pixels[idx] = border ? GoldColor : (y > boundary ? WaterColor : GrassColor);
+                float distance = Vector2.Distance(center, new Vector2(x, y));
+                pixels[y * size + x] = distance <= radius ? white : clear;
             }
         }
 
         tex.SetPixels32(pixels);
         tex.Apply();
-        return tex;
+        maskSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+        return maskSprite;
     }
 
-    private static Font JapaneseFont()
+    private static RectTransform SetTopLeftRect(GameObject go, float x, float y, float width, float height)
     {
-        var font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
-        if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        return font;
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = new Vector2(x, -y);
+        rect.sizeDelta = new Vector2(width, height);
+        return rect;
+    }
+
+    private static RawImage CreateTextureLayer(Transform parent, string name, Texture texture, float x, float y, float width, float height)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var image = go.AddComponent<RawImage>();
+        image.texture = texture;
+        image.color = Color.white;
+        image.raycastTarget = false;
+        SetTopLeftRect(go, x, y, width, height);
+        return image;
+    }
+
+    private static Font LabelFont()
+    {
+        if (labelFont != null) return labelFont;
+        labelFont = Font.CreateDynamicFontFromOSFont("Arial Bold", 17);
+        if (labelFont == null) labelFont = Font.CreateDynamicFontFromOSFont("Arial", 17);
+        if (labelFont == null) labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (labelFont == null) labelFont = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+        return labelFont;
+    }
+
+    private static Text CreateLabel(Transform parent, string name, string value, Font font, float x, Color color, bool jackpot)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var text = go.AddComponent<Text>();
+        text.font = font;
+        text.fontStyle = FontStyle.Bold;
+        text.text = value ?? string.Empty;
+        text.fontSize = 17;
+        text.resizeTextForBestFit = false;
+        text.horizontalOverflow = HorizontalWrapMode.Overflow;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.alignment = TextAnchor.UpperLeft;
+        text.color = color;
+        text.raycastTarget = false;
+        SetTopLeftRect(go, x, 152f, jackpot ? 82f : 38f, 24f);
+        return text;
+    }
+
+    private static void AddGlowRing(
+        List<GlowSample> samples,
+        Transform parent,
+        string value,
+        Font font,
+        string name,
+        int count,
+        float baseRadius,
+        float blurRadiusScale,
+        float totalWeight,
+        bool stroke)
+    {
+        float sampleWeight = totalWeight / count;
+        for (int i = 0; i < count; i++)
+        {
+            float angle = Mathf.PI * 2f * i / count;
+            Text text = CreateLabel(
+                parent,
+                name + i,
+                value,
+                font,
+                LabelLeft[2],
+                Color.clear,
+                true);
+            samples.Add(new GlowSample
+            {
+                text = text,
+                direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)),
+                baseRadius = baseRadius,
+                blurRadiusScale = blurRadiusScale,
+                weight = sampleWeight,
+                stroke = stroke
+            });
+        }
+    }
+
+    private static GlowSample[] CreateJackpotGlow(Transform parent, string value, Font font)
+    {
+        var containerGo = new GameObject("jackpotGlow", typeof(RectTransform));
+        containerGo.transform.SetParent(parent, false);
+        SetTopLeftRect(containerGo, 0f, 0f, PanelWidth, PanelHeight);
+
+        var samples = new List<GlowSample>(61);
+
+        // The stroke source is an outline made from two circular sample bands.
+        // Its weights total 1, so UpdateJackpotGlow can normalize opacity exactly.
+        AddGlowRing(samples, containerGo.transform, value, font, "strokeInner", 12, 1f, 0.35f, 0.65f, true);
+        AddGlowRing(samples, containerGo.transform, value, font, "strokeOuter", 16, 1f, 0.85f, 0.35f, true);
+
+        Text center = CreateLabel(
+            containerGo.transform,
+            "fillCenter",
+            value,
+            font,
+            LabelLeft[2],
+            Color.clear,
+            true);
+        samples.Add(new GlowSample
+        {
+            text = center,
+            direction = Vector2.zero,
+            baseRadius = 0f,
+            blurRadiusScale = 0f,
+            weight = 0.20f,
+            stroke = false
+        });
+        AddGlowRing(samples, containerGo.transform, value, font, "fillInner", 12, 0f, 0.45f, 0.50f, false);
+        AddGlowRing(samples, containerGo.transform, value, font, "fillOuter", 20, 0f, 1f, 0.30f, false);
+        return samples.ToArray();
+    }
+
+    private static void UpdateJackpotGlow(
+        GlowSample[] samples,
+        float blurRadius,
+        byte fillSourceAlpha,
+        byte strokeSourceAlpha)
+    {
+        for (int i = 0; i < samples.Length; i++)
+        {
+            GlowSample sample = samples[i];
+            float sourceAlpha = (sample.stroke ? strokeSourceAlpha : fillSourceAlpha) / 255f;
+            // Normalized alpha: overlapping every sample in a group recombines to
+            // exactly the requested source alpha instead of growing with copy count.
+            float alpha = 1f - Mathf.Pow(1f - sourceAlpha, sample.weight);
+            float radius = sample.baseRadius + blurRadius * sample.blurRadiusScale;
+            Vector2 offset = sample.direction * radius;
+            SetTopLeftRect(
+                sample.text.gameObject,
+                LabelLeft[2] + offset.x,
+                152f + offset.y,
+                82f,
+                24f);
+            sample.text.color = sample.stroke
+                ? new Color(1f, 124f / 255f, 20f / 255f, alpha)
+                : new Color(1f, 190f / 255f, 43f / 255f, alpha);
+        }
     }
 
     private static IEnumerator WaitOrSkip(float seconds, Func<bool> isSkip)
@@ -137,7 +250,6 @@ public static class LampAnnouncer
             yield return new WaitForSeconds(seconds);
             yield break;
         }
-
         float t = 0f;
         while (t < seconds && !isSkip())
         {
@@ -146,9 +258,6 @@ public static class LampAnnouncer
         }
     }
 
-    /// <summary>
-    /// The amount board: five payouts, ascending, left to right.
-    /// </summary>
     public static IEnumerator Run(int[] amounts, int winningIndex, Func<bool> isSkip = null)
     {
         if (amounts == null || amounts.Length != LampCount) yield break;
@@ -157,31 +266,22 @@ public static class LampAnnouncer
         yield return Run(labels, winningIndex, null, isSkip);
     }
 
-    /// <summary>
-    /// Runs the announcement and leaves nothing behind.  Yields until the
-    /// light has stopped and the winning lamp has been held long enough to
-    /// read.
-    ///
-    /// The board takes plain labels rather than amounts because it is not
-    /// only about money: the revival chance runs across the same five lamps
-    /// with words on them.  Anything else that has to be announced as one
-    /// result out of five belongs here too, not in its own effect.
-    /// </summary>
     public static IEnumerator Run(string[] labels, int winningIndex, Color[] labelColors, Func<bool> isSkip = null)
     {
         if (labels == null || labels.Length != LampCount) yield break;
         if (winningIndex < 0 || winningIndex >= LampCount) yield break;
 
         LoadFrames();
-        if (offFrame == null) yield break;
+        if (offFrame == null || panelBackground == null || centerBezelOff == null ||
+            centerBezelOn == null || sideRing == null || jackpotPlate == null)
+            yield break;
 
         var root = new GameObject("LampAnnouncer");
         var canvas = root.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 500;   // above the play screen, below nothing
+        canvas.sortingOrder = 500;
         var scaler = root.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        // warukyure canvas reference is 720x1224, match width.
         scaler.referenceResolution = new Vector2(720f, 1224f);
         scaler.matchWidthOrHeight = 0.0f;
         root.AddComponent<GraphicRaycaster>();
@@ -189,33 +289,44 @@ public static class LampAnnouncer
         var panelGo = new GameObject("panel");
         panelGo.transform.SetParent(root.transform, false);
         var panel = panelGo.AddComponent<RawImage>();
-        panel.texture = MakePanelTexture();
+        panel.texture = panelBackground;
+        panel.color = Color.white;
         panel.raycastTarget = false;
         var panelRect = panelGo.GetComponent<RectTransform>();
         panelRect.sizeDelta = new Vector2(PanelWidth, PanelHeight);
-        // warukyure の JACKPOT ランプ中心と同じ高さ（canvas 中心から 202.5 下）
-        panelRect.anchoredPosition = new Vector2(0f, -202.5f);
+        panelRect.anchoredPosition = new Vector2(0f, -238.5f);
+
+        var sideRings = new RawImage[LampCount];
+        for (int i = 0; i < LampCount; i++)
+        {
+            if (i == 2) continue;
+            sideRings[i] = CreateTextureLayer(panelGo.transform, "sideRing" + i, sideRing, RingLeft[i], 46f, 85f, 85f);
+        }
+
+        RawImage centerBezel = CreateTextureLayer(panelGo.transform, "centerBezel", centerBezelOff, 252f, 20f, 136f, 136f);
+
+        Material activeRingMaterial = null;
+        Shader uiShader = Shader.Find("UI/Default");
+        if (uiShader != null)
+        {
+            activeRingMaterial = new Material(uiShader);
+            activeRingMaterial.name = "LampAnnouncer Active Ring";
+            activeRingMaterial.SetVector("_TextureSampleAdd", new Vector4(13f / 255f, 11f / 255f, 5f / 255f, 0f));
+        }
 
         Sprite circleMask = MaskSprite();
         var lampImages = new RawImage[LampCount];
         for (int i = 0; i < LampCount; i++)
         {
-            float cx = PanelWidth / 2f + (i - 2) * LampSpacing;
-            float cy = PanelHeight / 2f;
-
-            // マスクは円形。子の RawImage は少し大きめに置き、
-            // マスクでリング外の石板を切り落とす。
+            float centerX = PanelWidth / 2f + (i - 2) * LampSpacing;
+            float lampLeft = Mathf.Round(centerX - LampDiameter / 2f);
             var maskGo = new GameObject("lampMask" + i);
             maskGo.transform.SetParent(panelGo.transform, false);
-            var maskRect = maskGo.AddComponent<RectTransform>();
-            maskRect.anchoredPosition = new Vector2((i - 2) * LampSpacing, 0f);
-            maskRect.sizeDelta = new Vector2(LampMaskDiameter, LampMaskDiameter);
-
             var maskImage = maskGo.AddComponent<Image>();
+            SetTopLeftRect(maskGo, lampLeft + 2f, 50f, LampMaskDiameter, LampMaskDiameter);
             maskImage.sprite = circleMask;
             maskImage.color = Color.white;
             maskImage.preserveAspect = false;
-
             var mask = maskGo.AddComponent<Mask>();
             mask.showMaskGraphic = false;
 
@@ -231,58 +342,56 @@ public static class LampAnnouncer
             var lamp = lampGo.AddComponent<RawImage>();
             lamp.texture = offFrame;
             lamp.raycastTarget = false;
-
-            // off/lit* 640x128 テクスチャから i 番目のランプだけを切り出す
-            float left = (cx - LampDiameter / 2f) / PanelWidth;
-            float bottom = (cy - LampDiameter / 2f) / PanelHeight;
-            float uWidth = LampDiameter / PanelWidth;
-            float uHeight = LampDiameter / PanelHeight;
-            lamp.uvRect = new Rect(left, bottom, uWidth, uHeight);
-
+            float left = lampLeft / PanelWidth;
+            float bottom = (SourceLampCenterY - LampDiameter / 2f) / SourceLampHeight;
+            lamp.uvRect = new Rect(left, bottom, LampDiameter / PanelWidth, LampDiameter / SourceLampHeight);
             lampImages[i] = lamp;
         }
 
-        var font = JapaneseFont();
+        CreateTextureLayer(panelGo.transform, "jackpotPlate", jackpotPlate, 269f, 149f, 104f, 32f);
+
+        Font font = LabelFont();
+        GlowSample[] jackpotGlow = CreateJackpotGlow(panelGo.transform, labels[2], font);
+        UpdateJackpotGlow(jackpotGlow, 3f, 140, 80);
+
         for (int i = 0; i < LampCount; i++)
         {
-            var labelGo = new GameObject("label" + i);
-            labelGo.transform.SetParent(panelGo.transform, false);
-            var label = labelGo.AddComponent<Text>();
-            if (font != null) label.font = font;
-            label.text = labels[i] ?? string.Empty;
-            label.fontSize = 26;
-            label.resizeTextForBestFit = true;
-            label.resizeTextMinSize = 12;
-            label.resizeTextMaxSize = 26;
-            label.horizontalOverflow = HorizontalWrapMode.Overflow;
-            label.verticalOverflow = VerticalWrapMode.Overflow;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.color = (labelColors != null && labelColors.Length == LampCount)
-                ? labelColors[i]
-                : new Color(1f, 0.94f, 0.80f);
-            label.raycastTarget = false;
+            bool jackpot = i == 2;
+            Color color = jackpot ? new Color32(255, 221, 92, 255) : new Color32(172, 176, 187, 255);
+            Text label = CreateLabel(panelGo.transform, "label" + i, labels[i], font, LabelLeft[i], color, jackpot);
+            if (jackpot)
+            {
+                var outline = label.gameObject.AddComponent<Outline>();
+                outline.effectColor = new Color32(95, 49, 7, 255);
+                outline.effectDistance = new Vector2(1f, -1f);
+            }
+        }
 
-            // Babel の TMP outline に相当する弱い縁取り
-            var outline = labelGo.AddComponent<Outline>();
-            outline.effectColor = new Color32(30, 18, 8, 255);
-            outline.effectDistance = new Vector2(1.5f, -1.5f);
+        void SetLampActive(int index, bool active)
+        {
+            lampImages[index].texture = active && litFrames[index] != null ? litFrames[index] : offFrame;
+            if (index != 2 && sideRings[index] != null)
+                sideRings[index].material = active ? activeRingMaterial : null;
+        }
 
-            var labelRect = labelGo.GetComponent<RectTransform>();
-            labelRect.sizeDelta = new Vector2(LampSpacing, 40f);
-            labelRect.anchoredPosition = new Vector2((i - 2) * LampSpacing, -(PanelHeight / 2f) - 26f);
+        void SetJackpotMaximum()
+        {
+            centerBezel.texture = centerBezelOn;
+            SetTopLeftRect(centerBezel.gameObject, 248f, 16f, 145f, 145f);
+            UpdateJackpotGlow(jackpotGlow, 4f, 230, 160);
         }
 
         int position = 0;
-        lampImages[position].texture = litFrames[position] != null ? litFrames[position] : offFrame;
+        SetLampActive(position, true);
         bool IsSkip() => isSkip != null && isSkip();
 
         for (int step = 0; step < FastLaps * LampCount; step++)
         {
             yield return WaitOrSkip(FastStep, isSkip);
             if (IsSkip()) { position = winningIndex; break; }
-            lampImages[position].texture = offFrame;
+            SetLampActive(position, false);
             position = (position + 1) % LampCount;
-            if (litFrames[position] != null) lampImages[position].texture = litFrames[position];
+            SetLampActive(position, true);
         }
 
         if (!IsSkip())
@@ -291,52 +400,50 @@ public static class LampAnnouncer
             {
                 yield return WaitOrSkip(MidStep, isSkip);
                 if (IsSkip()) { position = winningIndex; break; }
-                lampImages[position].texture = offFrame;
+                SetLampActive(position, false);
                 position = (position + 1) % LampCount;
-                if (litFrames[position] != null) lampImages[position].texture = litFrames[position];
+                SetLampActive(position, true);
             }
         }
 
         if (!IsSkip())
         {
-            // A win on the leftmost lamp still gets a full slow lap: stopping
-            // the moment the pace drops would read as the effect breaking.
             int remaining = (winningIndex - position + LampCount) % LampCount;
             if (remaining == 0) remaining = LampCount;
             for (int step = 0; step < remaining; step++)
             {
                 yield return WaitOrSkip(SlowStep, isSkip);
                 if (IsSkip()) { position = winningIndex; break; }
-                lampImages[position].texture = offFrame;
+                SetLampActive(position, false);
                 position = (position + 1) % LampCount;
-                if (litFrames[position] != null) lampImages[position].texture = litFrames[position];
+                SetLampActive(position, true);
             }
         }
         else
         {
-            for (int i = 0; i < LampCount; i++)
-                lampImages[i].texture = offFrame;
+            for (int i = 0; i < LampCount; i++) SetLampActive(i, false);
             position = winningIndex;
-            lampImages[position].texture = litFrames[position] ?? offFrame;
+            SetLampActive(position, true);
         }
 
-        // Hold on the winner, then blink it so the stop reads as a decision
-        // rather than as the animation simply running out.
+        if (position == 2) SetJackpotMaximum();
+
         yield return WaitOrSkip(0.45f, isSkip);
         if (!IsSkip())
         {
             for (int blink = 0; blink < 3; blink++)
             {
                 if (IsSkip()) break;
-                lampImages[position].texture = offFrame;
+                SetLampActive(position, false);
                 yield return WaitOrSkip(0.09f, isSkip);
                 if (IsSkip()) break;
-                lampImages[position].texture = litFrames[position] != null ? litFrames[position] : offFrame;
+                SetLampActive(position, true);
                 yield return WaitOrSkip(0.14f, isSkip);
             }
         }
         yield return WaitOrSkip(0.5f, isSkip);
 
+        if (activeRingMaterial != null) UnityEngine.Object.Destroy(activeRingMaterial);
         UnityEngine.Object.Destroy(root);
     }
 }
