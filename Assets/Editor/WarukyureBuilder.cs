@@ -10,6 +10,9 @@ public static class WarukyureBuilder
     [MenuItem("Warukyure/Build WebGL")]
     public static void BuildWebGL()
     {
+        // 1. 既存シーンの Ad-Virtua 構造を事前検査
+        AdVirtuaFrontmostValidator.ValidateAdVirtuaFrontmost();
+
         string clientOutPath = "/Users/suzukimasahiro/Desktop/warukyure/client";
 
         // Ensure PoiLoader cache-buster variable is empty so deploy script adds ?v=.
@@ -58,6 +61,21 @@ public static class WarukyureBuilder
         GameObject boardGO = new GameObject("Board");
         boardGO.AddComponent<WarukyureBoard>();
         SceneManager.MoveGameObjectToScene(boardGO, scene);
+
+        // Ad-Virtua モニターをシーンに配置
+        GameObject adPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Ad-Virtua/Ad-VirtuaV3.prefab");
+        if (adPrefab == null)
+        {
+            Debug.LogError("[WarukyureBuilder] Ad-VirtuaV3.prefab not found.");
+            EditorApplication.Exit(1);
+            return;
+        }
+        GameObject adGO = GameObject.Instantiate(adPrefab);
+        adGO.name = "Ad-VirtuaV3";
+        SceneManager.MoveGameObjectToScene(adGO, scene);
+
+        // 生成直後のシーン構造を Ad-Virtua 最前面検査
+        AdVirtuaFrontmostValidator.ValidateCurrentScene();
 
         string scenesDir = Path.Combine(Application.dataPath, "Scenes");
         Directory.CreateDirectory(scenesDir);

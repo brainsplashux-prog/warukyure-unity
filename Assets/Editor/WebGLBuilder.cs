@@ -7,6 +7,8 @@ public class WebGLBuilder
     [MenuItem("Build/WebGL Build client")]
     public static void Build()
     {
+        AdVirtuaFrontmostValidator.ValidateAdVirtuaFrontmost();
+
         BuildPlayerOptions options = new BuildPlayerOptions();
         options.scenes = new[] { "Assets/Scenes/Main.unity" };
         options.locationPathName = "/Users/suzukimasahiro/Desktop/warukyure/client";

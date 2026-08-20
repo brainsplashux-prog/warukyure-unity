@@ -102,6 +102,8 @@ public class WarukyureBoard : MonoBehaviour
         CreateCellDimmers();
         CreateLamp();
         CreateAdVirtuaPlaceholder();
+        AdVirtuaMonitorSetup.Setup();
+        gameObject.AddComponent<AdVirtuaResizeWatcher>();
         CreateHeaderText();
         CreateHelpButton();
         CreateBetButtons();
@@ -110,7 +112,8 @@ public class WarukyureBoard : MonoBehaviour
         CreateJackpotChallengeUI();
 
         StartCoroutine(InitSession());
-        TryDebugForceFx();
+        StartCoroutine(TryDebugForceFx());
+        AdVirtuaMonitorSetup.Show();
     }
 
     // ----------------- setup -----------------
@@ -118,7 +121,9 @@ public class WarukyureBoard : MonoBehaviour
     {
         GameObject canvasGO = new GameObject("Canvas");
         canvas = canvasGO.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+        canvas.worldCamera = Camera.main;
+        canvas.planeDistance = 10f;
         canvas.sortingOrder = 0;
 
         CanvasScaler scaler = canvasGO.AddComponent<CanvasScaler>();
@@ -315,8 +320,8 @@ public class WarukyureBoard : MonoBehaviour
         adVirtuaRect.anchoredPosition = Vector2.zero;
         adVirtuaRect.sizeDelta = new Vector2(720, 405);
 
-        Image img = go.AddComponent<Image>();
-        img.color = new Color32(26, 29, 34, 255);
+        // ダーク板は本物の Ad-Virtua 3D モニターへ置き換える。
+        // 枠（位置・サイズ）の意味だけを保つ空の RectTransform として残す。
     }
 
     Text CreateText(string name, Vector2 pos, Vector2 size, TextAnchor align, int fontSize)
@@ -1246,13 +1251,15 @@ public class WarukyureBoard : MonoBehaviour
         return null;
     }
 
-    void TryDebugForceFx()
+    IEnumerator TryDebugForceFx()
     {
+        // WebGL では1フレーム遅らせないと Application.absoluteURL が未設定のままになることがある。
+        yield return null;
         string url = Application.absoluteURL;
-        if (!IsDevUrl(url)) return;
+        if (!IsDevUrl(url)) yield break;
 
         string fx = GetQueryParam(url, "fx");
-        if (string.IsNullOrEmpty(fx)) return;
+        if (string.IsNullOrEmpty(fx)) yield break;
 
         if (fx == "big" || fx == "mega")
         {

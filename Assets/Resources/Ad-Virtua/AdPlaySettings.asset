@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 197716905, guid: dc44df0f832616649aa7b26ace91d770, type: 3}
+  m_Name: AdPlaySettings
+  m_EditorClassIdentifier: 
+  surveyUIPrefab: {fileID: 3038295934724273047, guid: 3b2927003f9ebc344b5190ab256a78d9, type: 3}
+  conversionUIPrefab: {fileID: 3038295934724273047, guid: 88140791de0187a48b40e5f9799fae6b, type: 3}
+  canvasResolutionX: 1080
+  canvasResolutionY: 1920
