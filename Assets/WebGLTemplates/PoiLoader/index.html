@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity Web Player | {{{ PRODUCT_NAME }}}</title>
+    <title>ワルキューレ型ランプすごろく | ポイカジ</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
@@ -1555,6 +1555,24 @@
 
   </head>
   <body>
+    <script>
+    (function () {
+      try {
+        var h = location.hash || "";
+        var m = h.match(/[#&]pa_code=([^&]+)/);
+        if (m) {
+          window.__wkPaCode = decodeURIComponent(m[1]);
+          try { sessionStorage.setItem("wk_pa_code", window.__wkPaCode); } catch (e) {}
+          history.replaceState(null, "", location.pathname + location.search);
+        } else {
+          try {
+            var s = sessionStorage.getItem("wk_pa_code");
+            if (s) { window.__wkPaCode = s; }
+          } catch (e) {}
+        }
+      } catch (e) {}
+    })();
+    </script>
     <!-- SIMULATOR-BADGE v1 BEGIN: ?demo=1 のときだけ「シミュレータ／賞金対象外」を全期間表示する。
          通常起動(demo=1なし)ではこのブロックは何も行わない(早期return)。
          C#側 DetectDemoMode と同一アルゴリズム: '#'以降を切り捨て、'?'以降を'&'で分割、

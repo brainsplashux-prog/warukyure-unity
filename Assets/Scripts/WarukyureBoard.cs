@@ -82,7 +82,28 @@ public class WarukyureBoard : MonoBehaviour
 
     [DllImport("__Internal")]
     private static extern void PoiFxSkip();
+
+    // poicasi-auth ブリッジ（Assets/Plugins/WebGL/WarukyureAuth.jslib）
+    [DllImport("__Internal")]
+    private static extern IntPtr WkTakePaCode();
+
+    [DllImport("__Internal")]
+    private static extern void WkFreePaCode(IntPtr ptr);
 #endif
+
+    // URL hash から受け取った認可コードを 1 回だけ取り出す。無ければ null。
+    private static string TakePaCode()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        IntPtr ptr = WkTakePaCode();
+        if (ptr == IntPtr.Zero) return null;
+        string code = Marshal.PtrToStringUTF8(ptr);
+        WkFreePaCode(ptr);
+        return code;
+#else
+        return null;
+#endif
+    }
 
     void Awake()
     {
@@ -720,6 +741,32 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- API -----------------
     IEnumerator InitSession()
     {
+        // poicasi-auth から戻ってきた直後なら、ゲスト token より認証を優先する。
+        string paCode = TakePaCode();
+        if (!string.IsNullOrEmpty(paCode))
+        {
+            string authJson = "{\"action\":\"auth\",\"pa_code\":\"" + paCode + "\"}";
+            string authBody = null;
+            string authErr = null;
+            yield return StartCoroutine(ApiPost(authJson, null, (b) => authBody = b, (e) => authErr = e));
+            if (string.IsNullOrEmpty(authErr) && !string.IsNullOrEmpty(authBody))
+            {
+                var authRes = JsonUtility.FromJson<InitResponse>(authBody);
+                if (authRes != null && !string.IsNullOrEmpty(authRes.token) && authRes.state != null)
+                {
+                    token = authRes.token;
+                    PlayerPrefs.SetString(TOKEN_KEY, token);
+                    wallet = authRes.state.wallet;
+                    ballMask = authRes.state.ballMask;
+                    lastTotal = 0;
+                    UpdateHeader();
+                    yield break;
+                }
+            }
+            // 認証に失敗しても遊べなくならないよう、以降のゲスト経路へフォールバックする。
+            Debug.LogWarning("poicasi-auth 認証に失敗したためゲストで継続: " + (authErr ?? "invalid response"));
+        }
+
         token = PlayerPrefs.GetString(TOKEN_KEY, "");
         if (!string.IsNullOrEmpty(token))
         {
