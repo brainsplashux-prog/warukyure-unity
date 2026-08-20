@@ -162,10 +162,10 @@ public class WarukyureBoard : MonoBehaviour
 
     void CreateBoardImage()
     {
-        Texture2D tex = Resources.Load<Texture2D>("art_final_v2");
+        Texture2D tex = Resources.Load<Texture2D>("art_final_v3");
         if (tex == null)
         {
-            Debug.LogError("[Warukyure] art_final_v2 texture not found.");
+            Debug.LogError("[Warukyure] art_final_v3 texture not found.");
             return;
         }
 
