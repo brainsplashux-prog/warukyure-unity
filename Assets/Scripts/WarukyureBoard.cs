@@ -119,6 +119,13 @@ public class WarukyureBoard : MonoBehaviour
 #endif
     }
 
+    void Update()
+    {
+        // 累積プレイ時間の加算。本ゲームはタイトル/選択画面を持たず盤面がそのままプレイ画面なので、
+        // クロスプロモのポップアップが開いている間だけ非加算とする（タブ非アクティブは PoiPlayTime 側で除外）。
+        PoiPlayTime.Tick(!CrossPromoPopupUI.IsOpen);
+    }
+
     void Start()
     {
         gameObject.name = "WarukyureBoard";
@@ -1016,6 +1023,10 @@ public class WarukyureBoard : MonoBehaviour
         spinButtonText.text = "SPIN";
         if (string.IsNullOrEmpty(error)) spinRetried = false;
         if (!string.IsNullOrEmpty(error)) ShowResultOverlay(error, -1f);
+
+        // クロスプロモ: ラウンド終了（＝リザルト表示）時のみ発火。プレイ中には割り込まない。
+        // 通信エラー時は出さない。同一セッション1回までの制御は PoiPlayTime 側が持つ。
+        if (string.IsNullOrEmpty(error)) CrossPromoPopupUI.ShowIfEligible(canvas, null);
     }
 
     // 409ボディ {"error":"...","run":{"runId":"xxxx",...}} から runId を取り出す
