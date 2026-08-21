@@ -192,6 +192,8 @@ public static class CrossPromoPopupUI
     {
         RectTransform gamesBtnRT;
         RectTransform laterBtnRT;
+        Canvas parentCanvas;
+        Camera hitCamera;
         Vector2 ptrPos;
         bool ptrDown;
 
@@ -199,6 +201,20 @@ public static class CrossPromoPopupUI
         {
             gamesBtnRT = games;
             laterBtnRT = later;
+            ResolveCamera();
+        }
+
+        // 盤面 Canvas は ScreenSpaceCamera なので、当たり判定カメラを null 固定にすると
+        // RectangleContainsScreenPoint が永久に false になる（SoundMuteButton と同じ方式で解決する）。
+        void ResolveCamera()
+        {
+            if (parentCanvas == null) parentCanvas = GetComponentInParent<Canvas>();
+            if (parentCanvas == null || parentCanvas.renderMode == RenderMode.ScreenSpaceOverlay)
+            {
+                hitCamera = null;
+                return;
+            }
+            hitCamera = parentCanvas.worldCamera != null ? parentCanvas.worldCamera : Camera.main;
         }
 
         void Update()
@@ -233,6 +249,6 @@ public static class CrossPromoPopupUI
         }
 
         bool InRect(RectTransform rt)
-            => RectTransformUtility.RectangleContainsScreenPoint(rt, ptrPos, null);
+            => RectTransformUtility.RectangleContainsScreenPoint(rt, ptrPos, hitCamera);
     }
 }
