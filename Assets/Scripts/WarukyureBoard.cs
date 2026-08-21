@@ -388,6 +388,7 @@ public class WarukyureBoard : MonoBehaviour
         RawImage ri = lampRect.GetComponent<RawImage>();
         if (ri != null) ri.texture = LampTexFor(lampTracks[idx]);
         currentLampCellId = cellId;
+        WarukyureSfx.PlayLampStep();
     }
 
     void CreateAdVirtuaPlaceholder()
@@ -744,6 +745,7 @@ public class WarukyureBoard : MonoBehaviour
 
     IEnumerator PressFeedback(RectTransform rt)
     {
+        WarukyureSfx.PlayTap();
         const float DUR = 0.1f;
         const float PEAK = 1.05f;
         Vector2 basePos = rt.anchoredPosition;
@@ -1180,6 +1182,7 @@ public class WarukyureBoard : MonoBehaviour
             {
                 lampRect.anchoredPosition = path[path.Count - 1];
                 ApplyLampCell(lampSizes.Count - 1);
+                WarukyureSfx.PlayLampStop();
             }
             yield break;
         }
@@ -1193,6 +1196,7 @@ public class WarukyureBoard : MonoBehaviour
             {
                 lampRect.anchoredPosition = path[path.Count - 1];
                 ApplyLampCell(lampSizes.Count - 1);
+                WarukyureSfx.PlayLampStop();
                 yield break;
             }
             float speed = (lampSegSpeeds.Count == 0) ? LAMP_SPEED_SLOW : lampSegSpeeds[Mathf.Clamp(Mathf.FloorToInt(virt), 0, lampSegSpeeds.Count - 1)];
@@ -1205,6 +1209,7 @@ public class WarukyureBoard : MonoBehaviour
         }
         lampRect.anchoredPosition = path[path.Count - 1];
         ApplyLampCell(lampSizes.Count - 1);
+        WarukyureSfx.PlayLampStop();
     }
 
     // ----------------- result -----------------
