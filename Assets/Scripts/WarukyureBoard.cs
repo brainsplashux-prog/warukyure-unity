@@ -468,7 +468,23 @@ public class WarukyureBoard : MonoBehaviour
 
     void CreateHeaderText()
     {
-        walletText = CreateText("WalletText", new Vector2(450, 1130), new Vector2(400, 32), TextAnchor.MiddleRight, 18);
+        const float walletY = 1080f;
+        const float bandHeight = 48f;
+
+        // BET/SPIN ボタンに重ならないよう、盤面フレーム下辺より上に半透明黒帯を敷く。
+        GameObject bandGO = new GameObject("WalletTextBand");
+        bandGO.transform.SetParent(canvas.transform, false);
+        RectTransform bandRT = bandGO.AddComponent<RectTransform>();
+        bandRT.anchorMin = new Vector2(0, 1);
+        bandRT.anchorMax = new Vector2(1, 1);
+        bandRT.pivot = new Vector2(0.5f, 0.5f);
+        bandRT.anchoredPosition = new Vector2(360f, -walletY);
+        bandRT.sizeDelta = new Vector2(0f, bandHeight);
+        Image bandImg = bandGO.AddComponent<Image>();
+        bandImg.color = new Color(0f, 0f, 0f, 0.45f);
+        bandImg.raycastTarget = false;
+
+        walletText = CreateText("WalletText", new Vector2(360f, walletY), new Vector2(720f, 36f), TextAnchor.MiddleCenter, 18);
         walletText.resizeTextForBestFit = true;
         walletText.horizontalOverflow = HorizontalWrapMode.Overflow;
         walletText.verticalOverflow = VerticalWrapMode.Overflow;

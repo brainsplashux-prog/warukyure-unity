@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>
@@ -218,17 +217,18 @@ public static class CrossPromoPopupUI
         void ReadPointer()
         {
             ptrDown = false;
-            if (Mouse.current != null)
+
+            if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
             {
-                ptrPos = Mouse.current.position.ReadValue();
-                if (Mouse.current.leftButton.wasPressedThisFrame) ptrDown = true;
+                ptrDown = true;
+                ptrPos = Input.GetTouch(0).position;
+                return;
             }
-            if (Touchscreen.current != null)
+
+            if (Input.GetMouseButtonDown(0))
             {
-                var t = Touchscreen.current.primaryTouch;
-                if (t.press.isPressed || t.press.wasPressedThisFrame || t.press.wasReleasedThisFrame)
-                    ptrPos = t.position.ReadValue();
-                if (t.press.wasPressedThisFrame) ptrDown = true;
+                ptrDown = true;
+                ptrPos = Input.mousePosition;
             }
         }
 
