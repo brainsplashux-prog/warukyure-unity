@@ -17,6 +17,7 @@ public class WarukyureBoard : MonoBehaviour
     const float RUN_DURATION = 2.0f;
     const float HOLD_DURATION = 0.5f;
     const int MIN_PATH_STEPS = 35;
+    const string API_RETRY_MSG = "通信エラー。もう一度お試しください";
 
     // 社長指示(2026-08-19)の3段階ルーレット
     const float LAMP_SPEED_FAST = 20f;  // マス/秒。従来＝約40マスを2.0秒＝約20マス/秒 と等速
@@ -42,7 +43,7 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- state -----------------
     private string token;
     private int wallet;
-    private int lastTotal;
+    private int lastNet;
     private int ballMask;
     private string currentRunId;
     private bool isRunning;
@@ -65,7 +66,6 @@ public class WarukyureBoard : MonoBehaviour
     private Coroutine overlayRoutine;
     private long lastErrorCode = 0;
     private string lastErrorBody = null;
-    private bool spinRetried = false;
     private string currentLampCellId = null;
 
     // ----------------- JACKPOT challenge overlay -----------------
@@ -469,6 +469,9 @@ public class WarukyureBoard : MonoBehaviour
     void CreateHeaderText()
     {
         walletText = CreateText("WalletText", new Vector2(450, 1130), new Vector2(400, 32), TextAnchor.MiddleRight, 18);
+        walletText.resizeTextForBestFit = true;
+        walletText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        walletText.verticalOverflow = VerticalWrapMode.Overflow;
         walletText.text = "残高 ---";
     }
 
@@ -808,7 +811,11 @@ public class WarukyureBoard : MonoBehaviour
 
     void UpdateHeader()
     {
-        walletText.text = $"合計 +{lastTotal} / 残高 {wallet:N0}";
+        string netStr;
+        if (lastNet > 0) netStr = $"+{lastNet}";
+        else if (lastNet < 0) netStr = $"-{Mathf.Abs(lastNet)}";
+        else netStr = "±0";
+        walletText.text = $"純益 {netStr} / 残高 {wallet:N0}";
         UpdateCollectionPanel();
     }
 
@@ -873,7 +880,11 @@ public class WarukyureBoard : MonoBehaviour
         string paCode = TakePaCode();
         if (!string.IsNullOrEmpty(paCode))
         {
-            string authJson = "{\"action\":\"auth\",\"pa_code\":\"" + paCode + "\"}";
+            string anonToken = PlayerPrefs.GetString(TOKEN_KEY, "");
+            string authJson = "{\"action\":\"auth\",\"pa_code\":\"" + paCode + "\"";
+            if (!string.IsNullOrEmpty(anonToken))
+                authJson += ",\"anon_token\":\"" + anonToken + "\"";
+            authJson += "}";
             string authBody = null;
             string authErr = null;
             yield return StartCoroutine(ApiPost(authJson, null, (b) => authBody = b, (e) => authErr = e));
@@ -886,7 +897,7 @@ public class WarukyureBoard : MonoBehaviour
                     PlayerPrefs.SetString(TOKEN_KEY, token);
                     wallet = authRes.state.wallet;
                     ballMask = authRes.state.ballMask;
-                    lastTotal = 0;
+                    lastNet = 0;
                     UpdateHeader();
                     yield break;
                 }
@@ -909,7 +920,7 @@ public class WarukyureBoard : MonoBehaviour
                 {
                     wallet = res.state.wallet;
                     ballMask = res.state.ballMask;
-                    lastTotal = 0;
+                    lastNet = 0;
                     UpdateHeader();
                     yield break;
                 }
@@ -932,7 +943,7 @@ public class WarukyureBoard : MonoBehaviour
             PlayerPrefs.SetString(TOKEN_KEY, token);
             wallet = initRes.state.wallet;
             ballMask = initRes.state.ballMask;
-            lastTotal = 0;
+            lastNet = 0;
             UpdateHeader();
         }
     }
@@ -948,7 +959,8 @@ public class WarukyureBoard : MonoBehaviour
         currentRunId = System.Guid.NewGuid().ToString();
 
         // prepare
-        string prepareJson = "{\"action\":\"prepare\",\"token\":\"" + token + "\",\"runId\":\"" + currentRunId + "\"}";
+        string demoPart = IsDemoMode() ? ",\"demo\":true" : "";
+        string prepareJson = "{\"action\":\"prepare\",\"token\":\"" + token + "\",\"runId\":\"" + currentRunId + "\"" + demoPart + "}";
         string prepareBody = null;
         string prepareErr = null;
         yield return StartCoroutine(ApiPost(prepareJson, currentRunId, (b) => prepareBody = b, (e) => prepareErr = e));
@@ -959,7 +971,7 @@ public class WarukyureBoard : MonoBehaviour
             string stuckId = (lastErrorCode == 409) ? ExtractStuckRunId(lastErrorBody) : null;
             if (string.IsNullOrEmpty(stuckId))
             {
-                EndRound("通信エラー: " + prepareErr);
+                EndRound(API_RETRY_MSG);
                 yield break;
             }
             currentRunId = stuckId;
@@ -976,21 +988,38 @@ public class WarukyureBoard : MonoBehaviour
         yield return StartCoroutine(ApiPost(resolveJson, currentRunId, (b) => resolveBody = b, (e) => resolveErr = e));
         if (!string.IsNullOrEmpty(resolveErr))
         {
-            if (lastErrorCode == 409 && !spinRetried)
-            {
-                spinRetried = true;
-                isRunning = false;
-                yield return StartCoroutine(SpinRound()); // 新しいrunIdで1回だけやり直す
-                yield break;
-            }
-            EndRound("通信エラー: " + resolveErr);
+            EndRound(API_RETRY_MSG);
             yield break;
         }
 
         lastResult = JsonUtility.FromJson<ResolveResponse>(resolveBody);
         if (lastResult == null)
         {
-            EndRound("レスポンス解析エラー");
+            EndRound(API_RETRY_MSG);
+            yield break;
+        }
+
+        // JsonUtility は未指定の bool を false にする。ok が省略されている旧契約では true と見なす。
+        lastResult.ok = true;
+        int okIdx = resolveBody.IndexOf("\"ok\"", StringComparison.Ordinal);
+        if (okIdx >= 0)
+        {
+            int i = okIdx + 4;
+            while (i < resolveBody.Length && char.IsWhiteSpace(resolveBody[i])) i++;
+            if (i < resolveBody.Length && resolveBody[i] == ':')
+            {
+                i++;
+                while (i < resolveBody.Length && char.IsWhiteSpace(resolveBody[i])) i++;
+                if (i + 5 <= resolveBody.Length &&
+                    resolveBody[i] == 'f' && resolveBody[i + 1] == 'a' && resolveBody[i + 2] == 'l' &&
+                    resolveBody[i + 3] == 's' && resolveBody[i + 4] == 'e')
+                    lastResult.ok = false;
+            }
+        }
+
+        if (!ValidateResolveResponse(lastResult, currentRunId, bets))
+        {
+            EndRound(API_RETRY_MSG);
             yield break;
         }
 
@@ -1023,12 +1052,26 @@ public class WarukyureBoard : MonoBehaviour
         isRunning = false;
         skipRequested = false;
         spinButtonText.text = "SPIN";
-        if (string.IsNullOrEmpty(error)) spinRetried = false;
         if (!string.IsNullOrEmpty(error)) ShowResultOverlay(error, -1f);
 
         // クロスプロモ: ラウンド終了（＝リザルト表示）時のみ発火。プレイ中には割り込まない。
         // 通信エラー時は出さない。同一セッション1回までの制御は PoiPlayTime 側が持つ。
         if (string.IsNullOrEmpty(error)) CrossPromoPopupUI.ShowIfEligible(canvas, Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium"));
+    }
+
+    // resolve 応答の必須項目を検証。1つでも満たさなければSPIN復帰＋エラー表示。
+    bool ValidateResolveResponse(ResolveResponse r, string expectedRunId, int[] sentBets)
+    {
+        if (r == null) return false;
+        if (!r.ok) return false;
+        if (string.IsNullOrEmpty(r.runId) || r.runId != expectedRunId) return false;
+        if (string.IsNullOrEmpty(r.stopId) || BoardData.GetIndex(r.stopId) < 0) return false;
+        if (r.bets == null || r.bets.Length != sentBets.Length) return false;
+        for (int i = 0; i < sentBets.Length; i++)
+            if (r.bets[i] != sentBets[i]) return false;
+        if (r.awardBreakdown == null || r.awardBreakdown.total < 0) return false;
+        if (r.state == null) return false;
+        return true;
     }
 
     // 409ボディ {"error":"...","run":{"runId":"xxxx",...}} から runId を取り出す
@@ -1053,6 +1096,7 @@ public class WarukyureBoard : MonoBehaviour
         req.SetRequestHeader("Content-Type", "application/json");
         if (!string.IsNullOrEmpty(idemKey))
             req.SetRequestHeader("Idempotency-Key", idemKey);
+        req.timeout = 15;
 
         yield return req.SendWebRequest();
 
@@ -1215,7 +1259,7 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- result -----------------
     void ShowResult(ResolveResponse r)
     {
-        lastTotal = r.awardBreakdown.total;
+        lastNet = r.awardBreakdown.net;
         wallet = r.state.wallet;
         ballMask = r.state.ballMask;
         UpdateHeader();
@@ -1437,6 +1481,31 @@ public class WarukyureBoard : MonoBehaviour
         return null;
     }
 
+    // SIMULATOR-BADGE v1 と同一アルゴリズム: '?'以降を'&'分割し、最初の'demo'キーのraw value が'1'のみ。
+    // URLデコードは行わない（client/index.html:1587-1594 踏襲）。
+    string GetRawQueryParam(string url, string key)
+    {
+        if (string.IsNullOrEmpty(url)) return null;
+        int hashIdx = url.IndexOf('#');
+        if (hashIdx >= 0) url = url.Substring(0, hashIdx);
+        int qIdx = url.IndexOf('?');
+        if (qIdx < 0) return null;
+        string query = url.Substring(qIdx + 1);
+        string[] pairs = query.Split('&');
+        foreach (var p in pairs)
+        {
+            int eq = p.IndexOf('=');
+            if (eq < 0) continue;
+            if (p.Substring(0, eq) == key) return p.Substring(eq + 1);
+        }
+        return null;
+    }
+
+    bool IsDemoMode()
+    {
+        return GetRawQueryParam(Application.absoluteURL, "demo") == "1";
+    }
+
     IEnumerator TryDebugForceFx()
     {
         // WebGL では1フレーム遅らせないと Application.absoluteURL が未設定のままになることがある。
@@ -1539,6 +1608,7 @@ public class WarukyureBoard : MonoBehaviour
     [Serializable]
     public class ResolveResponse
     {
+        public bool ok;
         public string runId;
         public string stopId;
         public string pathId;
