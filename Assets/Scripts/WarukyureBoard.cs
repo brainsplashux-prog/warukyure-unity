@@ -478,7 +478,7 @@ public class WarukyureBoard : MonoBehaviour
         bandRT.anchorMin = new Vector2(0, 1);
         bandRT.anchorMax = new Vector2(1, 1);
         bandRT.pivot = new Vector2(0.5f, 0.5f);
-        bandRT.anchoredPosition = new Vector2(360f, -walletY);
+        bandRT.anchoredPosition = new Vector2(0f, -walletY);
         bandRT.sizeDelta = new Vector2(0f, bandHeight);
         Image bandImg = bandGO.AddComponent<Image>();
         bandImg.color = new Color(0f, 0f, 0f, 0.45f);
