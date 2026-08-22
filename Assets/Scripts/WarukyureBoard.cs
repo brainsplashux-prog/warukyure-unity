@@ -11,7 +11,23 @@ using UnityEngine.UI;
 public class WarukyureBoard : MonoBehaviour
 {
     // ----------------- configuration -----------------
-    const string API_URL = "https://b5yl9sml5l.execute-api.ap-northeast-1.amazonaws.com/";
+    // 環境切替: 1ソースで DEV/本番 の両方を配信する（2026-08-22 本番リリース）。
+    //   配信先 URL に "warukyure-dev" を含む＝DEV、それ以外＝本番。
+    //   Editor など absoluteURL が空の場合は DEV（本番へ誤射しない側に倒す）。
+    const string API_URL_DEV  = "https://b5yl9sml5l.execute-api.ap-northeast-1.amazonaws.com/";
+    const string API_URL_PROD = "https://f8fod9qgw3.execute-api.ap-northeast-1.amazonaws.com/";
+    private static string apiUrlCache;
+    static string API_URL
+    {
+        get
+        {
+            if (apiUrlCache != null) return apiUrlCache;
+            string u = Application.absoluteURL;
+            bool isProd = !string.IsNullOrEmpty(u) && u.IndexOf("warukyure-dev", StringComparison.Ordinal) < 0;
+            apiUrlCache = isProd ? API_URL_PROD : API_URL_DEV;
+            return apiUrlCache;
+        }
+    }
     const string TOKEN_KEY = "warukyure_token";
     const int WAGER_PER_BET = 100;
     const float RUN_DURATION = 2.0f;
