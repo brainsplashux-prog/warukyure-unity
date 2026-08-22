@@ -1175,6 +1175,7 @@
       var stored = sessionStorage.getItem('poi_variant');
       if (stored && pool.indexOf(stored) >= 0) return stored;
     } catch (e) {}
+    // NOT-A-LOTTERY: ローディング画面の演出バリアント選択のみ。抽選・払戻には一切関与しない。
     return pool[Math.floor(Math.random() * pool.length)] || 'stroll';
   }
 

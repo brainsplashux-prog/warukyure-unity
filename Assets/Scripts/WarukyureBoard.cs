@@ -47,6 +47,8 @@ public class WarukyureBoard : MonoBehaviour
     private int ballMask;
     private string currentRunId;
     private bool isRunning;
+    // #16: init(token/state) が確定するまで BET/SPIN を受け付けない。
+    private bool sessionReady;
     private bool skipRequested;
     private readonly List<float> lampSegSpeeds = new List<float>();
     private readonly List<Vector2> lampSizes = new List<Vector2>();
@@ -787,7 +789,7 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- interaction -----------------
     void ToggleBet(int bet)
     {
-        if (isRunning) return;
+        if (!sessionReady || isRunning) return;
         if (selectedBets.Contains(bet)) selectedBets.Remove(bet);
         else selectedBets.Add(bet);
         UpdateBetButtonState();
@@ -805,6 +807,11 @@ public class WarukyureBoard : MonoBehaviour
 
     void OnSpin()
     {
+        if (!sessionReady)
+        {
+            ShowResultOverlay("読み込み中です。少し待ってからもう一度どうぞ。", 1.5f);
+            return;
+        }
         if (isRunning)
         {
             skipRequested = true;
@@ -914,6 +921,7 @@ public class WarukyureBoard : MonoBehaviour
                     wallet = authRes.state.wallet;
                     ballMask = authRes.state.ballMask;
                     lastNet = 0;
+                    sessionReady = true;
                     UpdateHeader();
                     yield break;
                 }
@@ -937,6 +945,7 @@ public class WarukyureBoard : MonoBehaviour
                     wallet = res.state.wallet;
                     ballMask = res.state.ballMask;
                     lastNet = 0;
+                    sessionReady = true;
                     UpdateHeader();
                     yield break;
                 }
@@ -953,15 +962,19 @@ public class WarukyureBoard : MonoBehaviour
             yield break;
         }
         var initRes = JsonUtility.FromJson<InitResponse>(initBody);
-        if (initRes != null)
+        // #16: token/state が揃っていない応答で先へ進むと NullReference か無効トークンのまま遊べてしまう。
+        if (initRes == null || string.IsNullOrEmpty(initRes.token) || initRes.state == null)
         {
-            token = initRes.token;
-            PlayerPrefs.SetString(TOKEN_KEY, token);
-            wallet = initRes.state.wallet;
-            ballMask = initRes.state.ballMask;
-            lastNet = 0;
-            UpdateHeader();
+            ShowResultOverlay("初期化に失敗しました。\n通信環境を確認して再読み込みしてください。", -1f);
+            yield break;
         }
+        token = initRes.token;
+        PlayerPrefs.SetString(TOKEN_KEY, token);
+        wallet = initRes.state.wallet;
+        ballMask = initRes.state.ballMask;
+        lastNet = 0;
+        sessionReady = true;
+        UpdateHeader();
     }
 
     IEnumerator SpinRound()
