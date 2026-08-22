@@ -29,7 +29,7 @@ public class WarukyureBoard : MonoBehaviour
         }
     }
     const string TOKEN_KEY = "warukyure_token";
-    const int WAGER_PER_BET = 100;
+    private int missionBet = 100;
     const float RUN_DURATION = 2.0f;
     const float HOLD_DURATION = 0.5f;
     const int MIN_PATH_STEPS = 35;
@@ -809,6 +809,7 @@ public class WarukyureBoard : MonoBehaviour
         if (selectedBets.Contains(bet)) selectedBets.Remove(bet);
         else selectedBets.Add(bet);
         UpdateBetButtonState();
+        UpdateHeader();
     }
 
     void UpdateBetButtonState()
@@ -839,13 +840,34 @@ public class WarukyureBoard : MonoBehaviour
             ShowResultOverlay("BETを1つ以上選んでください", 1.5f);
             return;
         }
+        if (!IsDemoMode())
+        {
+            int cost = selectedBets.Count * missionBet;
+            if (wallet < cost)
+            {
+                ShowResultOverlay($"残高不足です（必要 {cost:N0}枚）", 1.5f);
+                return;
+            }
+        }
         StartCoroutine(SpinRound());
     }
 
     void ToggleHelp()
     {
         if (isRunning) return;
-        ShowResultOverlay("2/4/6/8/20 を選んで SPIN\n数字に止まれば number × 倍率 × 100 枚", -1f);
+        ShowResultOverlay($"2/4/6/8/20 を選んで SPIN\n1口{missionBet}枚 / 数字に止まれば number × 倍率 × {missionBet} 枚", -1f);
+    }
+
+    void SetMissionBet(int value)
+    {
+        missionBet = (value > 0) ? value : 100;
+        int[] baseJp = { 3000, 1000, 30000, 1000, 5000 };
+        for (int i = 0; i < baseJp.Length; i++)
+        {
+            jpAwardLabels[i] = (baseJp[i] * missionBet / 100).ToString();
+            if (jackpotLampTexts[i] != null)
+                jackpotLampTexts[i].text = (i == 2) ? "JACKPOT" : jpAwardLabels[i];
+        }
     }
 
     void UpdateHeader()
@@ -854,7 +876,8 @@ public class WarukyureBoard : MonoBehaviour
         if (lastNet > 0) netStr = $"+{lastNet}";
         else if (lastNet < 0) netStr = $"-{Mathf.Abs(lastNet)}";
         else netStr = "±0";
-        walletText.text = $"純益 {netStr} / 残高 {wallet:N0}";
+        int cost = selectedBets.Count * missionBet;
+        walletText.text = $"コスト {cost:N0} / 純益 {netStr} / 残高 {wallet:N0}";
         UpdateCollectionPanel();
     }
 
@@ -936,6 +959,7 @@ public class WarukyureBoard : MonoBehaviour
                     PlayerPrefs.SetString(TOKEN_KEY, token);
                     wallet = authRes.state.wallet;
                     ballMask = authRes.state.ballMask;
+                    SetMissionBet(authRes.missionBet);
                     lastNet = 0;
                     sessionReady = true;
                     UpdateHeader();
@@ -960,6 +984,7 @@ public class WarukyureBoard : MonoBehaviour
                 {
                     wallet = res.state.wallet;
                     ballMask = res.state.ballMask;
+                    SetMissionBet(res.missionBet);
                     lastNet = 0;
                     sessionReady = true;
                     UpdateHeader();
@@ -988,6 +1013,7 @@ public class WarukyureBoard : MonoBehaviour
         PlayerPrefs.SetString(TOKEN_KEY, token);
         wallet = initRes.state.wallet;
         ballMask = initRes.state.ballMask;
+        SetMissionBet(initRes.missionBet);
         lastNet = 0;
         sessionReady = true;
         UpdateHeader();
@@ -1020,6 +1046,13 @@ public class WarukyureBoard : MonoBehaviour
                 yield break;
             }
             currentRunId = stuckId;
+        }
+
+        // prepare 応答から最新 missionBet を受信（サーバー正本）
+        if (!string.IsNullOrEmpty(prepareBody))
+        {
+            var prepareRes = JsonUtility.FromJson<PrepareResponse>(prepareBody);
+            if (prepareRes != null) SetMissionBet(prepareRes.missionBet);
         }
 
         // resolve
@@ -1386,7 +1419,14 @@ public class WarukyureBoard : MonoBehaviour
         }
 
         // Babeltower8192 と同じ 5 ランプ演出。停止位置はサーバー指定値を再生する。
-        string[] labels = { "3000", "1000", "JACKPOT", "1000", "5000" };
+        // missionBet により配当がスケールするため、ランプ表示も同率スケール（トップは JACKPOT のまま）。
+        string[] labels = {
+            (3000 * missionBet / 100).ToString(),
+            (1000 * missionBet / 100).ToString(),
+            "JACKPOT",
+            (1000 * missionBet / 100).ToString(),
+            (5000 * missionBet / 100).ToString()
+        };
         Color[] labelColors =
         {
             new Color(1f, 0.94f, 0.80f),
@@ -1602,6 +1642,7 @@ public class WarukyureBoard : MonoBehaviour
         public string uid;
         public string token;
         public StateData state;
+        public int missionBet;
     }
 
     [Preserve]
@@ -1609,6 +1650,7 @@ public class WarukyureBoard : MonoBehaviour
     public class StateResponse
     {
         public StateData state;
+        public int missionBet;
     }
 
     [Preserve]
@@ -1668,5 +1710,17 @@ public class WarukyureBoard : MonoBehaviour
         public int effectTier;
         public FxData fx;
         public StateData state;
+    }
+
+    [Preserve]
+    [Serializable]
+    public class PrepareResponse
+    {
+        public string runId;
+        public int masterVersion;
+        public int configVersion;
+        public int[] betOptions;
+        public int wagerPerBet;
+        public int missionBet;
     }
 }
