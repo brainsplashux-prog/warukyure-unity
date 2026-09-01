@@ -12,6 +12,14 @@
 #   - aws s3 sync に --delete を新たに付けない（配信先の他資産を消さない）
 set -euo pipefail
 
+# --- デプロイ前ゲート（handoff §3-C 施策1 / 正本 incident-recovery-and-maintenance.md §9）---
+# 「戻せる版が無い」「キャッシュが焼き付く」状態で出させないための機械ゲート。
+# リリース宣言済みサービスは NG で exit 1 する。SKIP_PREFLIGHT=1 で明示的に飛ばせる。
+PREFLIGHT="$HOME/.claude/skills/poikatsu-deploy/scripts/preflight_master.sh"
+if [ -z "${SKIP_PREFLIGHT:-}" ] && [ -x "$PREFLIGHT" ]; then
+  "$PREFLIGHT" warukyure || { echo "preflight NG のためデプロイ中止（直すか SKIP_PREFLIGHT=1）" >&2; exit 1; }
+fi
+
 REGION="ap-northeast-1"
 BUCKET="poicasi-lp"
 S3_PREFIX="game/warukyure-dev"
