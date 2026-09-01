@@ -87,6 +87,13 @@ echo "   付与件数: $COUNT"
 aws s3 cp "$TMP_HTML" "$S3_ROOT/index.html" --region "$REGION" \
   --content-type "text/html; charset=utf-8" --cache-control "$CC_HTML"
 
+# 版アーカイブ: 事故時に poi-rollback で戻せるようにする。
+# 正本: ~/.claude/manuals/incident-recovery-and-maintenance.md / 参照: poi-rollback warukyure --list
+# --exclude "_archive/*" が無いとアーカイブが入れ子で無限に太る。外すな。
+echo "== 版アーカイブ (_archive/$VERSION) =="
+aws s3 sync "$S3_ROOT/" "$S3_ROOT/_archive/$VERSION/" --region "$REGION" --no-progress \
+  --exclude "_archive/*"
+
 echo "== CloudFront invalidation =="
 aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" \
   --paths "/${S3_PREFIX}/*" --region "$REGION" --query 'Invalidation.{Id:Id,Status:Status}'
