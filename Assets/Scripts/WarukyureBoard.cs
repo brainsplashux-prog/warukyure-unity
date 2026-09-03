@@ -98,6 +98,11 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- poifx bridge -----------------
     private bool poiFxPending;
 
+    // ----------------- poicasi platform bridge -----------------
+    private PlatformApiClient platformClient;
+    private PlatformRun platformRun;
+    private bool platformEnabled;
+
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")]
     private static extern void PoiFxJackpot(string tier, int amount, string unit, string gameObjectName, string onDoneMethod);
@@ -162,6 +167,8 @@ public class WarukyureBoard : MonoBehaviour
         CreateResultOverlay();
         CreateJackpotChallengeUI();
         gameObject.AddComponent<SoundMuteButton>(); // game-layout-standard.md §2b 共通サウンドミュートボタン
+
+        platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));
 
         StartCoroutine(InitSession());
         StartCoroutine(TryDebugForceFx());
@@ -1027,7 +1034,11 @@ public class WarukyureBoard : MonoBehaviour
         DismissResultOverlay();
         UpdateBetButtonState();
 
-        currentRunId = System.Guid.NewGuid().ToString();
+        platformEnabled = false;
+        platformRun = null;
+
+        // launch → token → plays(prepare)。失敗したら既存のゲーム Lambda フローへフォールバック。
+        yield return StartCoroutine(TryPreparePlatform());
 
         // prepare
         string demoPart = IsDemoMode() ? ",\"demo\":true" : "";
@@ -1046,10 +1057,13 @@ public class WarukyureBoard : MonoBehaviour
                 yield break;
             }
             currentRunId = stuckId;
+            // 中断ランは PF と紐付いていない可能性があるため、既存のゲームフローに戻す。
+            platformEnabled = false;
+            platformRun = null;
         }
 
-        // prepare 応答から最新 missionBet を受信（サーバー正本）
-        if (!string.IsNullOrEmpty(prepareBody))
+        // prepare 応答から最新 missionBet を受信（サーバー正本）。PF 有効時は plays() で受け取った bet を優先。
+        if (!platformEnabled && !string.IsNullOrEmpty(prepareBody))
         {
             var prepareRes = JsonUtility.FromJson<PrepareResponse>(prepareBody);
             if (prepareRes != null) SetMissionBet(prepareRes.missionBet);
@@ -1122,7 +1136,68 @@ public class WarukyureBoard : MonoBehaviour
             }
         }
 
+        // [プレイ] → s2s_commit → PF resolve → wallet/balance
+        if (platformEnabled && platformRun != null)
+        {
+            yield return StartCoroutine(SettlePlatformRun());
+        }
+
         ShowResult(lastResult);
+    }
+
+    IEnumerator TryPreparePlatform()
+    {
+        if (platformClient == null)
+            platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));
+
+        var task = platformClient.Prepare();
+        yield return new WaitUntil(() => task.IsCompleted);
+
+        if (task.IsFaulted)
+        {
+            Debug.LogWarning("[PLATFORM] Prepare failed, falling back to standalone game flow: " + task.Exception?.Message);
+            platformRun = null;
+            platformEnabled = false;
+            currentRunId = System.Guid.NewGuid().ToString();
+            yield break;
+        }
+
+        platformRun = task.Result;
+        platformEnabled = true;
+        currentRunId = platformRun.RunId;
+        SetMissionBet(platformRun.Bet);
+        Debug.Log($"[PLATFORM] Prepared runId={platformRun.RunId} bet={platformRun.Bet}");
+    }
+
+    IEnumerator SettlePlatformRun()
+    {
+        var s2sTask = platformClient.S2sCommit(token, currentRunId, platformRun.PlayToken);
+        yield return new WaitUntil(() => s2sTask.IsCompleted);
+
+        if (s2sTask.IsFaulted)
+        {
+            Debug.LogWarning("[PLATFORM] s2s_commit failed: " + s2sTask.Exception?.Message);
+            EndRound(API_RETRY_MSG);
+            yield break;
+        }
+
+        var resolveTask = platformClient.Resolve(currentRunId, platformRun.PlayToken);
+        yield return new WaitUntil(() => resolveTask.IsCompleted);
+
+        if (resolveTask.IsFaulted)
+        {
+            Debug.LogWarning("[PLATFORM] resolve failed: " + resolveTask.Exception?.Message);
+            EndRound(API_RETRY_MSG);
+            yield break;
+        }
+
+        var walletTask = platformClient.GetWalletBalance();
+        yield return new WaitUntil(() => walletTask.IsCompleted);
+
+        if (!walletTask.IsFaulted)
+        {
+            wallet = walletTask.Result;
+        }
     }
 
     void EndRound(string error)
@@ -1338,7 +1413,8 @@ public class WarukyureBoard : MonoBehaviour
     void ShowResult(ResolveResponse r)
     {
         lastNet = r.awardBreakdown.net;
-        wallet = r.state.wallet;
+        // PF 有効時は SettlePlatformRun() で取得した PF 残高を優先。
+        if (!platformEnabled) wallet = r.state.wallet;
         ballMask = r.state.ballMask;
         UpdateHeader();
 
