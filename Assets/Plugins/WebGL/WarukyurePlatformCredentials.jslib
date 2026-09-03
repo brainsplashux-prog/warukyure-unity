@@ -57,3 +57,19 @@ mergeInto(LibraryManager.library, {
     };
   }
 })();
+
+(function () {
+  if (typeof window === 'undefined') return;
+  function poiDeriveApiPrefix() {
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+      return '/portal-dev';
+    }
+    if (/^\/game\/[^/]+-dev(?:\/|$)/i.test(location.pathname)) {
+      return '/portal-dev';
+    }
+    return '/portal';
+  }
+  if (typeof window.API_PREFIX !== 'string' || !window.API_PREFIX) {
+    window.API_PREFIX = poiDeriveApiPrefix();
+  }
+})();
