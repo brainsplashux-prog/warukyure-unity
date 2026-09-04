@@ -167,6 +167,7 @@ public class WarukyureBoard : MonoBehaviour
         CreateResultOverlay();
         CreateJackpotChallengeUI();
         gameObject.AddComponent<SoundMuteButton>(); // game-layout-standard.md §2b 共通サウンドミュートボタン
+        new GameObject("WarukyureBgm").AddComponent<WarukyureBgm>(); // BGMループ(ミュートはAudioListener一括)
 
         platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));
 

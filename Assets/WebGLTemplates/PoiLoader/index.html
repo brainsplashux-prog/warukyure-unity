@@ -1681,6 +1681,24 @@
       }
 
       var buildUrl = "Build";
+      // 音声アンロック: Unity の resume() は WebKit で同期throwすることがあり、
+      // その場合 .catch() が付かず window.onerror まで抜けてしまう。
+      // ジェスチャのたびに try/catch 付きで再開を試み、例外はここで止める。
+      window.poiTryResumeAudio = function () {
+        try {
+          var wa = (typeof WEBAudio !== "undefined") ? WEBAudio
+                 : (window.Module && window.Module.WEBAudio) ? window.Module.WEBAudio : null;
+          var ctx = wa && wa.audioContext;
+          if (!ctx || ctx.state === "running" || ctx.state === "closed") return;
+          var pr = ctx.resume();
+          if (pr && pr.catch) pr.catch(function () {});
+        } catch (e) {
+          try { console.warn("[poi] audio resume failed:", e && e.message); } catch (e2) {}
+        }
+      };
+      ["pointerdown", "touchstart", "mousedown", "click"].forEach(function (ev) {
+        window.addEventListener(ev, window.poiTryResumeAudio, { passive: true, capture: true });
+      });
       var cb = "";
       var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}" + cb;
       var config = {
@@ -1702,12 +1720,21 @@
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
         cacheControl: function (url) { return "no-store"; },
-        // errorHandler: function(err, url, line) {
-        //    alert("error " + err + " occurred at line " + line);
-        //    // Return 'true' if you handled this error and don't want Unity
-        //    // to process it further, 'false' otherwise.
-        //    return true;
-        // },
+        // iOS Safari は AudioContext の起動に失敗すると
+        // "InvalidStateError: Failed to start the audio device" を同期throwする。
+        // Unity ランタイム自体は生きているのに loader の window.onerror が
+        // 「An error occurred running the Unity content on this page」ダイアログを出し、
+        // 利用者にはゲームが壊れたように見える（bug-ledger #12・2026-09-04 ビンゴ）。
+        // 音が出ないだけで遊べるので、音声デバイス由来のものだけ握り潰す。
+        errorHandler: function (err, url, line) {
+          var msg = (err && err.message) ? err.message : String(err || "");
+          if (/audio device|AudioContext|Web Audio|audioContext/i.test(msg)) {
+            try { console.warn("[poi] suppressed audio error:", msg); } catch (e) {}
+            try { window.poiTryResumeAudio && window.poiTryResumeAudio(); } catch (e) {}
+            return true; // ダイアログを出さない
+          }
+          return false; // それ以外は従来どおり Unity に処理させる
+        },
       };
 
       // By default, Unity keeps WebGL canvas render target size matched with
