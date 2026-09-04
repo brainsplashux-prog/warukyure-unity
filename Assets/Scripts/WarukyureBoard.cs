@@ -412,6 +412,8 @@ public class WarukyureBoard : MonoBehaviour
         RawImage ri = lampRect.GetComponent<RawImage>();
         if (ri != null) ri.texture = LampTexFor(lampTracks[idx]);
         currentLampCellId = cellId;
+        // 外周／内円でBGMを切り替える（ring4=IN1・loop2=IN2）
+        WarukyureBgm.SetTrack(lampTracks[idx]);
         WarukyureSfx.PlayLampStep();
     }
 
