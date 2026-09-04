@@ -45,7 +45,6 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- UI references -----------------
     private Canvas canvas;
     private RectTransform lampRect;
-    private Text walletText;
     private GameObject resultPanel;
     private RectTransform resultPanelRect;
     private CanvasGroup resultPanelGroup;
@@ -55,6 +54,7 @@ public class WarukyureBoard : MonoBehaviour
     private Button spinButton;
     private Text spinButtonText;
     private Image spinButtonImage;
+    private Image spinSkipPlate;   // SKIP時に板絵のSPINを覆うオレンジ板
 
     // ----------------- state -----------------
     private string token;
@@ -159,7 +159,6 @@ public class WarukyureBoard : MonoBehaviour
         CreateAdVirtuaPlaceholder();
         AdVirtuaMonitorSetup.Setup();
         gameObject.AddComponent<AdVirtuaResizeWatcher>();
-        CreateHeaderText();
         CreateHelpButton();
         CreateBetButtons();
         CreateSpinButton();
@@ -452,31 +451,6 @@ public class WarukyureBoard : MonoBehaviour
         return txt;
     }
 
-    void CreateHeaderText()
-    {
-        const float walletY = 1080f;
-        const float bandHeight = 48f;
-
-        // BET/SPIN ボタンに重ならないよう、盤面フレーム下辺より上に半透明黒帯を敷く。
-        GameObject bandGO = new GameObject("WalletTextBand");
-        bandGO.transform.SetParent(canvas.transform, false);
-        RectTransform bandRT = bandGO.AddComponent<RectTransform>();
-        bandRT.anchorMin = new Vector2(0, 1);
-        bandRT.anchorMax = new Vector2(1, 1);
-        bandRT.pivot = new Vector2(0.5f, 0.5f);
-        bandRT.anchoredPosition = new Vector2(0f, -walletY);
-        bandRT.sizeDelta = new Vector2(0f, bandHeight);
-        Image bandImg = bandGO.AddComponent<Image>();
-        bandImg.color = new Color(0f, 0f, 0f, 0.45f);
-        bandImg.raycastTarget = false;
-
-        walletText = CreateText("WalletText", new Vector2(360f, walletY), new Vector2(720f, 36f), TextAnchor.MiddleCenter, 18);
-        walletText.resizeTextForBestFit = true;
-        walletText.horizontalOverflow = HorizontalWrapMode.Overflow;
-        walletText.verticalOverflow = VerticalWrapMode.Overflow;
-        walletText.text = "残高 ---";
-    }
-
     void CreateResultOverlay()
     {
         GameObject go = new GameObject("ResultPanel");
@@ -679,6 +653,31 @@ public class WarukyureBoard : MonoBehaviour
         spinButtonText.alignment = TextAnchor.MiddleCenter;
         spinButtonText.color = Color.white;
         spinButtonText.text = "SPIN";
+
+        // SKIP 中は板絵の「SPIN」と文字が重なって読めないため、ボタンごと差し替える。
+        // 板絵の SPIN を完全に覆うオレンジの角丸板を最背面に敷き、その上に SKIP を出す。
+        GameObject plateGO = new GameObject("SkipPlate");
+        plateGO.transform.SetParent(spinButton.transform, false);
+        RectTransform prt = plateGO.AddComponent<RectTransform>();
+        prt.anchorMin = Vector2.zero;
+        prt.anchorMax = Vector2.one;
+        prt.pivot = new Vector2(0.5f, 0.5f);
+        prt.anchoredPosition = Vector2.zero;
+        prt.sizeDelta = new Vector2(6f, 6f);   // 板絵の赤がフチから覗かないよう少し大きく
+        spinSkipPlate = plateGO.AddComponent<Image>();
+        spinSkipPlate.sprite = MakeRoundedSprite(170, 68, 18, 2f);
+        spinSkipPlate.type = Image.Type.Simple;
+        spinSkipPlate.color = new Color(1f, 0.58f, 0.10f, 1f);   // オレンジ
+        spinSkipPlate.raycastTarget = false;
+        plateGO.transform.SetAsFirstSibling();   // 文字より背面
+        plateGO.SetActive(false);
+    }
+
+    /// <summary>SPIN ボタンを SPIN 表示（板絵のまま）と SKIP 表示（オレンジ板）で切り替える。</summary>
+    void SetSpinButtonSkipMode(bool skip)
+    {
+        if (spinSkipPlate != null) spinSkipPlate.gameObject.SetActive(skip);
+        spinButtonText.text = skip ? "SKIP" : "SPIN";
     }
 
     /// <summary>角丸ピル型のソフトなスプライトを生成する（ボタンの光り用）。</summary>
@@ -838,14 +837,10 @@ public class WarukyureBoard : MonoBehaviour
         }
     }
 
+    // 残高・コスト・純益の表示は共通ヘッダー（HTML側）が持つため、
+    // ゲーム内の黒帯表示は撤去済み（2026-09-05 社長指示）。
     void UpdateHeader()
     {
-        string netStr;
-        if (lastNet > 0) netStr = $"+{lastNet}";
-        else if (lastNet < 0) netStr = $"-{Mathf.Abs(lastNet)}";
-        else netStr = "±0";
-        int cost = selectedBets.Count * missionBet;
-        walletText.text = $"コスト {cost:N0} / 純益 {netStr} / 残高 {wallet:N0}";
         UpdateCollectionPanel();
     }
 
@@ -991,7 +986,7 @@ public class WarukyureBoard : MonoBehaviour
     {
         isRunning = true;
         skipRequested = false;
-        spinButtonText.text = "SKIP";
+        SetSpinButtonSkipMode(true);
         DismissResultOverlay();
         UpdateBetButtonState();
 
@@ -1165,7 +1160,7 @@ public class WarukyureBoard : MonoBehaviour
     {
         isRunning = false;
         skipRequested = false;
-        spinButtonText.text = "SPIN";
+        SetSpinButtonSkipMode(false);
         if (!string.IsNullOrEmpty(error)) ShowResultOverlay(error, -1f);
 
         // クロスプロモ: ラウンド終了（＝リザルト表示）時のみ発火。プレイ中には割り込まない。
@@ -1438,7 +1433,6 @@ public class WarukyureBoard : MonoBehaviour
     {
         // 通常UIを隠して Header A + Ad-Virtua を最前面に
         SetNormalUIForChallenge(false);
-        walletText.rectTransform.SetAsLastSibling();
         adVirtuaRect.SetAsLastSibling();
 
         jackpotPanel.SetActive(true);
