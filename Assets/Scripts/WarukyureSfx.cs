@@ -10,6 +10,7 @@ public sealed class WarukyureSfx : MonoBehaviour
     private AudioClip tapClip;
     private AudioClip lampStepClip;
     private AudioClip lampStopClip;
+    private AudioClip fanfareClip;
     private float lastLampStepTime = float.NegativeInfinity;
 
     void Awake()
@@ -31,6 +32,9 @@ public sealed class WarukyureSfx : MonoBehaviour
         tapClip = Resources.Load<AudioClip>("sfx/se_tap");
         lampStepClip = Resources.Load<AudioClip>("sfx/se_lamp_step");
         lampStopClip = Resources.Load<AudioClip>("sfx/se_lamp_stop");
+        // JACKPOT/城到達のファンファーレ。既存の確定音源(sfx/)には触らず se/ に新規追加。
+        // 音源 = fan6_triumph（2026-09-05 社長選定「両方6で」）
+        fanfareClip = Resources.Load<AudioClip>("se/se_fanfare");
     }
 
     private static WarukyureSfx EnsureInstance()
@@ -61,6 +65,13 @@ public sealed class WarukyureSfx : MonoBehaviour
     {
         WarukyureSfx sfx = EnsureInstance();
         sfx.Play(sfx.lampStopClip);
+    }
+
+    /// <summary>JACKPOT獲得時・城到達時のファンファーレ（約5秒）。</summary>
+    public static void PlayFanfare()
+    {
+        WarukyureSfx sfx = EnsureInstance();
+        sfx.Play(sfx.fanfareClip);
     }
 
     private void Play(AudioClip clip)

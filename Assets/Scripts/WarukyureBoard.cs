@@ -1407,6 +1407,7 @@ public class WarukyureBoard : MonoBehaviour
         }
         else if (r.primaryType == "castle")
         {
+            WarukyureSfx.PlayFanfare();   // 城到達のファンファーレ
             sb.Append($"城 90 = {r.awardBreakdown.castle}枚");
         }
         else if (r.primaryType == "ball")
@@ -1472,6 +1473,7 @@ public class WarukyureBoard : MonoBehaviour
         yield return LampAnnouncer.Run(labels, stopIndex, labelColors, () => skipRequested);
 
         // 獲得枚数表示
+        WarukyureSfx.PlayFanfare();   // JACKPOT到達のファンファーレ
         jackpotAwardText.text = $"{r.bonusOutcome.award}枚";
 
         // 0.3秒の表示溜め
