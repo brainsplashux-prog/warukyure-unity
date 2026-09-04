@@ -1,7 +1,7 @@
 # warukyure / title — 実装済み画面の現状 (design-state/v1)
 
-captured_commit: 7d38599   captured_at: 2026-09-04T06:02:18Z   base: 720x1280
-image: state.png (sha256 631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189bd119fed4)   state_sha256: d014d23c506bda379f0b196df88aace3f8143cf24f6ecf8e625a74d106c2e9b6
+captured_commit: 826fc9c   captured_at: 2026-09-04T06:11:41Z   base: 720x1280
+image: state.png (sha256 631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189bd119fed4)   state_sha256: 9150bd082c77538992dd405c832c40589cfae85cdb9ea655c164f2bdf0b4e57e
 
 ![annotated](state_annotated.png)
 

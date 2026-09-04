@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-04 06:02:17Z" end-time="2026-09-04 06:02:18Z" duration="0.6314063">
-  <test-suite type="TestSuite" id="1009" name="warukyure" fullname="warukyure" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:02:17Z" end-time="2026-09-04 06:02:18Z" duration="0.631406" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-04 06:11:41Z" end-time="2026-09-04 06:11:41Z" duration="0.1956983">
+  <test-suite type="TestSuite" id="1009" name="warukyure" fullname="warukyure" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:11:41Z" end-time="2026-09-04 06:11:41Z" duration="0.195698" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
     <properties>
       <property name="platform" value="PlayMode" />
     </properties>
-    <test-suite type="Assembly" id="1005" name="Warukyure.Tests.PlayMode.dll" fullname="/Users/suzukimasahiro/Unity/warukyure/Library/ScriptAssemblies/Warukyure.Tests.PlayMode.dll" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:02:17Z" end-time="2026-09-04 06:02:18Z" duration="0.626720" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <test-suite type="Assembly" id="1005" name="Warukyure.Tests.PlayMode.dll" fullname="/Users/suzukimasahiro/Unity/warukyure/Library/ScriptAssemblies/Warukyure.Tests.PlayMode.dll" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:11:41Z" end-time="2026-09-04 06:11:41Z" duration="0.192357" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
       <properties>
-        <property name="_PID" value="34021" />
+        <property name="_PID" value="39199" />
         <property name="_APPDOMAIN" value="Unity Child Domain" />
         <property name="platform" value="PlayMode" />
         <property name="EditorOnly" value="False" />
       </properties>
-      <test-suite type="TestSuite" id="1006" name="Warukyure" fullname="Warukyure" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:02:17Z" end-time="2026-09-04 06:02:18Z" duration="0.626349" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <test-suite type="TestSuite" id="1006" name="Warukyure" fullname="Warukyure" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:11:41Z" end-time="2026-09-04 06:11:41Z" duration="0.192070" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
         <properties />
-        <test-suite type="TestSuite" id="1007" name="Tests" fullname="Warukyure.Tests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:02:17Z" end-time="2026-09-04 06:02:18Z" duration="0.626093" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <test-suite type="TestSuite" id="1007" name="Tests" fullname="Warukyure.Tests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:11:41Z" end-time="2026-09-04 06:11:41Z" duration="0.191865" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
           <properties />
-          <test-suite type="TestSuite" id="1008" name="PlayMode" fullname="Warukyure.Tests.PlayMode" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:02:17Z" end-time="2026-09-04 06:02:18Z" duration="0.625805" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <test-suite type="TestSuite" id="1008" name="PlayMode" fullname="Warukyure.Tests.PlayMode" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:11:41Z" end-time="2026-09-04 06:11:41Z" duration="0.191619" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
             <properties />
-            <test-suite type="TestFixture" id="1003" name="UIStateCapture" fullname="Warukyure.Tests.PlayMode.UIStateCapture" classname="Warukyure.Tests.PlayMode.UIStateCapture" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:02:17Z" end-time="2026-09-04 06:02:18Z" duration="0.624878" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <test-suite type="TestFixture" id="1003" name="UIStateCapture" fullname="Warukyure.Tests.PlayMode.UIStateCapture" classname="Warukyure.Tests.PlayMode.UIStateCapture" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-04 06:11:41Z" end-time="2026-09-04 06:11:41Z" duration="0.191127" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
               <properties />
-              <test-case id="1004" name="CaptureTitle" fullname="Warukyure.Tests.PlayMode.UIStateCapture.CaptureTitle" methodname="CaptureTitle" classname="Warukyure.Tests.PlayMode.UIStateCapture" runstate="Runnable" seed="182587686" result="Passed" start-time="2026-09-04 06:02:17Z" end-time="2026-09-04 06:02:18Z" duration="0.618475" asserts="0">
+              <test-case id="1004" name="CaptureTitle" fullname="Warukyure.Tests.PlayMode.UIStateCapture.CaptureTitle" methodname="CaptureTitle" classname="Warukyure.Tests.PlayMode.UIStateCapture" runstate="Runnable" seed="1371376435" result="Passed" start-time="2026-09-04 06:11:41Z" end-time="2026-09-04 06:11:41Z" duration="0.187100" asserts="0">
                 <properties>
                   <property name="_JOINTYPE" value="UnityCombinatorial" />
                   <property name="retryIteration" value="0" />
