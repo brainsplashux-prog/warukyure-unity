@@ -1510,6 +1510,20 @@
     <!-- POICASI-UID v1: ポイカジ全ゲーム合算ランキング用の匿名ID（P3-B）。
          window.POICASI_UID を用意するだけ。失敗してもゲームは一切ブロックしない。 -->
     <script src="/portal/poicasi-uid.js"></script>
+      <!-- POI-API-PREFIX v1: derive platform API prefix from deployment path.
+         /game/<name>-dev/ or localhost/127.0.0.1 -> dev prefix, otherwise production prefix. -->
+    <script>
+      function poiDeriveApiPrefix() {
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+          return '/portal' + '-dev';
+        }
+        if (/^\/game\/[^/]+-dev(?:\/|$)/i.test(location.pathname)) {
+          return '/portal' + '-dev';
+        }
+        return '/portal';
+      }
+      window.API_PREFIX = poiDeriveApiPrefix();
+    </script>
 
     <!-- poifx/v1 jackpot overlay (approved kit, loaded frozen from shared URL). -->
     <link rel="stylesheet" href="https://lp.poicasi.co.jp/shared/poifx/v1/poi-fx.css">
