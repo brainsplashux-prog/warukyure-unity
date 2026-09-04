@@ -1,0 +1,3230 @@
+{
+  "base": {
+    "h": 1280,
+    "w": 720
+  },
+  "captured_at": "2026-09-04T06:33:54Z",
+  "captured_commit": "b4b791f",
+  "content_check": {
+    "black_ratio": 0.007352,
+    "captured_commit": "b4b791f",
+    "commit_before_oldest": false,
+    "commit_exists": true,
+    "commit_timestamp": 1788502535,
+    "duplicate_screens": [],
+    "findings": [],
+    "image_sha256": "c96922402c99e90479ccb1c39927e28bbbf4ed1cbd458ef1d4f9b6fde63973b0",
+    "oldest_commit_timestamp": 1787046845,
+    "resolved_commit": "b4b791f294c7afe67870a6931f2a391d4cd230a3",
+    "uniform_ratio": 0.04375
+  },
+  "game_id": "warukyure",
+  "image": {
+    "file": "state.png",
+    "sha256": "c96922402c99e90479ccb1c39927e28bbbf4ed1cbd458ef1d4f9b6fde63973b0"
+  },
+  "objects": [
+    {
+      "anchor": "bottom-left",
+      "desc": "Canvas root",
+      "h": 1280,
+      "id": "canvas",
+      "path": "Canvas",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "panel",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "desc": "ボード（盤面）",
+      "h": 819,
+      "id": "board",
+      "path": "Canvas/Board",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": 405,
+      "z": 1
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 42,
+      "id": "collectionball0",
+      "path": "Canvas/Board/CollectionBall0",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 42,
+      "x": 473,
+      "y": 642,
+      "z": 2
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 42,
+      "id": "collectionball1",
+      "path": "Canvas/Board/CollectionBall1",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 42,
+      "x": 536,
+      "y": 642,
+      "z": 3
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 42,
+      "id": "collectionball2",
+      "path": "Canvas/Board/CollectionBall2",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 42,
+      "x": 473,
+      "y": 690,
+      "z": 4
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 42,
+      "id": "collectionball3",
+      "path": "Canvas/Board/CollectionBall3",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 42,
+      "x": 536,
+      "y": 690,
+      "z": 5
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_ball_o1",
+      "path": "Canvas/dim_ball_o1",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 230,
+      "y": 435,
+      "z": 7
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_03",
+      "path": "Canvas/dim_o_03",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 284,
+      "y": 435,
+      "z": 8
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_04",
+      "path": "Canvas/dim_o_04",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 337,
+      "y": 435,
+      "z": 9
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_05",
+      "path": "Canvas/dim_o_05",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 391,
+      "y": 435,
+      "z": 10
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_06",
+      "path": "Canvas/dim_o_06",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 445,
+      "y": 435,
+      "z": 11
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_ball_o2",
+      "path": "Canvas/dim_ball_o2",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 499,
+      "y": 435,
+      "z": 12
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_08",
+      "path": "Canvas/dim_o_08",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 552,
+      "y": 437,
+      "z": 13
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_09",
+      "path": "Canvas/dim_o_09",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 598,
+      "y": 467,
+      "z": 14
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_10",
+      "path": "Canvas/dim_o_10",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 518,
+      "z": 15
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_11",
+      "path": "Canvas/dim_o_11",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 572,
+      "z": 16
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_12",
+      "path": "Canvas/dim_o_12",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 626,
+      "z": 17
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_13",
+      "path": "Canvas/dim_o_13",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 680,
+      "z": 18
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_14",
+      "path": "Canvas/dim_o_14",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 733,
+      "z": 19
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_15",
+      "path": "Canvas/dim_o_15",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 787,
+      "z": 20
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_ship_r1",
+      "path": "Canvas/dim_ship_r1",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 841,
+      "z": 21
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_17",
+      "path": "Canvas/dim_o_17",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 895,
+      "z": 22
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_18",
+      "path": "Canvas/dim_o_18",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 949,
+      "z": 23
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_19",
+      "path": "Canvas/dim_o_19",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 608,
+      "y": 1001,
+      "z": 24
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_20",
+      "path": "Canvas/dim_o_20",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 562,
+      "y": 1037,
+      "z": 25
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_21",
+      "path": "Canvas/dim_o_21",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 509,
+      "y": 1042,
+      "z": 26
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_22",
+      "path": "Canvas/dim_o_22",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 455,
+      "y": 1042,
+      "z": 27
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_23",
+      "path": "Canvas/dim_o_23",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 401,
+      "y": 1042,
+      "z": 28
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_24",
+      "path": "Canvas/dim_o_24",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 348,
+      "y": 1042,
+      "z": 29
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_25",
+      "path": "Canvas/dim_o_25",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 294,
+      "y": 1042,
+      "z": 30
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_26",
+      "path": "Canvas/dim_o_26",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 240,
+      "y": 1042,
+      "z": 31
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_27",
+      "path": "Canvas/dim_o_27",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 186,
+      "y": 1042,
+      "z": 32
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_28",
+      "path": "Canvas/dim_o_28",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 133,
+      "y": 1040,
+      "z": 33
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_29",
+      "path": "Canvas/dim_o_29",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 87,
+      "y": 1010,
+      "z": 34
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_30",
+      "path": "Canvas/dim_o_30",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 959,
+      "z": 35
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_31",
+      "path": "Canvas/dim_o_31",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 905,
+      "z": 36
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_ship_l1",
+      "path": "Canvas/dim_ship_l1",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 851,
+      "z": 37
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_33",
+      "path": "Canvas/dim_o_33",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 797,
+      "z": 38
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_34",
+      "path": "Canvas/dim_o_34",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 744,
+      "z": 39
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_35",
+      "path": "Canvas/dim_o_35",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 690,
+      "z": 40
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_36",
+      "path": "Canvas/dim_o_36",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 636,
+      "z": 41
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_37",
+      "path": "Canvas/dim_o_37",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 582,
+      "z": 42
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_38",
+      "path": "Canvas/dim_o_38",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 528,
+      "z": 43
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_39",
+      "path": "Canvas/dim_o_39",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 77,
+      "y": 476,
+      "z": 44
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 34,
+      "id": "dim_o_40",
+      "path": "Canvas/dim_o_40",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 34,
+      "x": 123,
+      "y": 440,
+      "z": 45
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 36,
+      "id": "dim_i_01",
+      "path": "Canvas/dim_i_01",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 36,
+      "x": 261,
+      "y": 506,
+      "z": 46
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 36,
+      "id": "dim_i_07",
+      "path": "Canvas/dim_i_07",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 36,
+      "x": 204,
+      "y": 529,
+      "z": 47
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 36,
+      "id": "dim_i_05",
+      "path": "Canvas/dim_i_05",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 36,
+      "x": 181,
+      "y": 586,
+      "z": 48
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 36,
+      "id": "dim_i_04",
+      "path": "Canvas/dim_i_04",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 36,
+      "x": 204,
+      "y": 643,
+      "z": 49
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 36,
+      "id": "dim_ball_i1",
+      "path": "Canvas/dim_ball_i1",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 36,
+      "x": 261,
+      "y": 666,
+      "z": 50
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 36,
+      "id": "dim_i_02",
+      "path": "Canvas/dim_i_02",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 36,
+      "x": 318,
+      "y": 643,
+      "z": 51
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 36,
+      "id": "dim_i_06",
+      "path": "Canvas/dim_i_06",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 36,
+      "x": 341,
+      "y": 586,
+      "z": 52
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 36,
+      "id": "dim_key",
+      "path": "Canvas/dim_key",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 36,
+      "x": 318,
+      "y": 529,
+      "z": 53
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 30,
+      "id": "dim_m_00",
+      "path": "Canvas/dim_m_00",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 195,
+      "y": 791,
+      "z": 54
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 30,
+      "id": "dim_m_01",
+      "path": "Canvas/dim_m_01",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 233,
+      "y": 791,
+      "z": 55
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 30,
+      "id": "dim_m_02",
+      "path": "Canvas/dim_m_02",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 271,
+      "y": 791,
+      "z": 56
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 30,
+      "id": "dim_m_03",
+      "path": "Canvas/dim_m_03",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 309,
+      "y": 791,
+      "z": 57
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 30,
+      "id": "dim_ball_m1",
+      "path": "Canvas/dim_ball_m1",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 347,
+      "y": 791,
+      "z": 58
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 30,
+      "id": "dim_m_05",
+      "path": "Canvas/dim_m_05",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 385,
+      "y": 791,
+      "z": 59
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 30,
+      "id": "dim_m_06",
+      "path": "Canvas/dim_m_06",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 423,
+      "y": 791,
+      "z": 60
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 30,
+      "id": "dim_m_07",
+      "path": "Canvas/dim_m_07",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 461,
+      "y": 791,
+      "z": 61
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 30,
+      "id": "dim_m_08",
+      "path": "Canvas/dim_m_08",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 499,
+      "y": 791,
+      "z": 62
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 28,
+      "id": "dim_m_09",
+      "path": "Canvas/dim_m_09",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 499,
+      "y": 830,
+      "z": 63
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_10",
+      "path": "Canvas/dim_m_10",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 499,
+      "y": 867,
+      "z": 64
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_11",
+      "path": "Canvas/dim_m_11",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 499,
+      "y": 906,
+      "z": 65
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_12",
+      "path": "Canvas/dim_m_12",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 499,
+      "y": 943,
+      "z": 66
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_13",
+      "path": "Canvas/dim_m_13",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 461,
+      "y": 943,
+      "z": 67
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_14",
+      "path": "Canvas/dim_m_14",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 423,
+      "y": 943,
+      "z": 68
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_15",
+      "path": "Canvas/dim_m_15",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 385,
+      "y": 943,
+      "z": 69
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_16",
+      "path": "Canvas/dim_m_16",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 347,
+      "y": 943,
+      "z": 70
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_17",
+      "path": "Canvas/dim_m_17",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 309,
+      "y": 943,
+      "z": 71
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_18",
+      "path": "Canvas/dim_m_18",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 271,
+      "y": 943,
+      "z": 72
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_19",
+      "path": "Canvas/dim_m_19",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 233,
+      "y": 943,
+      "z": 73
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_20",
+      "path": "Canvas/dim_m_20",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 195,
+      "y": 943,
+      "z": 74
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_21",
+      "path": "Canvas/dim_m_21",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 195,
+      "y": 906,
+      "z": 75
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 29,
+      "id": "dim_m_22",
+      "path": "Canvas/dim_m_22",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 195,
+      "y": 867,
+      "z": 76
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "消灯マス",
+      "h": 28,
+      "id": "dim_m_23",
+      "path": "Canvas/dim_m_23",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 26,
+      "x": 195,
+      "y": 830,
+      "z": 77
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "h": 28,
+      "id": "adprlabelplate",
+      "path": "Canvas/AdPrLabelPlate",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 56,
+      "x": 18,
+      "y": 423,
+      "z": 79
+    },
+    {
+      "anchor": "stretch-stretch",
+      "color": "#FFFFFF",
+      "font_px": 20,
+      "h": 28,
+      "id": "adprlabeltext",
+      "path": "Canvas/AdPrLabelPlate/AdPrLabelText",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "text",
+      "text": "PR",
+      "visible": true,
+      "w": 56,
+      "x": 18,
+      "y": 423,
+      "z": 80
+    },
+    {
+      "anchor": "top-stretch",
+      "color": "#000000",
+      "desc": "残高帯",
+      "h": 48,
+      "id": "wallettextband",
+      "path": "Canvas/WalletTextBand",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": 1056,
+      "z": 81
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "ヘルプボタン",
+      "h": 32,
+      "id": "helpbutton",
+      "path": "Canvas/Help",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "button",
+      "visible": true,
+      "w": 32,
+      "x": 660,
+      "y": 1060,
+      "z": 82
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "JACKPOTチャレンジパネル",
+      "h": 819,
+      "id": "jackpotpanel",
+      "path": "Canvas/JackpotPanel",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": 405,
+      "z": 97
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 60,
+      "id": "jpindicator",
+      "path": "Canvas/JackpotPanel/JPIndicator",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 60,
+      "x": 55,
+      "y": 784,
+      "z": 108
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFDC50",
+      "font_px": 38,
+      "h": 60,
+      "id": "jpawardtext",
+      "path": "Canvas/JackpotPanel/JPAwardText",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "text",
+      "text": "",
+      "visible": true,
+      "w": 600,
+      "x": 60,
+      "y": 605,
+      "z": 109
+    },
+    {
+      "anchor": "top-right",
+      "color": "#0D0F0F",
+      "desc": "サウンドミュートボタン",
+      "h": 100,
+      "id": "soundmutebutton",
+      "path": "Canvas/SoundMuteButton",
+      "pivot": [
+        1.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 100,
+      "x": 602,
+      "y": 423,
+      "z": 110
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFFFFF",
+      "h": 70,
+      "id": "speakericon",
+      "path": "Canvas/SoundMuteButton/SpeakerIcon",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 70,
+      "x": 617,
+      "y": 438,
+      "z": 111
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "desc": "残高テキスト",
+      "font_px": 18,
+      "h": 36,
+      "id": "wallettext",
+      "path": "Canvas/WalletText",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "text",
+      "text": "コスト 200 / 純益 +29800 / 残高 42,145",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": 1062,
+      "z": 113
+    },
+    {
+      "anchor": "top-left",
+      "desc": "Ad-Virtua領域",
+      "h": 405,
+      "id": "advirtua",
+      "path": "Canvas/AdVirtua",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "panel",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": 0,
+      "z": 114
+    },
+    {
+      "anchor": "bottom-left",
+      "desc": "JACKPOTランプ演出",
+      "h": 1280,
+      "id": "lampannouncer",
+      "path": "LampAnnouncer",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "panel",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": 0,
+      "z": 115
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFFFFF",
+      "desc": "JACKPOTランプパネル",
+      "h": 201,
+      "id": "panel",
+      "path": "LampAnnouncer/panel",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 640,
+      "x": 40,
+      "y": 778,
+      "z": 116
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 85,
+      "id": "sidering0",
+      "path": "LampAnnouncer/panel/sideRing0",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 85,
+      "x": 72,
+      "y": 824,
+      "z": 117
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 85,
+      "id": "sidering1",
+      "path": "LampAnnouncer/panel/sideRing1",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 85,
+      "x": 195,
+      "y": 824,
+      "z": 118
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 85,
+      "id": "sidering3",
+      "path": "LampAnnouncer/panel/sideRing3",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 85,
+      "x": 441,
+      "y": 824,
+      "z": 119
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 85,
+      "id": "sidering4",
+      "path": "LampAnnouncer/panel/sideRing4",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 85,
+      "x": 564,
+      "y": 824,
+      "z": 120
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 136,
+      "id": "centerbezel",
+      "path": "LampAnnouncer/panel/centerBezel",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 136,
+      "x": 292,
+      "y": 798,
+      "z": 121
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 76,
+      "id": "lampmask0",
+      "path": "LampAnnouncer/panel/lampMask0",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 76,
+      "x": 76,
+      "y": 828,
+      "z": 122
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFFFFF",
+      "h": 80,
+      "id": "lamp0",
+      "path": "LampAnnouncer/panel/lampMask0/lamp0",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 80,
+      "x": 74,
+      "y": 826,
+      "z": 123
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 76,
+      "id": "lampmask1",
+      "path": "LampAnnouncer/panel/lampMask1",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 76,
+      "x": 199,
+      "y": 828,
+      "z": 124
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFFFFF",
+      "h": 80,
+      "id": "lamp1",
+      "path": "LampAnnouncer/panel/lampMask1/lamp1",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 80,
+      "x": 197,
+      "y": 826,
+      "z": 125
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 76,
+      "id": "lampmask2",
+      "path": "LampAnnouncer/panel/lampMask2",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 76,
+      "x": 322,
+      "y": 828,
+      "z": 126
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFFFFF",
+      "h": 80,
+      "id": "lamp2",
+      "path": "LampAnnouncer/panel/lampMask2/lamp2",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 80,
+      "x": 320,
+      "y": 826,
+      "z": 127
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 76,
+      "id": "lampmask3",
+      "path": "LampAnnouncer/panel/lampMask3",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 76,
+      "x": 445,
+      "y": 828,
+      "z": 128
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFFFFF",
+      "h": 80,
+      "id": "lamp3",
+      "path": "LampAnnouncer/panel/lampMask3/lamp3",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 80,
+      "x": 443,
+      "y": 826,
+      "z": 129
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 76,
+      "id": "lampmask4",
+      "path": "LampAnnouncer/panel/lampMask4",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 76,
+      "x": 568,
+      "y": 828,
+      "z": 130
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFFFFF",
+      "h": 80,
+      "id": "lamp4",
+      "path": "LampAnnouncer/panel/lampMask4/lamp4",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 80,
+      "x": 566,
+      "y": 826,
+      "z": 131
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "h": 32,
+      "id": "jackpotplate",
+      "path": "LampAnnouncer/panel/jackpotPlate",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 104,
+      "x": 309,
+      "y": 927,
+      "z": 132
+    },
+    {
+      "anchor": "top-left",
+      "h": 200,
+      "id": "jackpotglow",
+      "path": "LampAnnouncer/panel/jackpotGlow",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "panel",
+      "visible": true,
+      "w": 640,
+      "x": 40,
+      "y": 778,
+      "z": 133
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner0",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner0",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 321,
+      "y": 930,
+      "z": 134
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner1",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner1",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 321,
+      "y": 932,
+      "z": 135
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner2",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner2",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 932,
+      "z": 136
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner3",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner3",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 933,
+      "z": 137
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner4",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner4",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 932,
+      "z": 138
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner5",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner5",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 317,
+      "y": 932,
+      "z": 139
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner6",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner6",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 317,
+      "y": 930,
+      "z": 140
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner7",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner7",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 317,
+      "y": 929,
+      "z": 141
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner8",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner8",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 929,
+      "z": 142
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner9",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner9",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 928,
+      "z": 143
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner10",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner10",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 929,
+      "z": 144
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeinner11",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeInner11",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 321,
+      "y": 929,
+      "z": 145
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter0",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter0",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 323,
+      "y": 930,
+      "z": 146
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter1",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter1",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 322,
+      "y": 932,
+      "z": 147
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter2",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter2",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 322,
+      "y": 933,
+      "z": 148
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter3",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter3",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 934,
+      "z": 149
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter4",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter4",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 934,
+      "z": 150
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter5",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter5",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 934,
+      "z": 151
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter6",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter6",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 316,
+      "y": 933,
+      "z": 152
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter7",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter7",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 316,
+      "y": 932,
+      "z": 153
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter8",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter8",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 315,
+      "y": 930,
+      "z": 154
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter9",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter9",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 316,
+      "y": 929,
+      "z": 155
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter10",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter10",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 316,
+      "y": 928,
+      "z": 156
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter11",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter11",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 927,
+      "z": 157
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter12",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter12",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 927,
+      "z": 158
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter13",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter13",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 927,
+      "z": 159
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter14",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter14",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 322,
+      "y": 928,
+      "z": 160
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FF7C14",
+      "font_px": 17,
+      "h": 24,
+      "id": "strokeouter15",
+      "path": "LampAnnouncer/panel/jackpotGlow/strokeOuter15",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 322,
+      "y": 929,
+      "z": 161
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillcenter",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillCenter",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 930,
+      "z": 162
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner0",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner0",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 930,
+      "z": 163
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner1",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner1",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 931,
+      "z": 164
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner2",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner2",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 932,
+      "z": 165
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner3",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner3",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 932,
+      "z": 166
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner4",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner4",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 932,
+      "z": 167
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner5",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner5",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 931,
+      "z": 168
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner6",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner6",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 930,
+      "z": 169
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner7",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner7",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 930,
+      "z": 170
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner8",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner8",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 929,
+      "z": 171
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner9",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner9",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 929,
+      "z": 172
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner10",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner10",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 929,
+      "z": 173
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillinner11",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillInner11",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 930,
+      "z": 174
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter0",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter0",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 322,
+      "y": 930,
+      "z": 175
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter1",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter1",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 322,
+      "y": 931,
+      "z": 176
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter2",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter2",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 321,
+      "y": 932,
+      "z": 177
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter3",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter3",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 321,
+      "y": 933,
+      "z": 178
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter4",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter4",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 933,
+      "z": 179
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter5",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter5",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 933,
+      "z": 180
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter6",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter6",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 933,
+      "z": 181
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter7",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter7",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 317,
+      "y": 933,
+      "z": 182
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter8",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter8",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 317,
+      "y": 932,
+      "z": 183
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter9",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter9",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 316,
+      "y": 931,
+      "z": 184
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter10",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter10",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 316,
+      "y": 930,
+      "z": 185
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter11",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter11",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 316,
+      "y": 930,
+      "z": 186
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter12",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter12",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 317,
+      "y": 929,
+      "z": 187
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter13",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter13",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 317,
+      "y": 928,
+      "z": 188
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter14",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter14",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 318,
+      "y": 928,
+      "z": 189
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter15",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter15",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 927,
+      "z": 190
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter16",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter16",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 320,
+      "y": 928,
+      "z": 191
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter17",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter17",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 321,
+      "y": 928,
+      "z": 192
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter18",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter18",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 321,
+      "y": 929,
+      "z": 193
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFBE2B",
+      "font_px": 17,
+      "h": 24,
+      "id": "fillouter19",
+      "path": "LampAnnouncer/panel/jackpotGlow/fillOuter19",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 322,
+      "y": 930,
+      "z": 194
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFF6E0",
+      "font_px": 17,
+      "h": 24,
+      "id": "label0",
+      "path": "LampAnnouncer/panel/label0",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "3000",
+      "visible": true,
+      "w": 38,
+      "x": 95,
+      "y": 930,
+      "z": 195
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFF6E0",
+      "font_px": 17,
+      "h": 24,
+      "id": "label1",
+      "path": "LampAnnouncer/panel/label1",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "1000",
+      "visible": true,
+      "w": 38,
+      "x": 218,
+      "y": 930,
+      "z": 196
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFDD5C",
+      "font_px": 17,
+      "h": 24,
+      "id": "label2",
+      "path": "LampAnnouncer/panel/label2",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "JACKPOT",
+      "visible": true,
+      "w": 82,
+      "x": 319,
+      "y": 930,
+      "z": 197
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFF6E0",
+      "font_px": 17,
+      "h": 24,
+      "id": "label3",
+      "path": "LampAnnouncer/panel/label3",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "1000",
+      "visible": true,
+      "w": 38,
+      "x": 464,
+      "y": 930,
+      "z": 198
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFF6E0",
+      "font_px": 17,
+      "h": 24,
+      "id": "label4",
+      "path": "LampAnnouncer/panel/label4",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "text",
+      "text": "5000",
+      "visible": true,
+      "w": 38,
+      "x": 587,
+      "y": 930,
+      "z": 199
+    },
+    {
+      "desc": "ヘッダーA（HTMLオーバーレイ／Unityキャンバスの外・上側／キャンバス座標では y=-56 から始まる／`.common-header-bar`・規約 game-layout-standard.md §1）",
+      "h": 56,
+      "id": "header_a",
+      "path": "WebGLTemplates/PoiLoader/index.html:.common-header-bar",
+      "role": "panel",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": -56,
+      "z": 1000
+    }
+  ],
+  "scene_path": "Assets/Scenes/Main.unity",
+  "schema": "design-state/v1",
+  "screen_id": "jackpot",
+  "source_files": [
+    {
+      "path": "Assets/Scenes/Main.unity",
+      "sha256": "41df691e5929c28ac362033068a561ef040af51f033dd879076473d5f11d1603"
+    },
+    {
+      "path": "Assets/Scripts/WarukyureBoard.cs",
+      "sha256": "673a8d52d88af8e4b899d314fc82f38d50a7131da89a6e03619427fe02be35ce"
+    },
+    {
+      "path": "Assets/Scripts/BoardData.cs",
+      "sha256": "b5eb9743149bd8f3e3f069252829b869983fd6738d566570176dc1a5e5228c3e"
+    },
+    {
+      "path": "Assets/Scripts/SoundMuteButton.cs",
+      "sha256": "573e9bbe2f9a797a754d28168a2eeda47a182ee067523c503a749cd1fdc4f2b5"
+    },
+    {
+      "path": "Assets/Scripts/LampAnnouncer.cs",
+      "sha256": "c836338550037594b5bf0beef2afe9da5932f8f250a4e1deee0d4d42f3f6e129"
+    },
+    {
+      "path": "Assets/Scripts/UI/CrossPromoPopupUI.cs",
+      "sha256": "a66814541128341aa962e84bb9ae6a75493cd5da82cf41ec260907ecf7a24832"
+    },
+    {
+      "path": "Assets/Scripts/Common/PoiPlayTime.cs",
+      "sha256": "5caa7600f23efa9a66fb1c55e2b07bb525934c55339fe9bbb64c16deabcf78dc"
+    }
+  ],
+  "unity_version": "6000.4.7f1"
+}

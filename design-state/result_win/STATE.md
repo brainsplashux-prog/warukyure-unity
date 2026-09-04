@@ -1,7 +1,7 @@
-# warukyure / title — 実装済み画面の現状 (design-state/v1)
+# warukyure / result_win — 実装済み画面の現状 (design-state/v1)
 
 captured_commit: b4b791f   captured_at: 2026-09-04T06:33:46Z   base: 720x1280
-image: state.png (sha256 631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189bd119fed4)   state_sha256: 8ec44da4eb310782009c47709d6be0f60cf9b60e245711e47cc4c7a346ef5f67
+image: state.png (sha256 0e3f52a606524baf22481f5c9b11a96cbb7a4e30b3068d096c4baac798eace5f)   state_sha256: a65be95556fd40c2a1f39c2d8dfbd9b760577c6a208f7d227180e3bed386eb01
 
 ![annotated](state_annotated.png)
 
@@ -11,8 +11,8 @@ image: state.png (sha256 631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189
 |---|---|---:|---:|---:|---:|---:|---|---|
 | ヘッダーA | header_a | 0 | -56 | 720 | 56 | true | x=0 y=-56 w=720 h=56 | 一致 |
 | ADVIRTUA | advirtua | 0 | 0 | 720 | 405 | true | x=0 y=0 w=720 h=405 | 一致 |
-| ヘッダーB | なし | - | - | - | - | - | x=0 y=0 w=720 h=200 | なし |
-| 広告フッター | なし | - | - | - | - | - | x=0 y=1180 w=720 h=100 | なし |
+| ヘッダーB | なし | - | - | - | - | - | x=0 y=0 w=720 h=200 | なし(規約通り) |
+| 広告フッター | なし | - | - | - | - | - | x=0 y=1180 w=720 h=100 | なし(規約通り) |
 
 | id | role | x | y | w | h | z | text | desc |
 |---|---:|---:|---:|---:|---:|---:|---|---|
@@ -98,15 +98,19 @@ image: state.png (sha256 631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189
 | adprlabelplate | image | 18 | 423 | 56 | 28 | 80 |  |  |
 | adprlabeltext | text | 18 | 423 | 56 | 28 | 81 | PR |  |
 | wallettextband | image | 0 | 1056 | 720 | 48 | 82 |  | 残高帯 |
-| wallettext | text | 0 | 1062 | 720 | 36 | 83 | 残高 --- | 残高テキスト |
+| wallettext | text | 0 | 1062 | 720 | 36 | 83 | コスト 200 / 純益 +2500 / 残高 14,845 | 残高テキスト |
 | helpbutton | button | 660 | 1060 | 32 | 32 | 84 |  | ヘルプボタン |
 | bet2 | button | 16 | 1110 | 95 | 96 | 85 |  |  |
+| glow | image | 25 | 1119 | 77 | 78 | 86 |  |  |
 | bet4 | button | 119 | 1110 | 95 | 96 | 87 |  |  |
 | bet6 | button | 222 | 1110 | 95 | 96 | 89 |  |  |
+| glow_2 | image | 232 | 1119 | 76 | 78 | 90 |  |  |
 | bet8 | button | 325 | 1110 | 95 | 96 | 91 |  |  |
 | bet20 | button | 428 | 1110 | 95 | 96 | 93 |  |  |
 | spinbutton | button | 528 | 1124 | 170 | 68 | 95 |  | SPINボタン |
 | spintext | text | 528 | 1124 | 170 | 68 | 96 | SPIN |  |
+| resultpanel | image | 110 | 675 | 500 | 160 | 97 |  | 結果パネル |
+| resulttext | text | 110 | 675 | 500 | 160 | 98 | 数字 6 × 5 = 300枚 |  |
 | soundmutebutton | image | 602 | 423 | 100 | 100 | 112 |  | サウンドミュートボタン |
 | speakericon | image | 617 | 438 | 70 | 70 | 113 |  |  |
 | header_a | panel | 0 | -56 | 720 | 56 | 1000 |  | ヘッダーA（HTMLオーバーレイ／Unityキャンバスの外・上側／キャンバス座標では y=-56 から始まる／`.common-header-bar`・規約 game-layout-standard.md §1） |

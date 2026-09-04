@@ -1,9 +1,63 @@
 {
   "game_id": "warukyure",
-  "generated_at": "2026-09-04T06:11:43.006276Z",
+  "generated_at": "2026-09-04T06:34:00.873835Z",
   "generated_by": "suzukimasahiro@suzukinoMBP",
   "schema": "design-state/v1-index",
   "screens": [
+    {
+      "annotated_file": "state_annotated.png",
+      "annotated_sha256": "ee2d721020e397ef1cba725d884ed787a85ea6cd83572ef25513c3523bb3d8fd",
+      "image_file": "state.png",
+      "image_sha256": "c96922402c99e90479ccb1c39927e28bbbf4ed1cbd458ef1d4f9b6fde63973b0",
+      "screen_id": "jackpot",
+      "state_file": "state.json",
+      "state_sha256": "405bf26cf1bcdcb02813048115b762ef052f2bddfe000ab7a6163b5b7a2505ff"
+    },
+    {
+      "annotated_file": "state_annotated.png",
+      "annotated_sha256": "2d3727b6bbcec9bfa9496a505d26ffc9c4709a27ea96006b8aa797705889163f",
+      "image_file": "state.png",
+      "image_sha256": "67e6d7d9c742b33aa12cd8e63a1a1df6ebecce045e5dddb92bcb43914edac13b",
+      "screen_id": "play",
+      "state_file": "state.json",
+      "state_sha256": "5febfd21106101c633055bf436b79650efe47f019ab140a530fa43af88e3cf88"
+    },
+    {
+      "annotated_file": "state_annotated.png",
+      "annotated_sha256": "e25ea7bbce937f6040fd6abbcf7b84778d0e4d25f2e9c604eebeb86b97784a17",
+      "image_file": "state.png",
+      "image_sha256": "8082c2c54eedaa1a25dd4fab20663c2772021423a66bac4c1c681f6b137d87f1",
+      "screen_id": "promo",
+      "state_file": "state.json",
+      "state_sha256": "1acf517c7322d86282f7a1cd1a0ef870c900fc2d7ce1c6cfe15098e9d48e3c95"
+    },
+    {
+      "annotated_file": "state_annotated.png",
+      "annotated_sha256": "62f336b2990ce7f50c3a343b417df1522801c79a1d8f483e49935a0594311809",
+      "image_file": "state.png",
+      "image_sha256": "91c76e5b63fe68227e1a8c6978b740f4d32730ab596d765426e490e6f591af6b",
+      "screen_id": "result_jackpot",
+      "state_file": "state.json",
+      "state_sha256": "2925d1b3ac363afcb0dd1242490503d51a2d0580b34ad8d2bd7d5ef027946191"
+    },
+    {
+      "annotated_file": "state_annotated.png",
+      "annotated_sha256": "f6b6e151d92a402aeed8c9d169c79d20fbf2c11da85eb6bb1451038441dd1150",
+      "image_file": "state.png",
+      "image_sha256": "85c2d3c5a5e10482b3d410f63e1be345b742dc46d6ed2696d5092c9809b5ae2d",
+      "screen_id": "result_lose",
+      "state_file": "state.json",
+      "state_sha256": "9187afa4a359c390d49f59eb4a8479286bb98ef7a0f29f1e127c3952f32c63d1"
+    },
+    {
+      "annotated_file": "state_annotated.png",
+      "annotated_sha256": "83503427d09ede09ba06b74b65aa1a9ebdd97a352dea0a209d42a072196abb5e",
+      "image_file": "state.png",
+      "image_sha256": "0e3f52a606524baf22481f5c9b11a96cbb7a4e30b3068d096c4baac798eace5f",
+      "screen_id": "result_win",
+      "state_file": "state.json",
+      "state_sha256": "a65be95556fd40c2a1f39c2d8dfbd9b760577c6a208f7d227180e3bed386eb01"
+    },
     {
       "annotated_file": "state_annotated.png",
       "annotated_sha256": "df9c0f8d7b486d42567910506ea6bd2aac71924df0d41540e0c6f8d6189d68a7",
@@ -11,7 +65,7 @@
       "image_sha256": "631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189bd119fed4",
       "screen_id": "title",
       "state_file": "state.json",
-      "state_sha256": "9150bd082c77538992dd405c832c40589cfae85cdb9ea655c164f2bdf0b4e57e"
+      "state_sha256": "8ec44da4eb310782009c47709d6be0f60cf9b60e245711e47cc4c7a346ef5f67"
     }
   ],
   "tool": "design-state"

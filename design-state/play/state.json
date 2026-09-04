@@ -13,7 +13,7 @@
     "commit_timestamp": 1788502535,
     "duplicate_screens": [],
     "findings": [],
-    "image_sha256": "631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189bd119fed4",
+    "image_sha256": "67e6d7d9c742b33aa12cd8e63a1a1df6ebecce045e5dddb92bcb43914edac13b",
     "oldest_commit_timestamp": 1787046845,
     "resolved_commit": "b4b791f294c7afe67870a6931f2a391d4cd230a3",
     "uniform_ratio": 0.314971
@@ -21,7 +21,7 @@
   "game_id": "warukyure",
   "image": {
     "file": "state.png",
-    "sha256": "631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189bd119fed4"
+    "sha256": "67e6d7d9c742b33aa12cd8e63a1a1df6ebecce045e5dddb92bcb43914edac13b"
   },
   "objects": [
     {
@@ -1506,7 +1506,7 @@
         0.5
       ],
       "role": "text",
-      "text": "残高 ---",
+      "text": "コスト 200 / 純益 ±0 / 残高 12,345",
       "visible": true,
       "w": 720,
       "x": 0,
@@ -1549,6 +1549,23 @@
       "z": 85
     },
     {
+      "anchor": "middle-center",
+      "color": "#FFCD3C",
+      "h": 78,
+      "id": "glow",
+      "path": "Canvas/Bet2/Glow",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 77,
+      "x": 25,
+      "y": 1119,
+      "z": 86
+    },
+    {
       "anchor": "top-left",
       "color": "#000000",
       "h": 96,
@@ -1581,6 +1598,23 @@
       "x": 222,
       "y": 1110,
       "z": 89
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFCD3C",
+      "h": 78,
+      "id": "glow_2",
+      "path": "Canvas/Bet6/Glow",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 76,
+      "x": 232,
+      "y": 1119,
+      "z": 90
     },
     {
       "anchor": "top-left",
@@ -1703,7 +1737,7 @@
   ],
   "scene_path": "Assets/Scenes/Main.unity",
   "schema": "design-state/v1",
-  "screen_id": "title",
+  "screen_id": "play",
   "source_files": [
     {
       "path": "Assets/Scenes/Main.unity",

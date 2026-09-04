@@ -3,7 +3,7 @@
     "h": 1280,
     "w": 720
   },
-  "captured_at": "2026-09-04T06:33:46Z",
+  "captured_at": "2026-09-04T06:33:54Z",
   "captured_commit": "b4b791f",
   "content_check": {
     "black_ratio": 4.1e-05,
@@ -13,15 +13,15 @@
     "commit_timestamp": 1788502535,
     "duplicate_screens": [],
     "findings": [],
-    "image_sha256": "631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189bd119fed4",
+    "image_sha256": "91c76e5b63fe68227e1a8c6978b740f4d32730ab596d765426e490e6f591af6b",
     "oldest_commit_timestamp": 1787046845,
     "resolved_commit": "b4b791f294c7afe67870a6931f2a391d4cd230a3",
-    "uniform_ratio": 0.314971
+    "uniform_ratio": 0.04375
   },
   "game_id": "warukyure",
   "image": {
     "file": "state.png",
-    "sha256": "631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189bd119fed4"
+    "sha256": "91c76e5b63fe68227e1a8c6978b740f4d32730ab596d765426e490e6f591af6b"
   },
   "objects": [
     {
@@ -1424,23 +1424,6 @@
     },
     {
       "anchor": "top-left",
-      "desc": "Ad-Virtua領域",
-      "h": 405,
-      "id": "advirtua",
-      "path": "Canvas/AdVirtua",
-      "pivot": [
-        0.0,
-        1.0
-      ],
-      "role": "panel",
-      "visible": true,
-      "w": 720,
-      "x": 0,
-      "y": 0,
-      "z": 79
-    },
-    {
-      "anchor": "top-left",
       "color": "#000000",
       "h": 28,
       "id": "adprlabelplate",
@@ -1454,7 +1437,7 @@
       "w": 56,
       "x": 18,
       "y": 423,
-      "z": 80
+      "z": 79
     },
     {
       "anchor": "stretch-stretch",
@@ -1473,7 +1456,7 @@
       "w": 56,
       "x": 18,
       "y": 423,
-      "z": 81
+      "z": 80
     },
     {
       "anchor": "top-stretch",
@@ -1491,27 +1474,7 @@
       "w": 720,
       "x": 0,
       "y": 1056,
-      "z": 82
-    },
-    {
-      "anchor": "top-left",
-      "color": "#FFFFFF",
-      "desc": "残高テキスト",
-      "font_px": 18,
-      "h": 36,
-      "id": "wallettext",
-      "path": "Canvas/WalletText",
-      "pivot": [
-        0.5,
-        0.5
-      ],
-      "role": "text",
-      "text": "残高 ---",
-      "visible": true,
-      "w": 720,
-      "x": 0,
-      "y": 1062,
-      "z": 83
+      "z": 81
     },
     {
       "anchor": "top-left",
@@ -1529,7 +1492,7 @@
       "w": 32,
       "x": 660,
       "y": 1060,
-      "z": 84
+      "z": 82
     },
     {
       "anchor": "top-left",
@@ -1546,7 +1509,24 @@
       "w": 95,
       "x": 16,
       "y": 1110,
-      "z": 85
+      "z": 83
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFCD3C",
+      "h": 78,
+      "id": "glow",
+      "path": "Canvas/Bet2/Glow",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 77,
+      "x": 25,
+      "y": 1119,
+      "z": 84
     },
     {
       "anchor": "top-left",
@@ -1563,7 +1543,7 @@
       "w": 95,
       "x": 119,
       "y": 1110,
-      "z": 87
+      "z": 85
     },
     {
       "anchor": "top-left",
@@ -1580,7 +1560,24 @@
       "w": 95,
       "x": 222,
       "y": 1110,
-      "z": 89
+      "z": 87
+    },
+    {
+      "anchor": "middle-center",
+      "color": "#FFCD3C",
+      "h": 78,
+      "id": "glow_2",
+      "path": "Canvas/Bet6/Glow",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 76,
+      "x": 232,
+      "y": 1119,
+      "z": 88
     },
     {
       "anchor": "top-left",
@@ -1597,7 +1594,7 @@
       "w": 95,
       "x": 325,
       "y": 1110,
-      "z": 91
+      "z": 89
     },
     {
       "anchor": "top-left",
@@ -1614,7 +1611,7 @@
       "w": 95,
       "x": 428,
       "y": 1110,
-      "z": 93
+      "z": 91
     },
     {
       "anchor": "top-left",
@@ -1632,7 +1629,7 @@
       "w": 170,
       "x": 528,
       "y": 1124,
-      "z": 95
+      "z": 93
     },
     {
       "anchor": "stretch-stretch",
@@ -1651,6 +1648,43 @@
       "w": 170,
       "x": 528,
       "y": 1124,
+      "z": 94
+    },
+    {
+      "anchor": "top-left",
+      "color": "#000000",
+      "desc": "結果パネル",
+      "h": 160,
+      "id": "resultpanel",
+      "path": "Canvas/ResultPanel",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "image",
+      "visible": true,
+      "w": 500,
+      "x": 110,
+      "y": 675,
+      "z": 95
+    },
+    {
+      "anchor": "stretch-stretch",
+      "color": "#FFFFFF",
+      "font_px": 24,
+      "h": 160,
+      "id": "resulttext",
+      "path": "Canvas/ResultPanel/ResultText",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "text",
+      "text": "JACKPOT 30000枚",
+      "visible": true,
+      "w": 500,
+      "x": 110,
+      "y": 675,
       "z": 96
     },
     {
@@ -1669,7 +1703,7 @@
       "w": 100,
       "x": 602,
       "y": 423,
-      "z": 112
+      "z": 110
     },
     {
       "anchor": "middle-center",
@@ -1686,7 +1720,44 @@
       "w": 70,
       "x": 617,
       "y": 438,
+      "z": 111
+    },
+    {
+      "anchor": "top-left",
+      "color": "#FFFFFF",
+      "desc": "残高テキスト",
+      "font_px": 18,
+      "h": 36,
+      "id": "wallettext",
+      "path": "Canvas/WalletText",
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "role": "text",
+      "text": "コスト 200 / 純益 +29800 / 残高 42,145",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": 1062,
       "z": 113
+    },
+    {
+      "anchor": "top-left",
+      "desc": "Ad-Virtua領域",
+      "h": 405,
+      "id": "advirtua",
+      "path": "Canvas/AdVirtua",
+      "pivot": [
+        0.0,
+        1.0
+      ],
+      "role": "panel",
+      "visible": true,
+      "w": 720,
+      "x": 0,
+      "y": 0,
+      "z": 114
     },
     {
       "desc": "ヘッダーA（HTMLオーバーレイ／Unityキャンバスの外・上側／キャンバス座標では y=-56 から始まる／`.common-header-bar`・規約 game-layout-standard.md §1）",
@@ -1703,7 +1774,7 @@
   ],
   "scene_path": "Assets/Scenes/Main.unity",
   "schema": "design-state/v1",
-  "screen_id": "title",
+  "screen_id": "result_jackpot",
   "source_files": [
     {
       "path": "Assets/Scenes/Main.unity",

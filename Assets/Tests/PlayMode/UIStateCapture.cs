@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using TMPro;
@@ -60,10 +61,117 @@ namespace Warukyure.Tests.PlayMode
         Camera _mainCam;
         RectTransform _canvasRt;
         Canvas _canvas;
-        RenderTexture _rt;
+        MonoBehaviour _board;
+
+        // ===================================================================
+        //  reflection helpers (pokapoka style)
+        // ===================================================================
+
+        MonoBehaviour FindBoard()
+        {
+            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                foreach (var mb in root.GetComponentsInChildren<MonoBehaviour>(true))
+                {
+                    if (mb != null && mb.GetType().Name == "WarukyureBoard")
+                        return mb;
+                }
+            }
+            return null;
+        }
+
+        static Type FindType(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                try
+                {
+                    var t = asm.GetType(name);
+                    if (t != null) return t;
+                    t = asm.GetType(name.Replace('+', '.'));
+                    if (t != null) return t;
+                }
+                catch { }
+            }
+            return Type.GetType(name + ", Assembly-CSharp", false, false)
+                ?? Type.GetType(name, false, false);
+        }
+
+        static object GetField(object target, string name)
+        {
+            if (target == null) return null;
+            var type = target is Type ? (Type)target : target.GetType();
+            var f = type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            if (f != null) return f.GetValue(target is Type ? null : target);
+            var p = type.GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            return p?.GetValue(target is Type ? null : target);
+        }
+
+        static void SetField(object target, string name, object value)
+        {
+            if (target == null) return;
+            var type = target is Type ? (Type)target : target.GetType();
+            var f = type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            if (f != null)
+            {
+                f.SetValue(target is Type ? null : target, value);
+                return;
+            }
+            var p = type.GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            if (p != null && p.CanWrite)
+                p.SetValue(target is Type ? null : target, value);
+        }
+
+        static MethodInfo FindMethod(object target, string name, object[] args)
+        {
+            if (target == null) return null;
+            var type = target is Type ? (Type)target : target.GetType();
+            var ms = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
+                .Where(m => m.Name == name)
+                .Where(m =>
+                {
+                    var ps = m.GetParameters();
+                    if (ps.Length != args.Length) return false;
+                    for (int i = 0; i < ps.Length; i++)
+                    {
+                        if (args[i] == null) continue;
+                        if (ps[i].ParameterType.IsInstanceOfType(args[i])) continue;
+                        if (ps[i].ParameterType == args[i].GetType()) continue;
+                        if (args[i] is bool b && ps[i].ParameterType == typeof(bool)) continue;
+                        if (args[i] is int iv && (ps[i].ParameterType == typeof(int) || ps[i].ParameterType == typeof(long))) continue;
+                        if (args[i] is float fv && (ps[i].ParameterType == typeof(float) || ps[i].ParameterType == typeof(double))) continue;
+                        if (args[i] is string s && ps[i].ParameterType == typeof(string)) continue;
+                        return false;
+                    }
+                    return true;
+                })
+                .ToArray();
+            if (ms.Length == 0) return null;
+            if (ms.Length == 1) return ms[0];
+            var pub = Array.Find(ms, m => m.IsPublic);
+            return pub ?? ms[0];
+        }
+
+        static object CallMethod(object target, string name, params object[] args)
+        {
+            var m = FindMethod(target, name, args);
+            if (m == null)
+                throw new InvalidOperationException($"Method not found: {name}({args.Length}) on {target}");
+            try
+            {
+                var instance = target is Type ? null : target;
+                return m.Invoke(instance, args);
+            }
+            catch (TargetInvocationException tie) { throw tie.InnerException ?? tie; }
+        }
+
+        // ===================================================================
+        //  main capture coroutine
+        // ===================================================================
 
         [UnityTest]
-        public IEnumerator CaptureTitle()
+        public IEnumerator CaptureAll()
         {
             LogAssert.ignoreFailingMessages = true;
 
@@ -76,6 +184,8 @@ namespace Warukyure.Tests.PlayMode
                 Debug.LogWarning($"[UIStateCapture] Screen.SetResolution failed: {e.Message}");
             }
 
+            // nested types resolved after _board is located
+
             AsyncOperation load = SceneManager.LoadSceneAsync("Main", LoadSceneMode.Single);
             Assert.IsNotNull(load, "LoadSceneAsync returned null");
             while (load != null && !load.isDone)
@@ -84,13 +194,20 @@ namespace Warukyure.Tests.PlayMode
             // Awake / Start
             yield return null;
             yield return null;
-            // UI construction is complete; stop any network coroutines before they complete
-            GameObject boardGo = GameObject.Find("Board");
-            if (boardGo != null)
-            {
-                var boardMb = boardGo.GetComponent<MonoBehaviour>();
-                if (boardMb != null) boardMb.StopAllCoroutines();
-            }
+
+            _board = FindBoard();
+            Assert.IsNotNull(_board, "WarukyureBoard component not found");
+
+            Type boardType = _board.GetType();
+            var resolveType = boardType.GetNestedType("ResolveResponse", BindingFlags.Public);
+            var stateType = boardType.GetNestedType("StateData", BindingFlags.Public);
+            var awardType = boardType.GetNestedType("AwardBreakdown", BindingFlags.Public);
+            var bonusType = boardType.GetNestedType("BonusOutcome", BindingFlags.Public);
+            var crossPromoType = boardType.Assembly.GetType("CrossPromoPopupUI");
+            var poiPlayTimeType = boardType.Assembly.GetType("PoiPlayTime");
+            Assert.IsNotNull(resolveType, "ResolveResponse type not found");
+
+            _board.StopAllCoroutines();
             yield return null;
 
             _mainCam = Camera.main;
@@ -103,6 +220,100 @@ namespace Warukyure.Tests.PlayMode
             Assert.IsNotNull(_canvas, "Canvas not found");
             Assert.IsNotNull(_canvasRt, "Canvas RectTransform not found");
 
+            // --- title (initial unready board) ---
+            yield return null;
+            CaptureScreen("title");
+
+            // --- play (session ready with wallet and selected bets) ---
+            SetField(_board, "sessionReady", true);
+            SetField(_board, "wallet", 12345);
+            SetField(_board, "lastNet", 0);
+            SetField(_board, "ballMask", 0);
+            SetField(_board, "missionBet", 100);
+            SetField(_board, "selectedBets", new HashSet<int> { 2, 6 });
+            SetField(_board, "platformEnabled", false);
+            CallMethod(_board, "UpdateHeader");
+            CallMethod(_board, "UpdateBetButtonState");
+            yield return null;
+            CaptureScreen("play");
+
+            // --- result win ---
+            var rWin = MakeResolve(resolveType, stateType, awardType, bonusType,
+                "number", 6, 5, 300, 300, 200, 2500, 0, 14845, 0b0011);
+            CallMethod(_board, "ShowResult", rWin);
+            yield return null;
+            SettleResultOverlay();
+            CaptureScreen("result_win");
+
+            // --- result lose ---
+            var rLose = MakeResolve(resolveType, stateType, awardType, bonusType,
+                "out", 0, 0, 0, 0, 200, -200, 0, 12145, 0);
+            CallMethod(_board, "ShowResult", rLose);
+            yield return null;
+            SettleResultOverlay();
+            CaptureScreen("result_lose");
+
+            // --- jackpot challenge ---
+            var rJackpot = MakeResolve(resolveType, stateType, awardType, bonusType,
+                "jackpot", 0, 0, 0, 30000, 200, 29800, 30000, 42145, 0b1111, 2, 30000);
+            CallMethod(_board, "ShowResult", rJackpot);
+            yield return new WaitForSecondsRealtime(7.4f);
+            Time.timeScale = 0f;
+            _board.StopAllCoroutines();
+            yield return null;
+
+            GameObject lampRoot = GameObject.Find("LampAnnouncer");
+            RectTransform lampRt = lampRoot != null ? (RectTransform)lampRoot.transform : null;
+            CaptureScreen("jackpot", lampRt);
+
+            // clean up and restore normal UI
+            Time.timeScale = 1f;
+            if (lampRoot != null)
+                GameObject.Destroy(lampRoot);
+            yield return new WaitForEndOfFrame();
+
+            GameObject jackpotPanel = (GameObject)GetField(_board, "jackpotPanel");
+            if (jackpotPanel != null)
+                jackpotPanel.SetActive(false);
+            CanvasGroup jackpotGroup = (CanvasGroup)GetField(_board, "jackpotPanelGroup");
+            if (jackpotGroup != null)
+            {
+                jackpotGroup.alpha = 0f;
+                jackpotGroup.blocksRaycasts = false;
+            }
+            CallMethod(_board, "SetNormalUIForChallenge", true);
+
+            // --- result jackpot (post-challenge overlay) ---
+            CallMethod(_board, "UpdateHeader");
+            CallMethod(_board, "ShowResultOverlay", "JACKPOT 30000枚", 1.2f, true);
+            yield return null;
+            SettleResultOverlay();
+            CaptureScreen("result_jackpot");
+
+            // --- cross-promo popup ---
+            CallMethod(_board, "DismissResultOverlay");
+            if (poiPlayTimeType != null)
+            {
+                SetField(poiPlayTimeType, "totalSeconds", 3600f);
+                SetField(poiPlayTimeType, "consumedTier", 0);
+                SetField(poiPlayTimeType, "pendingTier", 1);
+                SetField(poiPlayTimeType, "shownThisSession", false);
+            }
+            yield return null;
+            if (crossPromoType != null)
+                CallMethod(crossPromoType, "ShowIfEligible", _canvas, null);
+            yield return null;
+            CaptureScreen("promo");
+
+            Assert.Pass("UI state captured for all screens");
+        }
+
+        // ===================================================================
+        //  capture helpers
+        // ===================================================================
+
+        void CaptureScreen(string screenId, params RectTransform[] extraRoots)
+        {
             var rtDesc = new RenderTextureDescriptor(W, H, RenderTextureFormat.ARGB32, 24)
             {
                 depthStencilFormat = GraphicsFormat.D24_UNorm,
@@ -110,126 +321,180 @@ namespace Warukyure.Tests.PlayMode
                 useMipMap = false,
                 msaaSamples = 1,
             };
-            _rt = new RenderTexture(rtDesc);
-            if (!_rt.IsCreated()) _rt.Create();
-            _mainCam.targetTexture = _rt;
+            var rt = new RenderTexture(rtDesc);
+            if (!rt.IsCreated()) rt.Create();
 
             var prevActive = RenderTexture.active;
             var prevMSAA = _mainCam.allowMSAA;
             var prevHDR = _mainCam.allowHDR;
+            var prevTarget = _mainCam.targetTexture;
             var prevRenderMode = _canvas.renderMode;
             var prevWorldCam = _canvas.worldCamera;
+            var prevPlane = _canvas.planeDistance;
 
             _mainCam.allowMSAA = false;
             _mainCam.allowHDR = false;
+            _mainCam.targetTexture = rt;
+            RenderTexture.active = rt;
 
             _canvas.renderMode = RenderMode.ScreenSpaceCamera;
             _canvas.worldCamera = _mainCam;
             _canvas.planeDistance = 1f;
 
-            Canvas.ForceUpdateCanvases();
-            LayoutRebuilder.ForceRebuildLayoutImmediate(_canvasRt);
-            Canvas.ForceUpdateCanvases();
-
-            yield return null;
-            yield return null;
-
-            List<RawEntry> entries = new List<RawEntry>();
-            Texture2D tex = null;
-
             try
             {
+                ForceActivateForMeasure(_canvasRt.gameObject);
+                foreach (var er in extraRoots)
+                    if (er != null) ForceActivateForMeasure(er.gameObject);
+
                 Canvas.ForceUpdateCanvases();
                 LayoutRebuilder.ForceRebuildLayoutImmediate(_canvasRt);
                 Canvas.ForceUpdateCanvases();
 
-                s_forcedActive.Clear();
-                s_forcedGraphics.Clear();
+                s_roundedValues = 0;
+                s_roundedObjects = 0;
 
+                List<RawEntry> entries = new List<RawEntry>();
                 int z = 0;
                 Collect(_canvasRt, null, ref z, entries);
+                foreach (var er in extraRoots)
+                    if (er != null) Collect(er, null, ref z, entries);
 
-                RenderTexture.active = _rt;
+                RenderTexture.active = rt;
                 GL.Clear(true, true, _mainCam.backgroundColor);
                 _mainCam.Render();
 
-                tex = new Texture2D(W, H, TextureFormat.RGBA32, false);
+                Texture2D tex = new Texture2D(W, H, TextureFormat.RGBA32, false);
                 tex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
                 tex.Apply();
+
+                string outDir = Path.Combine(GetRepoRoot(), OutDir, screenId);
+                Directory.CreateDirectory(outDir);
+
+                File.WriteAllBytes(Path.Combine(outDir, "raw.png"), tex.EncodeToPNG());
+                UnityEngine.Object.Destroy(tex);
+
+                string capturedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+                string capturedCommit = GetGitCommitShort();
+                var sourceFiles = GetSourceFiles();
+
+                File.WriteAllText(Path.Combine(outDir, "raw.json"),
+                    ToJson(GameId, screenId, ScenePath, Application.unityVersion, capturedAt, capturedCommit, sourceFiles, entries),
+                    new UTF8Encoding(false));
+
+                Debug.Log($"[UIStateCapture] {screenId}: {entries.Count} objects, roundedValues={s_roundedValues}, roundedObjects={s_roundedObjects}");
             }
             finally
             {
                 RestoreForcedActive();
+                _mainCam.allowMSAA = prevMSAA;
+                _mainCam.allowHDR = prevHDR;
+                _mainCam.targetTexture = prevTarget;
+                _canvas.renderMode = prevRenderMode;
+                _canvas.worldCamera = prevWorldCam;
+                _canvas.planeDistance = prevPlane;
+                RenderTexture.active = prevActive;
+                if (rt != null) UnityEngine.Object.Destroy(rt);
             }
-
-            Assert.IsTrue(entries.Count > 0, "No UI objects captured");
-
-            var canvasEntry = entries.Find(e => e.path == "Canvas");
-            Assert.IsNotNull(canvasEntry, "Canvas not captured");
-
-            var board = entries.Find(e => e.path == "Canvas/Board");
-            Assert.IsNotNull(board, "Board not captured");
-
-            var spin = entries.Find(e => e.path == "Canvas/Spin");
-            Assert.IsNotNull(spin, "Spin button not captured");
-
-            string outDir = Path.Combine(GetRepoRoot(), OutDir, "title");
-            Directory.CreateDirectory(outDir);
-
-            File.WriteAllBytes(Path.Combine(outDir, "raw.png"), tex.EncodeToPNG());
-
-            string capturedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
-            string capturedCommit = GetGitCommitShort();
-            var sourceFiles = new List<SourceFile>
-            {
-                new SourceFile { path = ScenePath, sha256 = Sha256File(Path.Combine(GetRepoRoot(), ScenePath)) },
-                new SourceFile { path = "Assets/Scripts/WarukyureBoard.cs", sha256 = Sha256File(Path.Combine(GetRepoRoot(), "Assets/Scripts/WarukyureBoard.cs")) },
-                new SourceFile { path = "Assets/Scripts/BoardData.cs", sha256 = Sha256File(Path.Combine(GetRepoRoot(), "Assets/Scripts/BoardData.cs")) },
-                new SourceFile { path = "Assets/Scripts/SoundMuteButton.cs", sha256 = Sha256File(Path.Combine(GetRepoRoot(), "Assets/Scripts/SoundMuteButton.cs")) },
-                new SourceFile { path = "Assets/Scripts/LampAnnouncer.cs", sha256 = Sha256File(Path.Combine(GetRepoRoot(), "Assets/Scripts/LampAnnouncer.cs")) },
-            };
-
-            File.WriteAllText(Path.Combine(outDir, "raw.json"),
-                ToJson(GameId, "title", ScenePath, Application.unityVersion, capturedAt, capturedCommit, sourceFiles, entries),
-                new UTF8Encoding(false));
-
-            _mainCam.allowMSAA = prevMSAA;
-            _mainCam.allowHDR = prevHDR;
-            _mainCam.targetTexture = null;
-
-            _canvas.renderMode = prevRenderMode;
-            _canvas.worldCamera = prevWorldCam;
-            Canvas.ForceUpdateCanvases();
-
-            RenderTexture.active = prevActive;
-            if (_rt != null) UnityEngine.Object.Destroy(_rt);
-
-            Debug.Log($"[UIStateCapture] title: {entries.Count} objects, roundedValues={s_roundedValues}, roundedObjects={s_roundedObjects}");
-
-            Assert.Pass("UI state captured for title");
         }
 
-        void ForceActivateForMeasure(Transform t)
+        object MakeResolve(Type resolveType, Type stateType, Type awardType, Type bonusType,
+            string primaryType, int number, int multiplier, int awardNumber, int awardTotal,
+            int wager, int net, int jackpot, int wallet, int ballMask, int stopIndex = -1, int bonusAward = 0)
         {
-            var go = t.gameObject;
-            bool wasInactive = !go.activeSelf;
-            if (wasInactive)
+            var r = Activator.CreateInstance(resolveType);
+            var state = Activator.CreateInstance(stateType);
+            var award = Activator.CreateInstance(awardType);
+
+            SetField(r, "ok", true);
+            SetField(r, "runId", "run1");
+            SetField(r, "primaryType", primaryType);
+            SetField(r, "number", number);
+            SetField(r, "multiplier", multiplier);
+            SetField(r, "pathId", "0");
+            SetField(r, "fx", null);
+            SetField(r, "collection", null);
+
+            SetField(award, "wager", wager);
+            SetField(award, "number", awardNumber);
+            SetField(award, "castle", 0);
+            SetField(award, "jackpot", jackpot);
+            SetField(award, "total", awardTotal);
+            SetField(award, "net", net);
+
+            SetField(state, "wallet", wallet);
+            SetField(state, "ballMask", ballMask);
+
+            SetField(r, "state", state);
+            SetField(r, "awardBreakdown", award);
+
+            if (stopIndex >= 0)
+            {
+                var bonus = Activator.CreateInstance(bonusType);
+                SetField(bonus, "stopIndex", stopIndex);
+                SetField(bonus, "award", bonusAward);
+                SetField(r, "bonusOutcome", bonus);
+            }
+            else
+            {
+                SetField(r, "bonusOutcome", null);
+            }
+            return r;
+        }
+
+        void SettleResultOverlay()
+        {
+            _board.StopAllCoroutines();
+            var resultPanel = (GameObject)GetField(_board, "resultPanel");
+            var resultGroup = (CanvasGroup)GetField(_board, "resultPanelGroup");
+            if (resultPanel != null) resultPanel.SetActive(true);
+            if (resultGroup != null) resultGroup.alpha = 1f;
+        }
+
+        static List<SourceFile> GetSourceFiles()
+        {
+            var paths = new[]
+            {
+                ScenePath,
+                "Assets/Scripts/WarukyureBoard.cs",
+                "Assets/Scripts/BoardData.cs",
+                "Assets/Scripts/SoundMuteButton.cs",
+                "Assets/Scripts/LampAnnouncer.cs",
+                "Assets/Scripts/UI/CrossPromoPopupUI.cs",
+                "Assets/Scripts/Common/PoiPlayTime.cs",
+            };
+            var list = new List<SourceFile>();
+            foreach (var p in paths)
+            {
+                string full = Path.Combine(GetRepoRoot(), p);
+                full = Path.GetFullPath(full);
+                if (File.Exists(full))
+                    list.Add(new SourceFile { path = p, sha256 = Sha256File(full) });
+            }
+            return list;
+        }
+
+        // ===================================================================
+        //  collection / measurement (mostly unchanged from original)
+        // ===================================================================
+
+        void ForceActivateForMeasure(GameObject go)
+        {
+            s_forcedActive.Clear();
+            s_forcedGraphics.Clear();
+            if (go == null) return;
+            if (!go.activeSelf)
             {
                 s_forcedActive.Add(go);
                 go.SetActive(true);
-                var graphics = go.GetComponents<Graphic>();
-                for (int i = 0; i < graphics.Length; i++)
-                {
-                    var g = graphics[i];
-                    if (g != null && g.enabled)
-                    {
-                        s_forcedGraphics.Add(g);
-                        g.enabled = true;
-                    }
-                }
             }
-            for (int i = 0; i < t.childCount; i++)
-                ForceActivateForMeasure(t.GetChild(i));
+            var g = go.GetComponent<Graphic>();
+            if (g != null && !g.enabled)
+            {
+                s_forcedGraphics.Add(g);
+                g.enabled = true;
+            }
+            // root only; do not force inactive children to keep real screen state
         }
 
         void RestoreForcedActive()
@@ -237,7 +502,7 @@ namespace Warukyure.Tests.PlayMode
             foreach (var g in s_forcedGraphics)
             {
                 if (g != null)
-                    g.enabled = true;
+                    g.enabled = false;
             }
             s_forcedGraphics.Clear();
             foreach (var go in s_forcedActive)
@@ -348,6 +613,16 @@ namespace Warukyure.Tests.PlayMode
                 desc = "消灯マス";
             else if (path.StartsWith("Canvas/CollectionBall"))
                 desc = "コレクションボール";
+            else if (path == "Canvas/ResultPanel")
+                desc = "結果パネル";
+            else if (path == "Canvas/JackpotPanel")
+                desc = "JACKPOTチャレンジパネル";
+            else if (path == "Canvas/CrossPromoPopup")
+                desc = "クロスプロモポップアップ";
+            else if (path == "LampAnnouncer")
+                desc = "JACKPOTランプ演出";
+            else if (path == "LampAnnouncer/panel")
+                desc = "JACKPOTランプパネル";
 
             return new RawEntry
             {
