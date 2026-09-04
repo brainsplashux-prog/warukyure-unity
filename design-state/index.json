@@ -1,0 +1,18 @@
+{
+  "game_id": "warukyure",
+  "generated_at": "2026-09-04T06:02:20.270280Z",
+  "generated_by": "suzukimasahiro@suzukinoMBP",
+  "schema": "design-state/v1-index",
+  "screens": [
+    {
+      "annotated_file": "state_annotated.png",
+      "annotated_sha256": "df9c0f8d7b486d42567910506ea6bd2aac71924df0d41540e0c6f8d6189d68a7",
+      "image_file": "state.png",
+      "image_sha256": "631782c0091de963fb0a1b18362330dbc6fbb4a0e95792f2994c189bd119fed4",
+      "screen_id": "title",
+      "state_file": "state.json",
+      "state_sha256": "d014d23c506bda379f0b196df88aace3f8143cf24f6ecf8e625a74d106c2e9b6"
+    }
+  ],
+  "tool": "design-state"
+}
