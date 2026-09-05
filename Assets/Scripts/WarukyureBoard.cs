@@ -112,6 +112,15 @@ public class WarukyureBoard : MonoBehaviour
     [DllImport("__Internal")]
     private static extern void PoiFxSkip();
 
+    // ----------------- poiresult bridge（共通リザルト画面 v1） -----------------
+    // 正本: ~/.claude/manuals/poiresult-standard.md
+    // payout から3分岐（>=1000 大当たり / >0 あたり / 0 はずれ）がキット側で決まる。
+    [DllImport("__Internal")]
+    private static extern void PoiResultShow(int payout, string detailHtml, string gameObjectName, string onDoneMethod);
+
+    [DllImport("__Internal")]
+    private static extern void PoiResultClose();
+
     // poicasi-auth ブリッジ（Assets/Plugins/WebGL/WarukyureAuth.jslib）
     [DllImport("__Internal")]
     private static extern IntPtr WkTakePaCode();
@@ -1420,10 +1429,38 @@ public class WarukyureBoard : MonoBehaviour
             sb.Append($"BALL {name} ゲット");
         }
 
-        // conformance: loss-fast（外れ→次入力可能まで0.4秒以内）。
-        // 当たりは従来どおり 1.5 秒ブロック、外れだけ非ブロッキングの短表示にする。
-        bool isLoss = r.primaryType == "out";
-        ShowResultOverlay(sb.ToString(), isLoss ? 0.4f : 1.5f, !isLoss);
+        // 精算表示は共通リザルト画面（poiresult v1）に一本化する。
+        // 滞在5秒→自動でゲーム画面へ戻る（タップでスキップ）= §5-2 [社長確定] 2026-09-05。
+        StartCoroutine(RunPoiResult(r.awardBreakdown.total, sb.ToString()));
+    }
+
+    // ----------------- 共通リザルト画面 -----------------
+    bool poiResultPending;
+
+    IEnumerator RunPoiResult(int payout, string detail)
+    {
+        poiResultPending = true;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        yield return new WaitForEndOfFrame();
+        PoiResultShow(payout, detail, gameObject.name, "OnPoiResultDone");
+#else
+        Debug.Log($"[poiresult] payout={payout} detail={detail}");
+        OnPoiResultDone("");
+#endif
+        // キット側の滞在時間は5秒。取りこぼし対策に少し余裕を持たせた保険タイムアウト。
+        float t = 0f;
+        while (poiResultPending && t < 7f)
+        {
+            t += Time.deltaTime;
+            yield return null;
+        }
+        poiResultPending = false;
+    }
+
+    // WebGL jslib からの onClose コールバック
+    public void OnPoiResultDone(string _)
+    {
+        poiResultPending = false;
     }
 
     // ----------------- JACKPOT challenge flow -----------------
@@ -1497,7 +1534,7 @@ public class WarukyureBoard : MonoBehaviour
         jackpotPanel.SetActive(false);
         jackpotPanelGroup.blocksRaycasts = false;
         SetNormalUIForChallenge(true);
-        ShowResultOverlay($"JACKPOT {r.bonusOutcome.award}枚", 1.2f);
+        yield return StartCoroutine(RunPoiResult(r.awardBreakdown.total, $"JACKPOT {r.bonusOutcome.award}枚"));
         EndRound("");
     }
 
