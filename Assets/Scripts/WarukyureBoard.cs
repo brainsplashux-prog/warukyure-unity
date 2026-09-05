@@ -29,6 +29,8 @@ public class WarukyureBoard : MonoBehaviour
         }
     }
     const string TOKEN_KEY = "warukyure_token";
+    // JACKPOT 演出の poifx v4 用ファンファーレ SE（2026-09-05 追加）。
+    const string JACKPOT_SE_URL = "https://lp.poicasi.co.jp/shared/poifx/v4/se/warukyure-jackpot.mp3";
     private int missionBet = 100;
     const float RUN_DURATION = 2.0f;
     const float HOLD_DURATION = 0.5f;
@@ -105,7 +107,7 @@ public class WarukyureBoard : MonoBehaviour
 
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")]
-    private static extern void PoiFxJackpot(string tier, int amount, string unit, string gameObjectName, string onDoneMethod);
+    private static extern void PoiFxJackpot(string tier, int amount, string unit, string gameObjectName, string onDoneMethod, string se);
 
     [DllImport("__Internal")]
     private static extern void PoiFxSkip();
@@ -1473,7 +1475,6 @@ public class WarukyureBoard : MonoBehaviour
         yield return LampAnnouncer.Run(labels, stopIndex, labelColors, () => skipRequested);
 
         // 獲得枚数表示
-        WarukyureSfx.PlayFanfare();   // JACKPOT到達のファンファーレ
         jackpotAwardText.text = $"{r.bonusOutcome.award}枚";
 
         // 0.3秒の表示溜め
@@ -1485,10 +1486,10 @@ public class WarukyureBoard : MonoBehaviour
             yield return null;
         }
 
-        // poifx（サーバー fx があれば）
+        // poifx（サーバー fx があれば）。JACKPOT 専用 SE を指定。
         if (r.fx != null && !string.IsNullOrEmpty(r.fx.tier) && r.fx.amount > 0)
         {
-            yield return StartCoroutine(RunPoiFx(r.fx.tier, r.fx.amount));
+            yield return StartCoroutine(RunPoiFx(r.fx.tier, r.fx.amount, JACKPOT_SE_URL));
         }
 
         // 通常画面へ復帰
@@ -1531,25 +1532,25 @@ public class WarukyureBoard : MonoBehaviour
 
     IEnumerator RunPoiFxThenResult(ResolveResponse r)
     {
-        yield return StartCoroutine(RunPoiFx(r.fx.tier, r.fx.amount));
+        yield return StartCoroutine(RunPoiFx(r.fx.tier, r.fx.amount, null));
         ShowNormalResult(r);
         EndRound("");
     }
 
-    IEnumerator RunPoiFx(string tier, int amount)
+    IEnumerator RunPoiFx(string tier, int amount, string se = null)
     {
         poiFxPending = true;
 #if UNITY_WEBGL && !UNITY_EDITOR
         // 現在のフレームのレンダリング／rAF 完了後にブラウザ側演出を発火し、
         // ブラウザにスタイル更新の機会を与える。
         yield return new WaitForEndOfFrame();
-        PoiFxJackpot(tier, amount, "枚", gameObject.name, "OnPoiFxDone");
+        PoiFxJackpot(tier, amount, "枚", gameObject.name, "OnPoiFxDone", se);
 #else
-        Debug.Log($"[poifx] {tier} {amount}枚");
+        Debug.Log($"[poifx] {tier} {amount}枚 se={se ?? "(default)"}");
         OnPoiFxDone("");
 #endif
         float timeout = 0f;
-        while (poiFxPending && timeout < 5f)
+        while (poiFxPending && timeout < 5.5f)
         {
             if (skipRequested)
             {
@@ -1655,7 +1656,7 @@ public class WarukyureBoard : MonoBehaviour
             {
                 bonusOutcome = new BonusOutcome { stopIndex = 0, award = 3000 },
                 awardBreakdown = new AwardBreakdown { wager = 500, number = 0, castle = 0, jackpot = 3000, total = 3000, net = 2500 },
-                fx = null
+                fx = new FxData { tier = "mega", amount = 3000 }
             };
             StartCoroutine(RunJackpotChallenge(fake));
         }
