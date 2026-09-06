@@ -1498,6 +1498,7 @@ public class WarukyureBoard : MonoBehaviour
         SetNormalUIForChallenge(false);
         adVirtuaRect.SetAsLastSibling();
 
+        jackpotAwardText.text = "";
         jackpotPanel.SetActive(true);
         jackpotPanelGroup.blocksRaycasts = true;
 
