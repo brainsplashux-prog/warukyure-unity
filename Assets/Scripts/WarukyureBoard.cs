@@ -1085,8 +1085,9 @@ public class WarukyureBoard : MonoBehaviour
         }
 
         wallet = lastResult.state.wallet;
-        ballMask = lastResult.state.ballMask;
-        UpdateCollectionPanel();
+        // [社長確定] 2026-09-06「結果の前にボールが増えちゃってる、ちゃんと結果が出てから反映してくれ」
+        // ここでコレクションを反映するとランプ停止前に光る＝結果の先バレ。
+        // 反映は共通リザルト画面を閉じた後（RunPoiResult 末尾 ApplyPendingBallMask）。
 
         // lamp animation
         var path = BuildLampPath(lastResult.pathId, lastResult.stopId);
@@ -1384,8 +1385,9 @@ public class WarukyureBoard : MonoBehaviour
         lastNet = r.awardBreakdown.net;
         // PF 有効時は SettlePlatformRun() で取得した PF 残高を優先。
         if (!platformEnabled) wallet = r.state.wallet;
-        ballMask = r.state.ballMask;
-        UpdateHeader();
+        // ballMask はリザルト画面を閉じてから適用する（先バレ防止・上のコメント参照）。
+        pendingBallMask = r.state.ballMask;
+        hasPendingBallMask = true;
 
         // ボールコンプリート → JACKPOT チャレンジ（5ランプ）
         if (r.bonusOutcome != null && r.awardBreakdown.jackpot > 0)
@@ -1437,6 +1439,18 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- 共通リザルト画面 -----------------
     bool poiResultPending;
 
+    // リザルト画面を閉じた後に反映するコレクション状態（先バレ防止）
+    int pendingBallMask;
+    bool hasPendingBallMask;
+
+    void ApplyPendingBallMask()
+    {
+        if (!hasPendingBallMask) return;
+        hasPendingBallMask = false;
+        ballMask = pendingBallMask;
+        UpdateCollectionPanel();
+    }
+
     IEnumerator RunPoiResult(int payout, string detail)
     {
         poiResultPending = true;
@@ -1455,6 +1469,8 @@ public class WarukyureBoard : MonoBehaviour
             yield return null;
         }
         poiResultPending = false;
+        // 結果が出きってからコレクションへ反映する。
+        ApplyPendingBallMask();
     }
 
     // WebGL jslib からの onClose コールバック
