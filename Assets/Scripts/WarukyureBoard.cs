@@ -112,11 +112,12 @@ public class WarukyureBoard : MonoBehaviour
     [DllImport("__Internal")]
     private static extern void PoiFxSkip();
 
-    // ----------------- poiresult bridge（共通リザルト画面 v1） -----------------
+    // ----------------- poiresult bridge（共通リザルト画面 v2） -----------------
     // 正本: ~/.claude/manuals/poiresult-standard.md
-    // payout から3分岐（>=1000 大当たり / >0 あたり / 0 はずれ）がキット側で決まる。
+    // payout と reward から分岐（>=1000 大当たり / >0 あたり / 0でも報酬あり=あたり / それ以外 はずれ）が
+    // キット側で決まる。ゲーム側は当落を判定しない＝サーバが返した事実だけを渡す。
     [DllImport("__Internal")]
-    private static extern void PoiResultShow(int payout, string detailHtml, string gameObjectName, string onDoneMethod);
+    private static extern void PoiResultShow(int payout, string detailHtml, string reward, string gameObjectName, string onDoneMethod);
 
     [DllImport("__Internal")]
     private static extern void PoiResultClose();
@@ -1410,6 +1411,7 @@ public class WarukyureBoard : MonoBehaviour
     void ShowNormalResult(ResolveResponse r)
     {
         StringBuilder sb = new StringBuilder();
+        string reward = "";   // メダル以外の報酬名（無ければ空）
         if (r.primaryType == "out")
         {
             sb.Append("はずれ");
@@ -1429,11 +1431,14 @@ public class WarukyureBoard : MonoBehaviour
             if (r.collection != null && r.collection.ballType >= 0 && r.collection.ballType < 4)
                 name = ballNames[r.collection.ballType];
             sb.Append($"BALL {name} ゲット");
+            // [社長確定] 2026-09-06「ボールは残念じゃなくてやったねなのでフラグを直して」
+            // メダルは0枚だがボールという報酬を得ている回。報酬名だけ渡し、当落はキットが決める。
+            reward = $"{name}ボール";
         }
 
-        // 精算表示は共通リザルト画面（poiresult v1）に一本化する。
+        // 精算表示は共通リザルト画面（poiresult v2）に一本化する。
         // 滞在5秒→自動でゲーム画面へ戻る（タップでスキップ）= §5-2 [社長確定] 2026-09-05。
-        StartCoroutine(RunPoiResult(r.awardBreakdown.total, sb.ToString()));
+        StartCoroutine(RunPoiResult(r.awardBreakdown.total, sb.ToString(), reward));
     }
 
     // ----------------- 共通リザルト画面 -----------------
@@ -1451,14 +1456,14 @@ public class WarukyureBoard : MonoBehaviour
         UpdateCollectionPanel();
     }
 
-    IEnumerator RunPoiResult(int payout, string detail)
+    IEnumerator RunPoiResult(int payout, string detail, string reward = "")
     {
         poiResultPending = true;
 #if UNITY_WEBGL && !UNITY_EDITOR
         yield return new WaitForEndOfFrame();
-        PoiResultShow(payout, detail, gameObject.name, "OnPoiResultDone");
+        PoiResultShow(payout, detail, reward ?? "", gameObject.name, "OnPoiResultDone");
 #else
-        Debug.Log($"[poiresult] payout={payout} detail={detail}");
+        Debug.Log($"[poiresult] payout={payout} reward={reward} detail={detail}");
         OnPoiResultDone("");
 #endif
         // キット側の滞在時間は5秒。取りこぼし対策に少し余裕を持たせた保険タイムアウト。
