@@ -29,8 +29,11 @@ public class WarukyureBoard : MonoBehaviour
         }
     }
     const string TOKEN_KEY = "warukyure_token";
-    // JACKPOT 演出の poifx v4 用ファンファーレ SE（2026-09-05 追加）。
-    const string JACKPOT_SE_URL = "https://lp.poicasi.co.jp/shared/poifx/v4/se/warukyure-jackpot.mp3";
+    // JACKPOT 演出の poifx v4 用ファンファーレ SE。
+    // [社長確定 2026-09-06]「OKこれをJACKPOT獲得時の曲に変更してくれ（城獲得は変更なし）」
+    // → fan9_levelup_rush（曲3秒＋余韻3秒／6.2秒）に差し替え。城到達側(se/se_fanfare=fan6_triumph)は不変。
+    // 既存キーを上書きすると immutable キャッシュで旧版が永久に焼き付くため、新ファイル名にして参照を切り替える。
+    const string JACKPOT_SE_URL = "https://lp.poicasi.co.jp/shared/poifx/v4/se/warukyure-jackpot-fan9.mp3";
     private int missionBet = 100;
     const float RUN_DURATION = 2.0f;
     const float HOLD_DURATION = 0.5f;
