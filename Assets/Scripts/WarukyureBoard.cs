@@ -1440,7 +1440,8 @@ public class WarukyureBoard : MonoBehaviour
         }
 
         // 精算表示は共通リザルト画面（poiresult v2）に一本化する。
-        // 滞在5秒→自動でゲーム画面へ戻る（タップでスキップ）= §5-2 [社長確定] 2026-09-05。
+        // 滞在5秒→自動クローズ→SPIN待機（＝本ゲームのタイトル相当）へ戻る。自動再開はしない。
+        // = §5-2b [社長確定] 2026-09-06「全てをタイトル画面に戻せば共通化できるからそういう設計にする」。
         StartCoroutine(RunPoiResult(r.awardBreakdown.total, sb.ToString(), reward));
     }
 
