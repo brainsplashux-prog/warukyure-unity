@@ -29,7 +29,14 @@ public class TitleScreen : MonoBehaviour
         canvas = c;
         board = b;
 
-        Texture2D tex = Resources.Load<Texture2D>("title_bg_v4");
+        // 同梱重量を減らすため、PNG(非圧縮テクスチャ)ではなくJPEGバイト列を実行時にデコードする。
+        TextAsset jpg = Resources.Load<TextAsset>("title_bg_v4");
+        Texture2D tex = null;
+        if (jpg != null)
+        {
+            tex = new Texture2D(2, 2, TextureFormat.RGB24, false);
+            if (!tex.LoadImage(jpg.bytes)) tex = null;
+        }
         if (tex == null)
         {
             // 画像が無いまま全面オーバーレイを出すと抜け出す手段が無いため、
