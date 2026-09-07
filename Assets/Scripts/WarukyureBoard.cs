@@ -93,6 +93,12 @@ public class WarukyureBoard : MonoBehaviour
     private string lastErrorBody = null;
     private string currentLampCellId = null;
 
+    // TitleScreen 参照（リザルトクローズ後の再表示用）
+    private TitleScreen titleScreen;
+    // セッション確立の再試行管理
+    private IEnumerator initSessionEnum;
+    private Coroutine initSessionRoutine;
+
     // ----------------- JACKPOT challenge overlay -----------------
     private GameObject jackpotPanel;
     private CanvasGroup jackpotPanelGroup;
@@ -186,11 +192,13 @@ public class WarukyureBoard : MonoBehaviour
 
         platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));
 
-        StartCoroutine(InitSession());
+        initSessionEnum = InitSession();
+        initSessionRoutine = StartCoroutine(initSessionEnum);
         StartCoroutine(TryDebugForceFx());
         // ADVIRTUA の表示はタイトル画面を閉じた時に TitleScreen 側で行う
         // （game-layout-standard.md: ADVIRTUA を出せるのはゲーム画面のみ）。
-        new GameObject("TitleScreen").AddComponent<TitleScreen>().Init(canvas, this);
+        titleScreen = new GameObject("TitleScreen").AddComponent<TitleScreen>();
+        titleScreen.Init(canvas, this);
     }
 
     // ----------------- setup -----------------
@@ -1488,10 +1496,20 @@ public class WarukyureBoard : MonoBehaviour
         ApplyPendingBallMask();
     }
 
+    // セッション未確立時のタイトル画面から呼ばれる再接続。
+    public void RetrySession()
+    {
+        if (initSessionEnum != null) StopCoroutine(initSessionEnum);
+        sessionReady = false;
+        initSessionEnum = InitSession();
+        initSessionRoutine = StartCoroutine(initSessionEnum);
+    }
+
     // WebGL jslib からの onClose コールバック
     public void OnPoiResultDone(string _)
     {
         poiResultPending = false;
+        if (titleScreen != null) titleScreen.Reopen();
     }
 
     // ----------------- JACKPOT challenge flow -----------------

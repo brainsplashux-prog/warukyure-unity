@@ -22,7 +22,12 @@ public class TitleScreen : MonoBehaviour
     WarukyureBoard board;
     RectTransform root;
     RectTransform startHitRect;
+    Text errorText;
     Camera hitCamera;
+
+    const float SessionTimeout = 10f;
+    float sessionWaitTimer = 0f;
+    bool errorShown = false;
 
     public void Init(Canvas c, WarukyureBoard b)
     {
@@ -83,6 +88,10 @@ public class TitleScreen : MonoBehaviour
         startHitRect.anchoredPosition = new Vector2(StartHit.x, -StartHit.y);
         startHitRect.sizeDelta = new Vector2(StartHit.width, StartHit.height);
 
+        CreateErrorText();
+        sessionWaitTimer = 0f;
+        errorShown = false;
+
         ResolveCamera();
 
         // タイトル表示中は ADVIRTUA を出さない
@@ -95,6 +104,14 @@ public class TitleScreen : MonoBehaviour
     {
         if (!IsShowing || startHitRect == null) return;
         if (hitCamera == null) ResolveCamera();
+
+        if (!errorShown && board != null && !board.IsSessionReady)
+        {
+            sessionWaitTimer += Time.deltaTime;
+            if (sessionWaitTimer >= SessionTimeout)
+                ShowConnectionError();
+        }
+
         ReadTap();
     }
 
@@ -117,6 +134,16 @@ public class TitleScreen : MonoBehaviour
 
         if (!down) return;
 
+        // セッション未確立かつエラー表示中はタップで再接続を試みる。
+        if (errorShown)
+        {
+            if (board != null) board.RetrySession();
+            errorShown = false;
+            sessionWaitTimer = 0f;
+            if (errorText != null) errorText.gameObject.SetActive(false);
+            return;
+        }
+
         // sessionReady 前は残高・ミッション未取得のまま盤面へ入るのを防ぐため閉じない。
         if (board == null || !board.IsSessionReady) return;
 
@@ -135,6 +162,46 @@ public class TitleScreen : MonoBehaviour
         }
         hitCamera = canvas.worldCamera;
         if (hitCamera == null) hitCamera = Camera.main;
+    }
+
+    void CreateErrorText()
+    {
+        GameObject go = new GameObject("TitleErrorText", typeof(RectTransform), typeof(CanvasRenderer));
+        go.transform.SetParent(root, false);
+        errorText = go.AddComponent<Text>();
+        errorText.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+        if (errorText.font == null) errorText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        errorText.fontSize = 24;
+        errorText.alignment = TextAnchor.MiddleCenter;
+        errorText.color = Color.white;
+        errorText.text = "通信状況を確認してタップでリトライ";
+
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = new Vector2(360f, -612f);
+        rt.sizeDelta = new Vector2(600f, 80f);
+
+        go.SetActive(false);
+    }
+
+    void ShowConnectionError()
+    {
+        errorShown = true;
+        if (errorText != null) errorText.gameObject.SetActive(true);
+    }
+
+    public void Reopen()
+    {
+        if (root == null) return;
+        root.gameObject.SetActive(true);
+        if (root.parent != null) root.SetAsLastSibling();
+        IsShowing = true;
+        errorShown = false;
+        sessionWaitTimer = 0f;
+        if (errorText != null) errorText.gameObject.SetActive(false);
+        AdVirtuaMonitorSetup.Hide();
     }
 
     void Close()

@@ -37,6 +37,14 @@ if [[ -z "$VERSION" ]]; then
 fi
 [[ "$VERSION" =~ ^[A-Za-z0-9_.~:-]+$ ]] || { echo "Error: unsafe version: $VERSION" >&2; exit 1; }
 
+# Build ステージング: Builder の出力先 (~/Desktop/warukyure/client) から Builds/WebGL へコピー。
+# 削除操作は一切行わない。
+CLIENT_DIR="$HOME/Desktop/warukyure/client"
+[ -d "$CLIENT_DIR" ] || { echo "Error: $CLIENT_DIR が無い。先に Unity WebGL ビルドを行うこと。" >&2; exit 1; }
+echo "== copy client build from $CLIENT_DIR to $BUILD_DIR =="
+mkdir -p "$BUILD_DIR"
+cp -R "$CLIENT_DIR/." "$BUILD_DIR/"
+
 S3_ROOT="s3://${BUCKET}/${S3_PREFIX}"
 DIST_URL="https://lp.poicasi.co.jp/${S3_PREFIX}/"
 

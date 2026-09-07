@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
@@ -85,10 +86,23 @@ public static class WarukyureBuilder
         // BuildPlayer expects project-relative scene paths
         string scenePath = "Assets/Scenes/Main.unity";
 
-        // Clean previous build
+        // Clean previous build: ローカル削除は禁止。既存出力を trash-manual へ退避する。
         if (Directory.Exists(clientOutPath))
         {
-            Directory.Delete(clientOutPath, true);
+            string date = DateTime.Now.ToString("yyyyMMdd");
+            string baseDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".claude", "trash-manual", $"{date}-warukyure-client");
+            string dest = baseDir;
+            int suffix = 0;
+            while (Directory.Exists(dest))
+            {
+                suffix++;
+                dest = $"{baseDir}-{suffix}";
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(dest));
+            Directory.Move(clientOutPath, dest);
+            Debug.Log("[WarukyureBuilder] Moved existing client output to " + dest);
         }
 
         // Build
