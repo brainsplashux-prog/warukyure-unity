@@ -70,6 +70,8 @@ public class WarukyureBoard : MonoBehaviour
     private bool isRunning;
     // #16: init(token/state) が確定するまで BET/SPIN を受け付けない。
     private bool sessionReady;
+    // TitleScreen が START タップを受け付けてよいかの参照用（sessionReady の読み取り公開）
+    public bool IsSessionReady => sessionReady;
     private bool skipRequested;
     private readonly List<float> lampSegSpeeds = new List<float>();
     private readonly List<Vector2> lampSizes = new List<Vector2>();
@@ -186,7 +188,9 @@ public class WarukyureBoard : MonoBehaviour
 
         StartCoroutine(InitSession());
         StartCoroutine(TryDebugForceFx());
-        AdVirtuaMonitorSetup.Show();
+        // ADVIRTUA の表示はタイトル画面を閉じた時に TitleScreen 側で行う
+        // （game-layout-standard.md: ADVIRTUA を出せるのはゲーム画面のみ）。
+        new GameObject("TitleScreen").AddComponent<TitleScreen>().Init(canvas, this);
     }
 
     // ----------------- setup -----------------
@@ -789,6 +793,7 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- interaction -----------------
     void ToggleBet(int bet)
     {
+        if (TitleScreen.IsShowing) return;
         if (!sessionReady || isRunning) return;
         if (selectedBets.Contains(bet)) selectedBets.Remove(bet);
         else selectedBets.Add(bet);
@@ -808,6 +813,7 @@ public class WarukyureBoard : MonoBehaviour
 
     void OnSpin()
     {
+        if (TitleScreen.IsShowing) return;
         if (!sessionReady)
         {
             ShowResultOverlay("読み込み中です。少し待ってからもう一度どうぞ。", 1.5f);
