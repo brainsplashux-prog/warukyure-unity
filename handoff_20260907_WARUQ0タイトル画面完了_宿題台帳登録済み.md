@@ -16,8 +16,8 @@ WARUQ0 QUEST（内部id `warukyure`）に、承認済みタイトル画像を出
 
 ### 版管理状態
 - git あり / origin `https://github.com/brainsplashux-prog/warukyure-unity.git`
-- ブランチ `main` / 最新 `542b84f`（2026-09-07・**push済み**・origin/main と同一、ahead 0）
-- 未コミット 49件 = `design-state/**` の raw.json/raw.png 大量差分（自動生成物）＋ `Assets/WebGLTemplates/PoiLoader/{index.html,style.css}` ＋未追跡 `design-approved/`。**今回は意図的に触っていない。広域ステージング禁止＝明示パスのみ add。**
+- ブランチ `main` / 最新 `6ad836b`（本MD自身・push済み）。タイトル画面の最終形は `542b84f`。間の `2454d55`（WebGLテンプレートのUnityロゴ除去）は**別セッションの変更で未デプロイ**＝次にビルドすると混入する。出す前に内容を確認すること。
+- 未コミット 47件 = `design-state/**` の raw.json/raw.png 大量差分（自動生成物）＋未追跡 `design-approved/`。**今回は意図的に触っていない。広域ステージング禁止＝明示パスのみ add。**
 - 版: 本番配信 version `8d48063-20260907T1244Z`
 
 ### やったこと
