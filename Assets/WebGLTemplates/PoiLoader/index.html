@@ -1395,91 +1395,6 @@
 })();</script>
     <!-- POI-LOADER-KIT v1 END -->
 
-    <!-- COMMON-HEADER-KIT v1 BEGIN -->
-    <style>
-      :root {
-        /* 2026-08-09社長裁定(案C): 56px固定。vw可変をやめ全機種で高さ・余白を一定にする。
-           タップ目標48pxを維持し上下余白4pxずつ＝視認性/押しやすさを落とさない下限。 */
-        --common-header-height: 56px;
-      }
-
-      .common-header-bar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 56px;
-        height: var(--common-header-height);
-        background: #F3E1C9;
-        z-index: 100;
-        --common-header-icon-size: 48px;
-        --common-header-pill-height: 46px;
-        --common-header-pill-font: clamp(14px, 3.733vw, 16px);
-      }
-
-      /* ピル数値は FormatBalance 仕様。最大5文字（例: 9999K）を表示し、レイアウト検証用に最悪幅 "9999K" を使用。 */
-      .common-header-coin-pill,
-      .common-header-yen-pill {
-        position: absolute;
-        top: 50%;
-        width: calc((100% - 3 * var(--common-header-icon-size) - 40px) / 2);
-        height: var(--common-header-pill-height);
-        transform: translateY(-50%);
-        background: #FBF4EC;
-        border-radius: 9999px;
-        display: flex;
-        align-items: center;
-      }
-      .common-header-coin-pill { left: 8px; }
-      .common-header-yen-pill { left: calc(16px + (100% - 3 * var(--common-header-icon-size) - 40px) / 2); }
-
-      .common-header-pill-badge {
-        position: relative;
-        left: max(-6%, -7px);
-        height: 90%;
-        aspect-ratio: 1 / 1;
-        flex-shrink: 0;
-      }
-      .common-header-pill-badge img {
-        display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-      }
-      .common-header-pill-text {
-        font-family: -apple-system, "Hiragino Sans", sans-serif;
-        font-weight: 700;
-        font-size: var(--common-header-pill-font);
-        color: #6B4A1E;
-        white-space: nowrap;
-        margin-left: max(-6%, -7px);
-      }
-
-      .common-header-ad-icon,
-      .common-header-exchange-icon,
-      .common-header-hamburger-icon {
-        position: absolute;
-        top: 50%;
-        height: var(--common-header-icon-size);
-        aspect-ratio: 1 / 1;
-        transform: translateY(-50%);
-      }
-      .common-header-ad-icon { left: calc(100% - 3 * var(--common-header-icon-size) - 16px); }
-      .common-header-exchange-icon { left: calc(100% - 2 * var(--common-header-icon-size) - 8px); }
-      .common-header-hamburger-icon { left: calc(100% - var(--common-header-icon-size)); }
-      .common-header-ad-icon img,
-      .common-header-exchange-icon img,
-      .common-header-hamburger-icon img {
-        display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-      }
-
-      /* 規約(game-layout-standard §2): ヘッダーAは純粋なHTMLオーバーレイ。
-         #unity-container の top/height を外から変更しない(2026-08-06 ColorSortで実害)。 */
-    </style>
-    <!-- COMMON-HEADER-KIT v1 END -->
 
     <!-- warukyure-local: iOS Safari の large/small viewport 差でSPIN/BETが隠れる件の是正
          (2026-08-19 社長報告「画面が入り切ってなくてボタンが押せないね」)
@@ -1646,19 +1561,6 @@
       } catch (e) { /* デモ判定に失敗しても通常プレイを妨げない */ }
     })();</script>
     <!-- SIMULATOR-BADGE v1 END -->
-    <div class="common-header-bar">
-      <div class="common-header-coin-pill">
-        <div class="common-header-pill-badge"><img src="TemplateData/common_header_coin_icon.png" alt=""></div>
-        <span class="common-header-pill-text">9999K</span>
-      </div>
-      <div class="common-header-yen-pill">
-        <div class="common-header-pill-badge"><img src="TemplateData/common_header_yen_icon.png" alt=""></div>
-        <span class="common-header-pill-text">9999K</span>
-      </div>
-      <div class="common-header-ad-icon"><img src="TemplateData/common_header_ad_icon.png" alt=""></div>
-      <div class="common-header-exchange-icon"><img src="TemplateData/common_header_exchange_icon.png" alt=""></div>
-      <div class="common-header-hamburger-icon"><img src="TemplateData/common_header_hamburger_icon.png" alt=""></div>
-    </div>
     <script>poiMountLoading({variants:['ninja'], imgBase:'https://lp.poicasi.co.jp/shared/poinoshin/v1/'});</script>
     <div id="unity-container" class="unity-desktop">
       <canvas id="unity-canvas" width={{{ WIDTH }}} height={{{ HEIGHT }}} tabindex="-1"></canvas>
