@@ -1041,6 +1041,7 @@ public class WarukyureBoard : MonoBehaviour
             if (string.IsNullOrEmpty(stuckId))
             {
                 EndRound(API_RETRY_MSG);
+                ShowPoiError("E-RETRY", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
                 yield break;
             }
             currentRunId = stuckId;
@@ -1068,6 +1069,9 @@ public class WarukyureBoard : MonoBehaviour
         if (!string.IsNullOrEmpty(resolveErr))
         {
             EndRound(API_RETRY_MSG);
+            string runId = platformRun != null ? platformRun.RunId : currentRunId;
+            string playToken = platformRun != null ? platformRun.PlayToken : null;
+            yield return StartCoroutine(TryAbortAndShowPopup("E-RESOLVE", runId, playToken));
             yield break;
         }
 
@@ -1075,6 +1079,9 @@ public class WarukyureBoard : MonoBehaviour
         if (lastResult == null)
         {
             EndRound(API_RETRY_MSG);
+            string runId = platformRun != null ? platformRun.RunId : currentRunId;
+            string playToken = platformRun != null ? platformRun.PlayToken : null;
+            yield return StartCoroutine(TryAbortAndShowPopup("E-PARSE", runId, playToken));
             yield break;
         }
 
@@ -1099,6 +1106,9 @@ public class WarukyureBoard : MonoBehaviour
         if (!ValidateResolveResponse(lastResult, currentRunId, bets))
         {
             EndRound(API_RETRY_MSG);
+            string runId = platformRun != null ? platformRun.RunId : currentRunId;
+            string playToken = platformRun != null ? platformRun.PlayToken : null;
+            yield return StartCoroutine(TryAbortAndShowPopup("E-VALIDATE", runId, playToken));
             yield break;
         }
 
@@ -1146,6 +1156,7 @@ public class WarukyureBoard : MonoBehaviour
             Debug.LogWarning("[PLATFORM] Prepare failed, falling back to standalone game flow: " + task.Exception?.Message);
             platformRun = null;
             platformEnabled = false;
+            ShowPoiError("E-PREPARE", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
             currentRunId = System.Guid.NewGuid().ToString();
             yield break;
         }
@@ -1166,6 +1177,7 @@ public class WarukyureBoard : MonoBehaviour
         {
             Debug.LogWarning("[PLATFORM] s2s_commit failed: " + s2sTask.Exception?.Message);
             EndRound(API_RETRY_MSG);
+            yield return StartCoroutine(TryAbortAndShowPopup("E-COMMIT", platformRun.RunId, platformRun.PlayToken, lastResult));
             yield break;
         }
 
@@ -1176,6 +1188,7 @@ public class WarukyureBoard : MonoBehaviour
         {
             Debug.LogWarning("[PLATFORM] resolve failed: " + resolveTask.Exception?.Message);
             EndRound(API_RETRY_MSG);
+            yield return StartCoroutine(TryAbortAndShowPopup("E-SETTLE", platformRun.RunId, platformRun.PlayToken, lastResult));
             yield break;
         }
 
@@ -1186,6 +1199,97 @@ public class WarukyureBoard : MonoBehaviour
         {
             wallet = walletTask.Result;
         }
+    }
+
+    void ShowPoiError(string code, string runId, bool refunded, System.Action onRetry, System.Action onBack)
+    {
+        ResetSpinState();
+        PoiErr.Show(code, runId, refunded, onRetry, onBack);
+    }
+
+    void ResetSpinState()
+    {
+        isRunning = false;
+        skipRequested = false;
+        SetSpinButtonSkipMode(false);
+    }
+
+    void OnPoiErrRetry()
+    {
+        PoiErr.Hide();
+        DismissResultOverlay();
+        if (sessionReady) OnSpin();
+        else RetrySession();
+    }
+
+    void OnPoiErrBack()
+    {
+        PoiErr.Hide();
+        DismissResultOverlay();
+        if (titleScreen != null) titleScreen.Reopen();
+    }
+
+    static bool IsCommittedState(string state)
+    {
+        return state == "RESULT_COMMITTED" || state == "SETTLED";
+    }
+
+    IEnumerator TryAbortAndShowPopup(string code, string runId, string playToken, ResolveResponse committedFallback = null)
+    {
+        if (string.IsNullOrEmpty(runId) || string.IsNullOrEmpty(playToken))
+        {
+            ShowPoiError(code, runId, true, OnPoiErrRetry, OnPoiErrBack);
+            yield break;
+        }
+
+        float deadline = Time.time + 7f;
+        var task = platformClient.Abort(runId, playToken);
+        while (!task.IsCompleted && Time.time < deadline) yield return null;
+
+        if (task.IsFaulted && Time.time < deadline)
+        {
+            task = platformClient.Abort(runId, playToken);
+            while (!task.IsCompleted && Time.time < deadline) yield return null;
+        }
+
+        if (!task.IsCompleted || task.IsFaulted)
+        {
+            ShowPoiError(code, runId, false, OnPoiErrRetry, OnPoiErrBack);
+            yield break;
+        }
+
+        var abortRes = task.Result;
+        if (IsCommittedState(abortRes.state))
+        {
+            PoiErr.Hide();
+            DismissResultOverlay();
+            if (committedFallback != null && committedFallback.ok && committedFallback.state != null)
+            {
+                ResetSpinState();
+                ShowResult(committedFallback);
+            }
+            else
+            {
+                var resolveTask = platformClient.Resolve(runId, playToken);
+                yield return new WaitUntil(() => resolveTask.IsCompleted);
+                if (!resolveTask.IsFaulted)
+                {
+                    var resolved = resolveTask.Result;
+                    if (resolved != null && resolved.ok && !string.IsNullOrEmpty(resolved.run_id))
+                    {
+                        ResetSpinState();
+                        string detail = resolved.payout > 0 ? $"{resolved.payout}枚" : "はずれ";
+                        StartCoroutine(RunPoiResult(resolved.payout, detail));
+                        EndRound("");
+                        yield break;
+                    }
+                }
+                ShowPoiError(code, runId, false, OnPoiErrRetry, OnPoiErrBack);
+            }
+            yield break;
+        }
+
+        ShowPoiError(code, runId, abortRes.refunded, OnPoiErrRetry, OnPoiErrBack);
     }
 
     void EndRound(string error)

@@ -58,6 +58,18 @@ public class PlatformResolveResponse
 }
 
 [Serializable]
+public class PlatformAbortResponse
+{
+    public bool ok;
+    public string run_id;
+    public bool refunded;
+    public int refund_amount;
+    public string state;
+    public bool idempotent;
+    public string error;
+}
+
+[Serializable]
 public class PlatformAssetBalance
 {
     public string asset_code;
@@ -192,6 +204,21 @@ public sealed class PlatformApiClient
         var parsed = JsonUtility.FromJson<PlatformResolveResponse>(text);
         if (parsed == null || !parsed.ok || string.IsNullOrEmpty(parsed.run_id))
             throw new Exception("resolve response malformed");
+        return parsed;
+    }
+
+    public async Task<PlatformAbortResponse> Abort(string runId, string playToken)
+    {
+        if (string.IsNullOrEmpty(runId)) throw new ArgumentException("runId is required", nameof(runId));
+        if (string.IsNullOrEmpty(playToken)) throw new ArgumentException("playToken is required", nameof(playToken));
+
+        var (statusCode, text) = await PlatformPost($"/api/v1/games/{GameId}/plays/{runId}/abort", "{}", playToken);
+        if (statusCode < 200 || statusCode >= 300)
+            throw new HttpStatusException(statusCode, $"abort failed: HTTP {statusCode}");
+
+        var parsed = JsonUtility.FromJson<PlatformAbortResponse>(text);
+        if (parsed == null)
+            throw new Exception("abort response malformed");
         return parsed;
     }
 

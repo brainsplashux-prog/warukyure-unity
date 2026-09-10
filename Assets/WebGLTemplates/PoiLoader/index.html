@@ -1502,6 +1502,9 @@
     })();
     </script>
 
+  <link rel="stylesheet" href="https://lp.poicasi.co.jp/shared/poierr/v3/poierr.css">
+  <script src="https://lp.poicasi.co.jp/shared/poierr/v3/poierr.js"></script>
+
   </head>
   <body>
     <script>
@@ -1721,6 +1724,7 @@
           window.poiSetLoadProgress(progress);
           document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
               }).then((unityInstance) => {
+                window.unityInstance = unityInstance; // poierr v3 の出口ボタン用
                 window.poiLoadingDone();
                 document.querySelector("#unity-loading-bar").style.display = "none";
 
