@@ -24,7 +24,12 @@ REGION="ap-northeast-1"
 BUCKET="poicasi-lp"
 # 2026-09-04: ベータ第2波の掲出URL正本(poicasi-platform/config/beta-lineup.json)に合わせ既定を本番 game/warukyure へ。
 # dev配信は WARUKYURE_S3_PREFIX=game/warukyure-dev ./deploy_webgl.sh で明示指定する。
+# 2026-09-10 社長裁定「俺の認識は /game/warukyure/」: 配信先は下の2つ以外を許可しない。
 S3_PREFIX="${WARUKYURE_S3_PREFIX:-game/warukyure}"
+case "$S3_PREFIX" in
+  game/warukyure|game/warukyure-dev) ;;
+  *) echo "Error: 配信先 '$S3_PREFIX' は許可されていない（game/warukyure か game/warukyure-dev のみ）" >&2; exit 1 ;;
+esac
 DISTRIBUTION_ID="E3L7ISRXI1446E"
 BUILD_DIR="$(cd "$(dirname "$0")" && pwd)/Builds/WebGL"
 CC_HTML="no-cache, no-store, must-revalidate"
