@@ -139,6 +139,10 @@ public class WarukyureBoard : MonoBehaviour
     [DllImport("__Internal")]
     private static extern void WarukyureCampaignResultReady(string runId);
 
+    // 共通ヘッダーAの残高再取得（結果演出の完了後にのみ呼ぶ＝先出し防止）
+    [DllImport("__Internal")]
+    private static extern void PoiRefreshHeaderBalance();
+
     // poicasi-auth ブリッジ（Assets/Plugins/WebGL/WarukyureAuth.jslib）
     [DllImport("__Internal")]
     private static extern IntPtr WkTakePaCode();
@@ -1627,6 +1631,10 @@ public class WarukyureBoard : MonoBehaviour
             }
         }
         poiResultPending = false;
+        // ヘッダー残高の更新は結果演出の完了後に行う(先出し防止)。
+#if UNITY_WEBGL && !UNITY_EDITOR
+        PoiRefreshHeaderBalance();
+#endif
         // 結果が出きってからコレクションへ反映する。
         ApplyPendingBallMask();
     }

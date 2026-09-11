@@ -24,6 +24,13 @@ mergeInto(LibraryManager.library, {
     if (window.PoiResult && typeof window.PoiResult.close === 'function') window.PoiResult.close();
   },
 
+  // 共通ヘッダーAの残高再取得（結果演出完了後に1回だけ呼ばれる）
+  PoiRefreshHeaderBalance: function () {
+    if (typeof window !== 'undefined' && typeof window.poiRefreshHeaderBalance === 'function') {
+      try { window.poiRefreshHeaderBalance(); } catch (e) {}
+    }
+  },
+
   WarukyureCampaignResultReady: function (runIdPtr) {
     try {
       var runId = UTF8ToString(runIdPtr);
