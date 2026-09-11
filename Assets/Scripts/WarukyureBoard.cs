@@ -115,6 +115,9 @@ public class WarukyureBoard : MonoBehaviour
     private PlatformApiClient platformClient;
     private PlatformRun platformRun;
     private bool platformEnabled;
+    // キャンペーンready: PF resolveでSETTLED・run一致を確認したrunと、通知済みrun。
+    private string platformSettledRunId;
+    private string lastCampaignReadyRunId;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")]
@@ -132,6 +135,9 @@ public class WarukyureBoard : MonoBehaviour
 
     [DllImport("__Internal")]
     private static extern void PoiResultClose();
+
+    [DllImport("__Internal")]
+    private static extern void WarukyureCampaignResultReady(string runId);
 
     // poicasi-auth ブリッジ（Assets/Plugins/WebGL/WarukyureAuth.jslib）
     [DllImport("__Internal")]
@@ -1170,6 +1176,7 @@ public class WarukyureBoard : MonoBehaviour
 
     IEnumerator SettlePlatformRun()
     {
+        platformSettledRunId = null;
         var s2sTask = platformClient.S2sCommit(token, currentRunId, platformRun.PlayToken);
         yield return new WaitUntil(() => s2sTask.IsCompleted);
 
@@ -1191,6 +1198,11 @@ public class WarukyureBoard : MonoBehaviour
             yield return StartCoroutine(TryAbortAndShowPopup("E-SETTLE", platformRun.RunId, platformRun.PlayToken, lastResult));
             yield break;
         }
+
+        var resolvedRun = resolveTask.Result;
+        // キャンペーンready対象は、同一runがSETTLEDで確定した時だけ。
+        if (resolvedRun != null && resolvedRun.ok && resolvedRun.state == "SETTLED" && resolvedRun.run_id == currentRunId)
+            platformSettledRunId = currentRunId;
 
         var walletTask = platformClient.GetWalletBalance();
         yield return new WaitUntil(() => walletTask.IsCompleted);
@@ -1279,6 +1291,7 @@ public class WarukyureBoard : MonoBehaviour
                     {
                         ResetSpinState();
                         string detail = resolved.payout > 0 ? $"{resolved.payout}枚" : "はずれ";
+                        platformSettledRunId = resolved.state == "SETTLED" && resolved.run_id == runId ? runId : null;
                         StartCoroutine(RunPoiResult(resolved.payout, detail));
                         EndRound("");
                         yield break;
@@ -1578,6 +1591,17 @@ public class WarukyureBoard : MonoBehaviour
         UpdateCollectionPanel();
     }
 
+    // 共通リザルト表示後に、PF resolveでSETTLED・run一致を確認済みのrunだけ1回ready通知する。
+    void NotifyCampaignResultReadyOnce()
+    {
+        string runId = platformSettledRunId;
+        if (string.IsNullOrEmpty(runId) || runId == lastCampaignReadyRunId) return;
+        lastCampaignReadyRunId = runId;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        WarukyureCampaignResultReady(runId);
+#endif
+    }
+
     IEnumerator RunPoiResult(int payout, string detail, string reward = "")
     {
         poiResultPending = true;
@@ -1590,10 +1614,17 @@ public class WarukyureBoard : MonoBehaviour
 #endif
         // キット側の滞在時間は5秒。取りこぼし対策に少し余裕を持たせた保険タイムアウト。
         float t = 0f;
+        bool campaignReadyChecked = false;
         while (poiResultPending && t < 7f)
         {
             t += Time.deltaTime;
             yield return null;
+            // 共通リザルト表示中（表示後1フレーム）に同一runだけready通知する。
+            if (!campaignReadyChecked && poiResultPending)
+            {
+                campaignReadyChecked = true;
+                NotifyCampaignResultReadyOnce();
+            }
         }
         poiResultPending = false;
         // 結果が出きってからコレクションへ反映する。

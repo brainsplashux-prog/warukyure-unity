@@ -149,7 +149,15 @@ public class SoundMuteButton : MonoBehaviour
             PlayerPrefs.SetInt(PK_MUTE, mute ? 1 : 0);
             PlayerPrefs.Save();
         }
+        PoiCampaignAudioState(mute ? 1 : 0); // poicasi:audio-state（初期復元・全toggle）
     }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [System.Runtime.InteropServices.DllImport("__Internal")]
+    static extern void PoiCampaignAudioState(int muted);
+#else
+    static void PoiCampaignAudioState(int muted) { }
+#endif
 
     // ---- 以下3つの Sprite はクレーンゲーム版からの無改変移植（正典アセット） ----
 

@@ -22,5 +22,31 @@ mergeInto(LibraryManager.library, {
 
   PoiResultClose: function () {
     if (window.PoiResult && typeof window.PoiResult.close === 'function') window.PoiResult.close();
+  },
+
+  WarukyureCampaignResultReady: function (runIdPtr) {
+    try {
+      var runId = UTF8ToString(runIdPtr);
+      if (!runId) return;
+      window.dispatchEvent(new CustomEvent('poicasi:campaign-result-ready', {
+        detail: { game_id: 'warukyure', run_id: runId }
+      }));
+    } catch (e) {}
+  },
+
+  // poicasi:audio-state。runtimeの初期化が遅れても拾えるよう最新状態をwindowに置き、数回再送する（音量は変えない）。
+  PoiCampaignAudioState: function (muted) {
+    try {
+      window.__poicasiAudioState = { game_id: 'warukyure', muted: !!muted };
+      var fire = function () {
+        var s = window.__poicasiAudioState;
+        if (!s) return;
+        try { window.dispatchEvent(new CustomEvent('poicasi:audio-state', { detail: { game_id: s.game_id, muted: s.muted } })); } catch (e) {}
+      };
+      var timers = window.__poicasiAudioStateTimers || [];
+      for (var t = 0; t < timers.length; t++) clearTimeout(timers[t]);
+      fire();
+      window.__poicasiAudioStateTimers = [500, 2000, 5000, 10000].map(function (ms) { return setTimeout(fire, ms); });
+    } catch (e) {}
   }
 });
