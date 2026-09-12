@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 /// <summary>
@@ -144,8 +145,36 @@ public static class AdVirtuaMonitorSetup
         }
     }
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void PoiSetSurface(int nonGame);
+#endif
+
+    /// <summary>
+    /// 共通クロームの面(surface)をホストJSへ通知する。
+    /// Show()=ゲーム面("play")／Hide()=非ゲーム面("non-game")。
+    /// TitleScreen の4経路すべてが Show/Hide 経由でここを通るため、
+    /// 面通知の呼び出し忘れによるステージずれ事故を構造的に防ぐ。
+    /// </summary>
+    private static void NotifySurface(bool nonGame)
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        try
+        {
+            PoiSetSurface(nonGame ? 1 : 0);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[AdVirtuaMonitorSetup] PoiSetSurface failed: {ex.Message}");
+        }
+#endif
+    }
+
     public static void Show()
     {
+        // Show()は「ゲーム面へ移る」という宣言であり、ADVIRTUAの実体(adVirtuaRoot)が
+        // 存在するかどうかとは独立。null経路でも面通知だけは必ず行う。
+        NotifySurface(false);
         if (adVirtuaRoot == null)
         {
             Debug.LogWarning("[AdVirtuaMonitorSetup] Ad-VirtuaV3 not set. Call Setup() first.");
@@ -157,6 +186,7 @@ public static class AdVirtuaMonitorSetup
 
     public static void Hide()
     {
+        NotifySurface(true);
         if (adVirtuaRoot == null) return;
         adVirtuaRoot.SetActive(false);
     }

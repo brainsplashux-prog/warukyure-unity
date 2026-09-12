@@ -1408,10 +1408,10 @@
       body #unity-container.unity-mobile {
         position: fixed;
         left: 50%;
-        top: var(--common-header-height);
+        top: var(--poi-stage-top, var(--common-header-height));
         transform: translateX(-50%);
         width: auto;
-        height: calc(100svh - var(--common-header-height));
+        height: calc(100svh - var(--poi-stage-top, var(--common-header-height)) - var(--poi-stage-bottom, 0px));
         aspect-ratio: 720 / 1224;
         max-width: 100vw;
       }
@@ -1445,13 +1445,59 @@
          WARUQ0 QUEST だけ共通ヘッダーSDKを一切読んでおらずメニューが存在しなかった。 -->
     <script src="/shared/poicasi-chrome/loader.js"></script>
     <script>
+      window.poiWaruqSetSurface = function (surface) {
+        try {
+          window.__poiWaruqSurface = surface;
+          if (window.PoicasiChrome && typeof window.PoicasiChrome.setSurface === 'function') {
+            window.PoicasiChrome.setSurface(surface);
+          }
+          // poiresult/v3 closes by restoring 'play' over up to 10 retries x 200ms.
+          // If we land back on the title (non-game) right after that, its
+          // rollback can win the race and strip Header B / the ad footer.
+          // Only the non-game direction re-asserts itself; 'play' never fights back.
+          if (surface === 'non-game') {
+            [200, 400, 800, 1600, 3200].forEach(function (delay) {
+              setTimeout(function () {
+                try {
+                  if (window.__poiWaruqSurface === 'non-game' &&
+                      document.documentElement.classList.contains('poi-surface-play') &&
+                      window.PoicasiChrome && typeof window.PoicasiChrome.setSurface === 'function') {
+                    window.PoicasiChrome.setSurface('non-game');
+                  }
+                } catch (e) {}
+              }, delay);
+            });
+          }
+        } catch (e) {
+          if (typeof console !== 'undefined') console.warn('[poiWaruqSetSurface] failed', e);
+        }
+      };
       window.addEventListener("poicasi-chrome:ready", function () {
-        window.PoicasiChrome.mount({
-          surface: "play",
-          apiPrefix: window.API_PREFIX
-        });
+        try {
+          window.PoicasiChrome.mount({
+            surface: window.__poiWaruqSurface || "non-game",
+            apiPrefix: window.API_PREFIX
+          });
+          var footer = document.createElement('script');
+          footer.src = '/portal/poi-a8-footer.js';
+          document.head.appendChild(footer);
+        } catch (e) {
+          if (typeof console !== 'undefined') console.warn('[poicasi-chrome:ready] failed', e);
+        }
       });
     </script>
+
+    <!-- warukyure only: the shared A8 footer injector (poi-a8-footer.js) requires
+         host-page banner layout CSS. Keep its click and impression nodes intact;
+         the shared footer owns the ad label. (JUSTICE index.html と同一の扱い) -->
+    <style>
+      .poicasi-chrome-footer .poi-ad-frame{position:relative;flex:none;width:320px;max-width:100%;height:50px;overflow:hidden;background:transparent}
+      .poicasi-chrome-footer .poi-ad-inner{position:relative;width:100%;height:100%;overflow:hidden;line-height:0}
+      .poicasi-chrome-footer .poi-ad-inner a{display:block;width:100%;height:100%;border:0;pointer-events:auto}
+      .poicasi-chrome-footer .poi-ad-inner a img{display:block;width:100%;height:100%;border:0;object-fit:contain;pointer-events:auto}
+      .poicasi-chrome-footer .poi-ad-inner>img{position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+      .poicasi-chrome-footer .poi-ad-pr,.poicasi-chrome-footer .poi-ad-privacy{display:none}
+    </style>
 
     <!-- poifx/v4 jackpot overlay (5秒固定・SE内蔵。2026-09-05 v4 旗艦)。 -->
     <link rel="stylesheet" href="https://lp.poicasi.co.jp/shared/poifx/v4/poi-fx.css?v=04214c1-20260905">
