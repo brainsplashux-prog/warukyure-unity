@@ -123,9 +123,14 @@ public class WarukyureBoard : MonoBehaviour
     // 使うと「取得済みのplatform run(A)が未精算のまま、currentRunIdが別run(B)に
     // 差し替わった」ケースを「そもそもplatform runではなかった」と誤判定してしまう。
     // 取得に成功したが精算(SettlePlatformRunでのSETTLED確定、またはTryAbortAndShowPopup
-    // 経由の返金/精算確定)がまだ済んでいないplatform runIdだけを、409復旧等の
-    // currentRunId差し替えとは独立して保持する不変フラグ。null＝未精算runなし。
-    private string pendingUnsettledPlatformRunId;
+    // 経由の返金/精算確定)がまだ済んでいないplatform runIdを、409復旧等の
+    // currentRunId差し替えとは独立して保持する不変集合。空＝未精算runなし。
+    // 2026-09-13 是正(第2回codex指摘P1): 単一のstring変数だと、Aが未精算のまま次の
+    // prepareでplatform run Cを取得した時点で pendingUnsettledPlatformRunId が
+    // Cのrunidに上書きされ、Aの未精算が追跡できなくなる(Cが精算確定した瞬間、Aが
+    // 未精算のままreload許可されてしまう)。複数の未精算runを同時に保持できる
+    // HashSet<string> に変更し、「1件でも未精算が残っていればreload不可」にする。
+    private readonly HashSet<string> pendingUnsettledPlatformRunIds = new HashSet<string>();
 
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")]
@@ -1172,10 +1177,15 @@ public class WarukyureBoard : MonoBehaviour
         // 2026-09-13 是正(第1回codex指摘P1): 上記の!platformEnabledだけでは、409復旧分岐
         // (TryPreparePlatformでplatform run Aを取得済み→game側prepareが409→既存run Bへ
         // 復帰する際にplatformEnabled=falseへ戻す)で「Aが未精算のまま残っている」ケースを
-        // 「そもそもplatform runではなかった」と誤判定してしまう。pendingUnsettledPlatformRunId
-        // (409復旧等のcurrentRunId差し替えでは書き換わらない不変フラグ)がnullである
-        // ことも必須条件に加え、未精算のplatform runが残っている間はreloadを禁止する。
-        bool resultAllowReload = pendingUnsettledPlatformRunId == null &&
+        // 「そもそもplatform runではなかった」と誤判定してしまう。
+        // 2026-09-13 是正(第2回codex指摘P1): さらに、単一のstring変数で保持すると
+        // 「Aが未精算のまま、タイトルからの次のSPINやエラー再試行でplatform run Cを
+        // 新規取得」した場合に、Cのrunidで上書きされAの未精算が追跡できなくなり、
+        // Cがreload対象時にはAの未精算を見落とす。pendingUnsettledPlatformRunIds
+        // (409復旧等のcurrentRunId差し替えでは中身が書き換わらない不変集合)に
+        // 1件でも未精算runが残っている間はreloadを禁止する(空である＝Count==0の
+        // ことも必須条件に加える)。
+        bool resultAllowReload = pendingUnsettledPlatformRunIds.Count == 0 &&
             (!platformEnabled || (platformSettledRunId != null && platformSettledRunId == currentRunId));
         ShowResult(lastResult, resultAllowReload);
     }
@@ -1201,11 +1211,13 @@ public class WarukyureBoard : MonoBehaviour
         platformRun = task.Result;
         platformEnabled = true;
         currentRunId = platformRun.RunId;
-        // 2026-09-13 是正(第1回codex指摘P1): この時点でplatform runを取得したが、
-        // 精算/返金が確定するまでは「未精算のplatform runがある」ことを不変フラグで
-        // 記録する。以後この行を経由しない限り(=このメソッドを再度成功させない限り)
-        // この値は「そのrunがまだ未精算」を意味し続ける。
-        pendingUnsettledPlatformRunId = platformRun.RunId;
+        // 2026-09-13 是正(第1回codex指摘P1)→第2回codex指摘P1でHashSetへ変更:
+        // この時点でplatform runを取得したが、精算/返金が確定するまでは
+        // 「未精算のplatform runがある」ことを不変集合に追加して記録する。
+        // 以前に取得済みで未精算のrun(409復旧で切り離されたAなど)が集合内に
+        // 残っていても、今回のCをAdd(上書きでなく追加)するだけなので、
+        // Aの未精算記録は失われない。
+        pendingUnsettledPlatformRunIds.Add(platformRun.RunId);
         SetMissionBet(platformRun.Bet);
         Debug.Log($"[PLATFORM] Prepared runId={platformRun.RunId} bet={platformRun.Bet}");
     }
@@ -1240,9 +1252,10 @@ public class WarukyureBoard : MonoBehaviour
         if (resolvedRun != null && resolvedRun.ok && resolvedRun.state == "SETTLED" && resolvedRun.run_id == currentRunId)
         {
             platformSettledRunId = currentRunId;
-            // 2026-09-13 是正(第1回codex指摘P1): このrunの精算が確定したので、
-            // 未精算フラグが同じrunを指していれば解消する。
-            if (pendingUnsettledPlatformRunId == currentRunId) pendingUnsettledPlatformRunId = null;
+            // 2026-09-13 是正(第1回codex指摘P1、第2回codex指摘P1でHashSet化):
+            // このrunの精算が確定したので、未精算集合から取り除く。他のrun(409復旧で
+            // 切り離されたAなど)がまだ集合内に残っていればそれはそのまま保持される。
+            pendingUnsettledPlatformRunIds.Remove(currentRunId);
         }
 
         var walletTask = platformClient.GetWalletBalance();
@@ -1355,9 +1368,9 @@ public class WarukyureBoard : MonoBehaviour
                         platformSettledRunId = settled ? runId : null;
                         // ここのresolveはabort直後にリカバリとして呼んだもので、state=="SETTLED"
                         // かつrun一致まで確認できた時だけ精算確定とみなしreload可。
-                        // 2026-09-13 是正(第1回codex指摘P1): このrunの精算が確定したので、
-                        // 未精算フラグが同じrunを指していれば解消する。
-                        if (settled && pendingUnsettledPlatformRunId == runId) pendingUnsettledPlatformRunId = null;
+                        // 2026-09-13 是正(第1回codex指摘P1、第2回codex指摘P1でHashSet化):
+                        // このrunの精算が確定したので、未精算集合から取り除く。
+                        if (settled) pendingUnsettledPlatformRunIds.Remove(runId);
                         StartCoroutine(RunPoiResult(resolved.payout, detail, "", settled));
                         EndRound("");
                         yield break;
@@ -1370,9 +1383,9 @@ public class WarukyureBoard : MonoBehaviour
 
         // abortRes.refunded==true はサーバーが返金の実施を保証する確定情報。
         // このrunはもう成立しないため、戻る操作でのreloadを許可してよい。
-        // 2026-09-13 是正(第1回codex指摘P1): このrunの返金が確定したので、
-        // 未精算フラグが同じrunを指していれば解消する。
-        if (abortRes.refunded && pendingUnsettledPlatformRunId == runId) pendingUnsettledPlatformRunId = null;
+        // 2026-09-13 是正(第1回codex指摘P1、第2回codex指摘P1でHashSet化): このrunの
+        // 返金が確定したので、未精算集合から取り除く。
+        if (abortRes.refunded) pendingUnsettledPlatformRunIds.Remove(runId);
         ShowPoiError(code, runId, abortRes.refunded, OnPoiErrRetry,
             abortRes.refunded ? (System.Action)OnPoiErrBackAllowReload : OnPoiErrBack);
     }
