@@ -131,6 +131,15 @@ public class WarukyureBoard : MonoBehaviour
     // 未精算のままreload許可されてしまう)。複数の未精算runを同時に保持できる
     // HashSet<string> に変更し、「1件でも未精算が残っていればreload不可」にする。
     private readonly HashSet<string> pendingUnsettledPlatformRunIds = new HashSet<string>();
+    // 2026-09-13 是正(第4回codex指摘P1 その2): TryPreparePlatform()はPrepare()の通信が
+    // 完了して初めてpendingUnsettledPlatformRunIdsへAddする。そのため「通信中(Add前)の
+    // 進行中prepare」はこの集合のCount==0判定に反映されず、他のrunのreload実行箇所からは
+    // 「未精算runなし」に見えてしまう。もしこの間にreloadが実行されると、通信完了後に
+    // 取得されるはずのrun(例: A中断からの復旧待機中に開始したC)のrunId/playTokenが
+    // 判明する前にページが失われ、精算/返金の手がかりを失う。Prepare()呼び出し開始から
+    // 完了(成功でAddした後・失敗でbreakする前のいずれか)までを「未解決」として数える
+    // カウンタ。0でない間はreload不可。
+    private int platformPrepareInFlight;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")]
@@ -1185,7 +1194,9 @@ public class WarukyureBoard : MonoBehaviour
         // (409復旧等のcurrentRunId差し替えでは中身が書き換わらない不変集合)に
         // 1件でも未精算runが残っている間はreloadを禁止する(空である＝Count==0の
         // ことも必須条件に加える)。
-        bool resultAllowReload = pendingUnsettledPlatformRunIds.Count == 0 &&
+        // 2026-09-13 是正(第4回codex指摘P1 その2): 進行中(Add前)のprepare通信が
+        // あればそれも未解決runとして扱い、reloadを禁止する。
+        bool resultAllowReload = pendingUnsettledPlatformRunIds.Count == 0 && platformPrepareInFlight == 0 &&
             (!platformEnabled || (platformSettledRunId != null && platformSettledRunId == currentRunId));
         ShowResult(lastResult, resultAllowReload);
     }
@@ -1195,6 +1206,10 @@ public class WarukyureBoard : MonoBehaviour
         if (platformClient == null)
             platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));
 
+        // 2026-09-13 是正(第4回codex指摘P1 その2): 通信中(Add前)もreload不可として
+        // 数えるため、開始時点でインクリメントする。全ての出口(失敗/成功)で必ず
+        // デクリメントする。
+        platformPrepareInFlight++;
         var task = platformClient.Prepare();
         yield return new WaitUntil(() => task.IsCompleted);
 
@@ -1203,6 +1218,7 @@ public class WarukyureBoard : MonoBehaviour
             Debug.LogWarning("[PLATFORM] Prepare failed, falling back to standalone game flow: " + task.Exception?.Message);
             platformRun = null;
             platformEnabled = false;
+            platformPrepareInFlight--;
             ShowPoiError("E-PREPARE", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
             currentRunId = System.Guid.NewGuid().ToString();
             yield break;
@@ -1218,6 +1234,9 @@ public class WarukyureBoard : MonoBehaviour
         // 残っていても、今回のCをAdd(上書きでなく追加)するだけなので、
         // Aの未精算記録は失われない。
         pendingUnsettledPlatformRunIds.Add(platformRun.RunId);
+        // Addが完了した(=以後はpendingUnsettledPlatformRunIdsの集合判定で追跡可能に
+        // なった)ので、進行中カウンタから外す。
+        platformPrepareInFlight--;
         SetMissionBet(platformRun.Bet);
         Debug.Log($"[PLATFORM] Prepared runId={platformRun.RunId} bet={platformRun.Bet}");
     }
@@ -1303,7 +1322,13 @@ public class WarukyureBoard : MonoBehaviour
         PoiErr.Hide();
         DismissResultOverlay();
         if (titleScreen != null) titleScreen.Reopen();
-        if (allowReload)
+        // 2026-09-13 是正(第4回codex指摘P1 その1): allowReloadはShowPoiError呼び出し時点の
+        // スナップショットでしかない。ここはボタンコールバックであり、ポップアップが画面に
+        // 出ている間(ユーザーが「戻る」を押すまでの任意の時間)に別のSPIN(新規prepare)が
+        // 開始され、pendingUnsettledPlatformRunIdsへ新たな未精算runが追加される可能性がある。
+        // そのため実際にreloadする直前でも、未精算run集合が空かつ進行中prepareが無いことを
+        // 再確認する。
+        if (allowReload && pendingUnsettledPlatformRunIds.Count == 0 && platformPrepareInFlight == 0)
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
             PoiReloadPage();
@@ -1376,7 +1401,10 @@ public class WarukyureBoard : MonoBehaviour
                         // 集合に残っていないことは保証しない。「1件でも未精算runが残れば
                         // reload不可」の条件をここでも満たすため、Remove後の
                         // pendingUnsettledPlatformRunIds.Count == 0 をANDで必須とする。
-                        bool recoverAllowReload = settled && pendingUnsettledPlatformRunIds.Count == 0;
+                        // 2026-09-13 是正(第4回codex指摘P1 その2): 進行中(Add前)のprepare
+                        // 通信も未解決run扱いにする。
+                        bool recoverAllowReload = settled && pendingUnsettledPlatformRunIds.Count == 0 &&
+                            platformPrepareInFlight == 0;
                         StartCoroutine(RunPoiResult(resolved.payout, detail, "", recoverAllowReload));
                         EndRound("");
                         yield break;
@@ -1396,7 +1424,10 @@ public class WarukyureBoard : MonoBehaviour
         // 意味するだけで、他のrun(409復旧で切り離されたA等)が未精算のまま集合に残って
         // いないことは保証しない。「1件でも未精算runが残ればreload不可」の条件をここでも
         // 満たすため、Remove後のpendingUnsettledPlatformRunIds.Count == 0をANDで必須とする。
-        bool backAllowReload = abortRes.refunded && pendingUnsettledPlatformRunIds.Count == 0;
+        // 2026-09-13 是正(第4回codex指摘P1 その2): 進行中(Add前)のprepare通信も
+        // 未解決run扱いにする。
+        bool backAllowReload = abortRes.refunded && pendingUnsettledPlatformRunIds.Count == 0 &&
+            platformPrepareInFlight == 0;
         ShowPoiError(code, runId, abortRes.refunded, OnPoiErrRetry,
             backAllowReload ? (System.Action)OnPoiErrBackAllowReload : OnPoiErrBack);
     }
@@ -1745,7 +1776,9 @@ public class WarukyureBoard : MonoBehaviour
         // 最大7秒複数フレームyieldしており、その間にpendingUnsettledPlatformRunIdsの中身が
         // (別経路の未精算run発生等で)変化しうる。allowReloadは呼び出し時点のスナップショット
         // でしかないため、実際にreloadを実行する直前でも集合が空であることを再確認する。
-        if (allowReload && pendingUnsettledPlatformRunIds.Count == 0)
+        // 2026-09-13 是正(第4回codex指摘P1 その2): 同じyield中に別のSPINが開始され
+        // TryPreparePlatform()の通信が進行中(まだAdd前)の場合も未解決run扱いにする。
+        if (allowReload && pendingUnsettledPlatformRunIds.Count == 0 && platformPrepareInFlight == 0)
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
             PoiReloadPage();
