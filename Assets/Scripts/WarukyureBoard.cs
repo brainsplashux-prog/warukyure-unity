@@ -1155,7 +1155,15 @@ public class WarukyureBoard : MonoBehaviour
             yield return StartCoroutine(SettlePlatformRun());
         }
 
-        ShowResult(lastResult);
+        // 2026-09-13 メイン指摘是正: SettlePlatformRun()がS2sCommit/Resolve失敗で
+        // TryAbortAndShowPopup経由の復旧表示に分岐していても、このShowResult呼び出し自体は
+        // (既存の制御フロー変更はスコープ外のため)そのまま実行される。そのためreload可否は
+        // 「そもそもplatform runでなかった(!platformEnabled)」か「SettlePlatformRun()が成功し
+        // Resolveがstate=="SETTLED"でこのrunに確定した(platformSettledRunId==currentRunId)」
+        // 場合だけ true にする。platformEnabled は各run開始時(SpinRound冒頭)にのみ書き換わる
+        // 値で、Poinoshinのような共通遷移関数によるリセットは無い。
+        bool resultAllowReload = !platformEnabled || (platformSettledRunId != null && platformSettledRunId == currentRunId);
+        ShowResult(lastResult, resultAllowReload);
     }
 
     IEnumerator TryPreparePlatform()
@@ -1243,16 +1251,27 @@ public class WarukyureBoard : MonoBehaviour
         else RetrySession();
     }
 
-    void OnPoiErrBack()
+    // 2026-09-13 メイン指摘是正: 旧コメント「ここに来る時点でabort/resolve等の通信は
+    // TryAbortAndShowPopup内で完了済み」は誤りだった。OnPoiErrBackはShowPoiErrorのback
+    // コールバックとして複数の異なる文脈(abort失敗・resolve失敗・runId/playToken無し・
+    // 通常のabort成功)から共有されており、通信が失敗/未完了のまま到達する経路がある。
+    // そのため無条件reloadは廃止し、呼び出し元が「返金/精算が確定した」と確認できた時だけ
+    // OnPoiErrBackAllowReload を明示的に渡す。デフォルト(OnPoiErrBack)はreloadしない。
+    void OnPoiErrBack() => OnPoiErrBackCore(false);
+
+    void OnPoiErrBackAllowReload() => OnPoiErrBackCore(true);
+
+    void OnPoiErrBackCore(bool allowReload)
     {
         PoiErr.Hide();
         DismissResultOverlay();
         if (titleScreen != null) titleScreen.Reopen();
-        // 2026-09-13 社長指示: エラーポップアップの「戻る」でタイトルへ戻る時に一度リロードする。
-        // ここに来る時点で abort/resolve 等の通信は TryAbortAndShowPopup 内で完了済み。
+        if (allowReload)
+        {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        PoiReloadPage();
+            PoiReloadPage();
 #endif
+        }
     }
 
     static bool IsCommittedState(string state)
@@ -1292,7 +1311,10 @@ public class WarukyureBoard : MonoBehaviour
             if (committedFallback != null && committedFallback.ok && committedFallback.state != null)
             {
                 ResetSpinState();
-                ShowResult(committedFallback);
+                // committedFallback は abort より前に取得済みの結果(=このTryAbortAndShowPopup
+                // 自体がS2sCommit/Resolve失敗で呼ばれた経路)であり、精算が確定したとは言えない。
+                // reload不可(false)。
+                ShowResult(committedFallback, false);
             }
             else
             {
@@ -1305,8 +1327,11 @@ public class WarukyureBoard : MonoBehaviour
                     {
                         ResetSpinState();
                         string detail = resolved.payout > 0 ? $"{resolved.payout}枚" : "はずれ";
-                        platformSettledRunId = resolved.state == "SETTLED" && resolved.run_id == runId ? runId : null;
-                        StartCoroutine(RunPoiResult(resolved.payout, detail));
+                        bool settled = resolved.state == "SETTLED" && resolved.run_id == runId;
+                        platformSettledRunId = settled ? runId : null;
+                        // ここのresolveはabort直後にリカバリとして呼んだもので、state=="SETTLED"
+                        // かつrun一致まで確認できた時だけ精算確定とみなしreload可。
+                        StartCoroutine(RunPoiResult(resolved.payout, detail, "", settled));
                         EndRound("");
                         yield break;
                     }
@@ -1316,7 +1341,10 @@ public class WarukyureBoard : MonoBehaviour
             yield break;
         }
 
-        ShowPoiError(code, runId, abortRes.refunded, OnPoiErrRetry, OnPoiErrBack);
+        // abortRes.refunded==true はサーバーが返金の実施を保証する確定情報。
+        // このrunはもう成立しないため、戻る操作でのreloadを許可してよい。
+        ShowPoiError(code, runId, abortRes.refunded, OnPoiErrRetry,
+            abortRes.refunded ? (System.Action)OnPoiErrBackAllowReload : OnPoiErrBack);
     }
 
     void EndRound(string error)
@@ -1529,7 +1557,12 @@ public class WarukyureBoard : MonoBehaviour
     }
 
     // ----------------- result -----------------
-    void ShowResult(ResolveResponse r)
+    // 2026-09-13 メイン指摘是正(Poinoshinで発覚した「共通遷移関数への無条件reload禁止」の
+    // 教訓を横展開): allowReload は「このrunの精算(S2sCommit/Resolve)が確定した、または
+    // そもそもplatform runでなかった」ことを呼び出し元が確認済みの場合だけ true にする。
+    // 精算失敗でTryAbortAndShowPopup経由の復旧表示(ShowResult(committedFallback,...))
+    // では常に false。
+    void ShowResult(ResolveResponse r, bool allowReload)
     {
         lastNet = r.awardBreakdown.net;
         // PF 有効時は SettlePlatformRun() で取得した PF 残高を優先。
@@ -1541,22 +1574,22 @@ public class WarukyureBoard : MonoBehaviour
         // ボールコンプリート → JACKPOT チャレンジ（5ランプ）
         if (r.bonusOutcome != null && r.awardBreakdown.jackpot > 0)
         {
-            StartCoroutine(RunJackpotChallenge(r));
+            StartCoroutine(RunJackpotChallenge(r, allowReload));
             return;
         }
 
         // 通常の BIG/MEGA 配当：fx があれば poifx、なければテキスト
         if (r.fx != null && !string.IsNullOrEmpty(r.fx.tier) && r.fx.amount > 0)
         {
-            StartCoroutine(RunPoiFxThenResult(r));
+            StartCoroutine(RunPoiFxThenResult(r, allowReload));
             return;
         }
 
-        ShowNormalResult(r);
+        ShowNormalResult(r, allowReload);
         EndRound("");
     }
 
-    void ShowNormalResult(ResolveResponse r)
+    void ShowNormalResult(ResolveResponse r, bool allowReload)
     {
         StringBuilder sb = new StringBuilder();
         string reward = "";   // メダル以外の報酬名（無ければ空）
@@ -1587,7 +1620,7 @@ public class WarukyureBoard : MonoBehaviour
         // 精算表示は共通リザルト画面（poiresult v2）に一本化する。
         // 滞在5秒→自動クローズ→SPIN待機（＝本ゲームのタイトル相当）へ戻る。自動再開はしない。
         // = §5-2b [社長確定] 2026-09-06「全てをタイトル画面に戻せば共通化できるからそういう設計にする」。
-        StartCoroutine(RunPoiResult(r.awardBreakdown.total, sb.ToString(), reward));
+        StartCoroutine(RunPoiResult(r.awardBreakdown.total, sb.ToString(), reward, allowReload));
     }
 
     // ----------------- 共通リザルト画面 -----------------
@@ -1616,7 +1649,7 @@ public class WarukyureBoard : MonoBehaviour
 #endif
     }
 
-    IEnumerator RunPoiResult(int payout, string detail, string reward = "")
+    IEnumerator RunPoiResult(int payout, string detail, string reward = "", bool allowReload = false)
     {
         poiResultPending = true;
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -1647,12 +1680,19 @@ public class WarukyureBoard : MonoBehaviour
 #endif
         // 結果が出きってからコレクションへ反映する。
         ApplyPendingBallMask();
-        // 2026-09-13 社長指示: リザルト→タイトル復帰の固着対策。共通ヘッダー残高更新の後、
-        // 通常/JACKPOT/FX/中断リカバリの全結果表示がここへ収束するタイミングで1回だけリロードする。
-        // 起動直後やタイトル表示のたびには呼ばれない(RunPoiResultは結果表示時のみ実行される)。
+        // 2026-09-13 社長指示→メイン指摘で是正: リザルト→タイトル復帰の固着対策。共通ヘッダー
+        // 残高更新の後、通常/JACKPOT/FX/中断リカバリの全結果表示がここへ収束するタイミングで
+        // 1回だけリロードする。起動直後やタイトル表示のたびには呼ばれない(RunPoiResultは結果
+        // 表示時のみ実行される)。ただし allowReload は呼び出し元が「このrunの精算(S2sCommit/
+        // Resolve)が確定した、またはそもそもplatform runでなかった」ことを確認できた時だけ
+        // true。精算未確定(S2sCommit/Resolve失敗→TryAbortAndShowPopup経由の復旧表示等)では
+        // false のままリロードしない(未解決runのままリロードして精算の手がかりを失うのを防ぐ)。
+        if (allowReload)
+        {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        PoiReloadPage();
+            PoiReloadPage();
 #endif
+        }
     }
 
     // セッション未確立時のタイトル画面から呼ばれる再接続。
@@ -1679,7 +1719,7 @@ public class WarukyureBoard : MonoBehaviour
         return startX + index * spacing;
     }
 
-    IEnumerator RunJackpotChallenge(ResolveResponse r)
+    IEnumerator RunJackpotChallenge(ResolveResponse r, bool allowReload)
     {
         // 通常UIを隠して Header A + Ad-Virtua を最前面に
         SetNormalUIForChallenge(false);
@@ -1743,7 +1783,7 @@ public class WarukyureBoard : MonoBehaviour
         jackpotPanel.SetActive(false);
         jackpotPanelGroup.blocksRaycasts = false;
         SetNormalUIForChallenge(true);
-        yield return StartCoroutine(RunPoiResult(r.awardBreakdown.total, $"JACKPOT {r.bonusOutcome.award}枚"));
+        yield return StartCoroutine(RunPoiResult(r.awardBreakdown.total, $"JACKPOT {r.bonusOutcome.award}枚", "", allowReload));
         EndRound("");
     }
 
@@ -1776,10 +1816,10 @@ public class WarukyureBoard : MonoBehaviour
         }
     }
 
-    IEnumerator RunPoiFxThenResult(ResolveResponse r)
+    IEnumerator RunPoiFxThenResult(ResolveResponse r, bool allowReload)
     {
         yield return StartCoroutine(RunPoiFx(r.fx.tier, r.fx.amount, null));
-        ShowNormalResult(r);
+        ShowNormalResult(r, allowReload);
         EndRound("");
     }
 
@@ -1904,7 +1944,8 @@ public class WarukyureBoard : MonoBehaviour
                 awardBreakdown = new AwardBreakdown { wager = 500, number = 0, castle = 0, jackpot = 3000, total = 3000, net = 2500 },
                 fx = new FxData { tier = "mega", amount = 3000 }
             };
-            StartCoroutine(RunJackpotChallenge(fake));
+            // devデバッグ用の演出だけ発火(抽選・精算なし)なのでreloadは許可しない。
+            StartCoroutine(RunJackpotChallenge(fake, false));
         }
     }
 
