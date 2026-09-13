@@ -31,6 +31,14 @@ mergeInto(LibraryManager.library, {
     }
   },
 
+  // 2026-09-13 社長指示: リザルト/エラーからタイトルへ戻る時に一度ページをリロードする
+  // (PoiStartButton等の状態機械固着対策)。Yabuzame の PoiPlatformBridge.jslib から逐語移植。
+  PoiReloadPage: function () {
+    if (typeof window !== 'undefined' && window.location && typeof window.location.reload === 'function') {
+      window.location.reload();
+    }
+  },
+
   WarukyureCampaignResultReady: function (runIdPtr) {
     try {
       var runId = UTF8ToString(runIdPtr);

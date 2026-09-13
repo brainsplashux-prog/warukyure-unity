@@ -143,6 +143,11 @@ public class WarukyureBoard : MonoBehaviour
     [DllImport("__Internal")]
     private static extern void PoiRefreshHeaderBalance();
 
+    // 2026-09-13 社長指示: リザルト/エラーからタイトルへ戻る時に一度リロードする
+    // (PoiStartButton等の状態機械固着対策)。Yabuzame の PoiPlatformBridge.jslib から逐語移植。
+    [DllImport("__Internal")]
+    private static extern void PoiReloadPage();
+
     // poicasi-auth ブリッジ（Assets/Plugins/WebGL/WarukyureAuth.jslib）
     [DllImport("__Internal")]
     private static extern IntPtr WkTakePaCode();
@@ -1243,6 +1248,11 @@ public class WarukyureBoard : MonoBehaviour
         PoiErr.Hide();
         DismissResultOverlay();
         if (titleScreen != null) titleScreen.Reopen();
+        // 2026-09-13 社長指示: エラーポップアップの「戻る」でタイトルへ戻る時に一度リロードする。
+        // ここに来る時点で abort/resolve 等の通信は TryAbortAndShowPopup 内で完了済み。
+#if UNITY_WEBGL && !UNITY_EDITOR
+        PoiReloadPage();
+#endif
     }
 
     static bool IsCommittedState(string state)
@@ -1637,6 +1647,12 @@ public class WarukyureBoard : MonoBehaviour
 #endif
         // 結果が出きってからコレクションへ反映する。
         ApplyPendingBallMask();
+        // 2026-09-13 社長指示: リザルト→タイトル復帰の固着対策。共通ヘッダー残高更新の後、
+        // 通常/JACKPOT/FX/中断リカバリの全結果表示がここへ収束するタイミングで1回だけリロードする。
+        // 起動直後やタイトル表示のたびには呼ばれない(RunPoiResultは結果表示時のみ実行される)。
+#if UNITY_WEBGL && !UNITY_EDITOR
+        PoiReloadPage();
+#endif
     }
 
     // セッション未確立時のタイトル画面から呼ばれる再接続。
