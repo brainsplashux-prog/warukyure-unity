@@ -1371,7 +1371,13 @@ public class WarukyureBoard : MonoBehaviour
                         // 2026-09-13 是正(第1回codex指摘P1、第2回codex指摘P1でHashSet化):
                         // このrunの精算が確定したので、未精算集合から取り除く。
                         if (settled) pendingUnsettledPlatformRunIds.Remove(runId);
-                        StartCoroutine(RunPoiResult(resolved.payout, detail, "", settled));
+                        // 2026-09-13 是正(第3回codex指摘P1): settledはこのrun単体の確定を
+                        // 意味するだけで、他のrun(409復旧で切り離されたA等)が未精算のまま
+                        // 集合に残っていないことは保証しない。「1件でも未精算runが残れば
+                        // reload不可」の条件をここでも満たすため、Remove後の
+                        // pendingUnsettledPlatformRunIds.Count == 0 をANDで必須とする。
+                        bool recoverAllowReload = settled && pendingUnsettledPlatformRunIds.Count == 0;
+                        StartCoroutine(RunPoiResult(resolved.payout, detail, "", recoverAllowReload));
                         EndRound("");
                         yield break;
                     }
@@ -1386,8 +1392,13 @@ public class WarukyureBoard : MonoBehaviour
         // 2026-09-13 是正(第1回codex指摘P1、第2回codex指摘P1でHashSet化): このrunの
         // 返金が確定したので、未精算集合から取り除く。
         if (abortRes.refunded) pendingUnsettledPlatformRunIds.Remove(runId);
+        // 2026-09-13 是正(第3回codex指摘P1): abortRes.refundedはこのrun単体の返金確定を
+        // 意味するだけで、他のrun(409復旧で切り離されたA等)が未精算のまま集合に残って
+        // いないことは保証しない。「1件でも未精算runが残ればreload不可」の条件をここでも
+        // 満たすため、Remove後のpendingUnsettledPlatformRunIds.Count == 0をANDで必須とする。
+        bool backAllowReload = abortRes.refunded && pendingUnsettledPlatformRunIds.Count == 0;
         ShowPoiError(code, runId, abortRes.refunded, OnPoiErrRetry,
-            abortRes.refunded ? (System.Action)OnPoiErrBackAllowReload : OnPoiErrBack);
+            backAllowReload ? (System.Action)OnPoiErrBackAllowReload : OnPoiErrBack);
     }
 
     void EndRound(string error)
@@ -1730,7 +1741,11 @@ public class WarukyureBoard : MonoBehaviour
         // Resolve)が確定した、またはそもそもplatform runでなかった」ことを確認できた時だけ
         // true。精算未確定(S2sCommit/Resolve失敗→TryAbortAndShowPopup経由の復旧表示等)では
         // false のままリロードしない(未解決runのままリロードして精算の手がかりを失うのを防ぐ)。
-        if (allowReload)
+        // 2026-09-13 是正(第3回codex指摘P1): このコルーチンは呼び出しからここに到達するまで
+        // 最大7秒複数フレームyieldしており、その間にpendingUnsettledPlatformRunIdsの中身が
+        // (別経路の未精算run発生等で)変化しうる。allowReloadは呼び出し時点のスナップショット
+        // でしかないため、実際にreloadを実行する直前でも集合が空であることを再確認する。
+        if (allowReload && pendingUnsettledPlatformRunIds.Count == 0)
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
             PoiReloadPage();
