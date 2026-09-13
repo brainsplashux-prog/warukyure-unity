@@ -150,8 +150,13 @@ public class WarukyureBoard : MonoBehaviour
     // できない。「Task失敗はrun未成立の証拠にならない」ため、一度でもこの状態が
     // 起きたら、run idが特定できないまま永続的に未解決とみなし、以後の全reload経路を
     // 禁止する(セッション中に自己解消する手段が無いため、安全側でfalse固定にする。
-    // Task Aの状態機械自己修復(OnEnable)により固着自体は解消されるため、reloadを
-    // 諦めても操作不能にはならない)。
+    // 2026-09-13 是正(第6回codex指摘): warukyureのタイトル画面(TitleScreen)は
+    // Yabuzame/PoiStartButtonのようなFindObjectOfType依存の状態機械ではなく、
+    // OnPoiErrBackCore/RunPoiResultがtitleScreenの参照を直接保持してReopen()を
+    // 呼ぶ設計であるため、そもそもTask A(状態機械固着対策)の対象外であり、
+    // OnEnable自己修復も実装していない。reloadを諦めても、Yabuzameで発生した
+    // 「非アクティブオブジェクトの検索失敗によるReset()不発」型の固着はwarukyureの
+    // 構造上発生しないため、操作不能にはならない、という判断根拠)。
     private bool platformPrepareOutcomeUnknown;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
