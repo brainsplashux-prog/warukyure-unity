@@ -1477,6 +1477,24 @@
          100svh + aspect-ratio 720/1224 で常に全体が収まるようにする。
          ★テンプレートに焼き込み済み(2026-08-19)。以前は配信後のindex.htmlを手で直していたため
            再ビルドのたびに消えていた(v0.0.12で実際に退行)。ここから消すな。 -->
+    <!-- 2026-09-15 検討記録: 「幅いっぱいに（100vw）」の単純適用は見送った。
+         CanvasScaler は matchWidthOrHeight=0(幅基準)・referenceResolution=720x1224固定。
+         幅を100vwへ、高さを現状の calc(100svh-top-bottom) のまま残すと、可視デザイン高さ=
+         720*(availH/availW) となり、availH/availW<1.7 の端末では下端がキャンバス矩形の
+         外へ出て「押せない」領域になる（マスクではなくRectTransform自体が短くなる）。
+         依頼が検証用に示した想定値 390x520(非game面)/390x640(game面) で実測（720x1224換算）:
+           - game面: 可視高=1181.7/1224 → SPINボタン(y719..787→ y1124..1192)が約15%欠け、
+             BETピル(y1110..1206)が約25%欠け。
+           - 非game面: 可視高=960/1224 → タイトルSTART当たり判定(y924..1074)が約76%欠け。
+         ボタン位置は承認済み板絵(design-approved/title/approved.png・board帯画像)に焼き込み
+         済みの実測値のため、ここだけ動かすのは「承認済みデザインは変更しない」に反する。
+         CanvasScalerをmatchWidthOrHeight=1(高さ基準)に倒す代替も検討したが、その場合は逆に
+         h/w比が1.7を超える端末（iPhone14以降の主流機種など）でSPIN/BET/盤面の右側が欠ける
+         （実測: iPhone14級 390x788(game面)でh/w=2.02→可視幅605.9/720＝右側114ユニット相当が
+         欠ける）ため、より広い機種層に新規regressionを生む。
+         → 幅は現状の aspect-ratio 派生値のまま変更せず、社長確定[社長確定]の別項目である
+         .game-description の最初画面外への退避（直下）だけを本日分として実施。
+         幅いっぱい化は「ボタン欠け」と衝突するため実装せず報告に回す（DECISIONS.md参照）。 -->
     <style>
       body { background-color: #F3E1C9; }
       body #unity-container.unity-mobile {
@@ -1694,7 +1712,11 @@
       </div>
       <div id="unity-warning"> </div>
     </div>
-<section class="game-description" aria-labelledby="waruq0-quest-about" style="max-width:800px;margin:24px auto 0;padding:16px;font-size:14px;line-height:1.7;color:#333;background:transparent;box-sizing:border-box;">
+<!-- 2026-09-14 社長指摘「タイトル画面の隙間からSEO説明文が見える」への対応。
+     ゲーム枠はposition:fixedで通常フローの高さを消費しないため、この説明文はDOM順に関わらず
+     最初のビューポート内（枠の左右の隙間）に重なって見えてしまっていた。テキスト本文・タグは
+     一切変更せず、margin-topで最初のビューポート(100svh)より下へ押し下げるだけで解決する。 -->
+<section class="game-description" aria-labelledby="waruq0-quest-about" style="max-width:800px;margin:100svh auto 0;padding:16px;font-size:14px;line-height:1.7;color:#333;background:transparent;box-sizing:border-box;">
   <h1 id="waruq0-quest-about" style="font-size:16px;font-weight:bold;margin:0 0 8px;color:#333;">WARUQ0 QUEST ― 数字を選んで回すルーレットメダルゲーム</h1>
   <p style="margin:0;color:#333;">「WARUQ0 QUEST」は、2、4、6、8、20から数字を選んでBETし、SPINでランプの行方を見届けるUnity WebGLメダルゲームです。数字は複数選択でき、1口ごとの必要メダルと残高を確認してから回します。プレイ開始時にサーバーからセッション、メダル残高、1口額を受け取り、BET内容を送信して結果を確定します。ランプは外周・内周・ループ状の盤面を高速、中速、低速と段階的に進み、クジラや船、虹の橋、鍵を使うワープを通って停止します。停止した数字では数字と倍率に応じた払い出しが表示され、城への到達や、うさぎ・ねこ・くま・ことりのボール取得が発生することもあります。4種類のボールはコレクションとして盤面に表示され、条件がそろうと5つのランプを使ったJACKPOT演出も行われます。結果画面では払い出しと獲得内容を確認でき、メダル残高やコレクションは結果表示後に反映されます。</p>
 </section>

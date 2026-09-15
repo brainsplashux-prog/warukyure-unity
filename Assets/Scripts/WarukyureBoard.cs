@@ -188,6 +188,12 @@ public class WarukyureBoard : MonoBehaviour
     [DllImport("__Internal")]
     private static extern void PoiReloadPage();
 
+    // 2026-09-14 社長指摘「遷移先をゲーム一覧＝ポータルにしてくれ」への対応。
+    // poierr v3の「戻る」でタイトルへ戻すと再エラーのループになるため、ポータルへ遷移する。
+    // 参照実装: ~/Unity/Kurohige の KurohigePlatform.jslib PoiErrBackToPortal / KurohigeGameController.cs BackToPortal()。
+    [DllImport("__Internal")]
+    private static extern void PoiErrBackToPortal();
+
     // poicasi-auth ブリッジ（Assets/Plugins/WebGL/WarukyureAuth.jslib）
     [DllImport("__Internal")]
     private static extern IntPtr WkTakePaCode();
@@ -1084,7 +1090,14 @@ public class WarukyureBoard : MonoBehaviour
 
         // prepare
         string demoPart = IsDemoMode() ? ",\"demo\":true" : "";
-        string prepareJson = "{\"action\":\"prepare\",\"token\":\"" + token + "\",\"runId\":\"" + currentRunId + "\"" + demoPart + "}";
+        // 2026-09-15 サーバー担当セッション依頼(社長指示「クロードで本番化して」):
+        // prepareにplay_tokenを付ける。現行の本番サーバーは必須にしていないため無害
+        // (付けた版が本番に出た後にサーバー側が賭け額比例を出し直す)。TryPreparePlatform()
+        // がplatform連携を有効化した場合のみplatformRun.PlayTokenを保持しているのでその時だけ付与。
+        string playTokenPart = (platformEnabled && platformRun != null && !string.IsNullOrEmpty(platformRun.PlayToken))
+            ? ",\"play_token\":\"" + platformRun.PlayToken + "\""
+            : "";
+        string prepareJson = "{\"action\":\"prepare\",\"token\":\"" + token + "\",\"runId\":\"" + currentRunId + "\"" + demoPart + playTokenPart + "}";
         string prepareBody = null;
         string prepareErr = null;
         yield return StartCoroutine(ApiPost(prepareJson, currentRunId, (b) => prepareBody = b, (e) => prepareErr = e));
@@ -1347,21 +1360,31 @@ public class WarukyureBoard : MonoBehaviour
     {
         PoiErr.Hide();
         DismissResultOverlay();
-        if (titleScreen != null) titleScreen.Reopen();
-        // 2026-09-13 是正(第4回codex指摘P1 その1): allowReloadはShowPoiError呼び出し時点の
-        // スナップショットでしかない。ここはボタンコールバックであり、ポップアップが画面に
-        // 出ている間(ユーザーが「戻る」を押すまでの任意の時間)に別のSPIN(新規prepare)が
-        // 開始され、pendingUnsettledPlatformRunIdsへ新たな未精算runが追加される可能性がある。
-        // そのため実際にreloadする直前でも、未精算run集合が空かつ進行中prepareが無いことを
-        // 再確認する。
-        // 2026-09-13 是正(第5回codex指摘P1): 成立有無が不明なrunがあれば禁止する。
-        if (allowReload && pendingUnsettledPlatformRunIds.Count == 0 && platformPrepareInFlight == 0 &&
-            !platformPrepareOutcomeUnknown)
+        // 2026-09-14 社長指摘「遷移先をゲーム一覧＝ポータルにしてくれ」への対応。
+        // 以前はtitleScreen.Reopen()でタイトルへ戻していたため再エラーのループになっていた。
+        // 全エラーコード共通でポータルへ遷移する(タイトルへは戻さない)。allowReloadは
+        // 「ShowPoiError呼び出し時点で精算/返金が確定済みか」のスナップショットに過ぎない
+        // (旧reload許可判定の名残)。未確定(allowReload==false)かつ現在runが未精算のまま
+        // 残っているなら、遷移で追跡不能になる前にbest-effortでabortを試みる。
+        StartCoroutine(BackToPortal(allowReload));
+    }
+
+    IEnumerator BackToPortal(bool allowReload)
+    {
+        if (!allowReload && platformRun != null && !string.IsNullOrEmpty(platformRun.PlayToken) &&
+            pendingUnsettledPlatformRunIds.Contains(platformRun.RunId))
         {
-#if UNITY_WEBGL && !UNITY_EDITOR
-            PoiReloadPage();
-#endif
+            float deadline = Time.time + 3f;
+            var abortTask = platformClient.Abort(platformRun.RunId, platformRun.PlayToken);
+            while (!abortTask.IsCompleted && Time.time < deadline) yield return null;
+            // 結果(成功/失敗/未完了)は問わない。ここで詰まるとエラーループが直らないため、
+            // 遷移は必ず行う(ベストエフォート)。
         }
+#if UNITY_WEBGL && !UNITY_EDITOR
+        PoiErrBackToPortal();
+#else
+        Debug.Log("[PoiErr] back to portal");
+#endif
     }
 
     static bool IsCommittedState(string state)
