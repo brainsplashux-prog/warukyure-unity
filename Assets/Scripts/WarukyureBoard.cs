@@ -371,10 +371,13 @@ public class WarukyureBoard : MonoBehaviour
 
     void CreateBoardImage()
     {
-        Texture2D tex = Resources.Load<Texture2D>("art_final_v4");
+        // 2026-09-15 社長指摘(スクショ): 枠外の余白が肌色/薄黄/白で混在して見える件の是正。
+        // art_final_v4.png 自体は無変更(削除禁止)のまま、枠外の余白だけを#F3E1C9へ
+        // 単色化したコピー art_final_v4_flatbg.png をロード対象に切替える(見た目以外は無変更)。
+        Texture2D tex = Resources.Load<Texture2D>("art_final_v4_flatbg");
         if (tex == null)
         {
-            Debug.LogError("[Warukyure] art_final_v4 texture not found.");
+            Debug.LogError("[Warukyure] art_final_v4_flatbg texture not found.");
             return;
         }
 
