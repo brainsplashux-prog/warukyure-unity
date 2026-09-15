@@ -35,23 +35,65 @@ BUILD_DIR="$(cd "$(dirname "$0")" && pwd)/Builds/WebGL"
 CC_HTML="no-cache, no-store, must-revalidate"
 CC_ASSET="public, max-age=31536000, immutable"
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-VERSION="${1:-}"
+S3_ROOT="s3://${BUCKET}/${S3_PREFIX}"
+DIST_URL="https://lp.poicasi.co.jp/${S3_PREFIX}/"
+
+# --html-only: index.html だけを配信する（Build/*.data・wasm・framework.js・loader.js、
+#   TemplateData/、StreamingAssets/、_archive/ へは一切書き込まない）。
+#   バージョンは本番配信中の index.html から ?v= を抽出して使う（第1引数で明示指定も可）。
+#   生成した index.html のアセット参照URL（?v=含む）が本番配信中のものと完全一致しなければ
+#   exit 1 で中止する。CloudFront invalidation は /<prefix>/ と /<prefix>/index.html のみ。
+# --dry-run: aws コマンドを一切実行せず、実行予定の内容を [dry-run] 付きで表示するだけ。
+#   本番検証用（社長への実行報告に使う）。
+HTML_ONLY=0
+DRY_RUN=0
+VERSION=""
+for arg in "$@"; do
+  case "$arg" in
+    --html-only) HTML_ONLY=1 ;;
+    --dry-run) DRY_RUN=1 ;;
+    *) [[ -z "$VERSION" ]] && VERSION="$arg" ;;
+  esac
+done
+
+LIVE_HTML=""
+if [[ "${HTML_ONLY}" -eq 1 ]]; then
+  for i in 1 2 3; do
+    LIVE_HTML="$(curl -sfL --max-time 15 "${DIST_URL}index.html" 2>/dev/null || true)"
+    [[ -n "${LIVE_HTML}" ]] && break
+    sleep 2
+  done
+  if [[ -z "${LIVE_HTML}" ]]; then
+    echo "Error: --html-only は本番配信中の index.html が取得できないと実行できない（バージョン照合用）" >&2
+    exit 1
+  fi
+fi
+
 if [[ -z "$VERSION" ]]; then
-  SHORT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null)" || { echo "Error: git short hash を取得できない。" >&2; exit 1; }
-  VERSION="${SHORT}-$(date -u +%Y%m%dT%H%MZ)"
+  if [[ "${HTML_ONLY}" -eq 1 ]]; then
+    VERSION="$(printf '%s' "${LIVE_HTML}" | grep -oE '\?v=[A-Za-z0-9_.~:-]+' | head -1 | sed 's/^?v=//')"
+    if [[ -z "${VERSION}" ]]; then
+      echo "Error: 本番 index.html から ?v= バージョンを抽出できなかった" >&2
+      exit 1
+    fi
+    echo "== --html-only: 本番配信中バージョンに合わせる version=${VERSION}"
+  else
+    SHORT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null)" || { echo "Error: git short hash を取得できない。" >&2; exit 1; }
+    VERSION="${SHORT}-$(date -u +%Y%m%dT%H%MZ)"
+  fi
 fi
 [[ "$VERSION" =~ ^[A-Za-z0-9_.~:-]+$ ]] || { echo "Error: unsafe version: $VERSION" >&2; exit 1; }
 
 # Build ステージング: Builder の出力先 (~/Desktop/warukyure/client) から Builds/WebGL へコピー。
-# 削除操作は一切行わない。
-CLIENT_DIR="$HOME/Desktop/warukyure/client"
-[ -d "$CLIENT_DIR" ] || { echo "Error: $CLIENT_DIR が無い。先に Unity WebGL ビルドを行うこと。" >&2; exit 1; }
-echo "== copy client build from $CLIENT_DIR to $BUILD_DIR =="
-mkdir -p "$BUILD_DIR"
-cp -R "$CLIENT_DIR/." "$BUILD_DIR/"
-
-S3_ROOT="s3://${BUCKET}/${S3_PREFIX}"
-DIST_URL="https://lp.poicasi.co.jp/${S3_PREFIX}/"
+# 削除操作は一切行わない。--html-only 時はコピーしない（既存の Builds/WebGL/index.html をそのまま使う。
+# コピーすると Unity 生の出力で上書きされ、HTML だけの変更が消えてしまうため）。
+if [[ "${HTML_ONLY}" -eq 0 ]]; then
+  CLIENT_DIR="$HOME/Desktop/warukyure/client"
+  [ -d "$CLIENT_DIR" ] || { echo "Error: $CLIENT_DIR が無い。先に Unity WebGL ビルドを行うこと。" >&2; exit 1; }
+  echo "== copy client build from $CLIENT_DIR to $BUILD_DIR =="
+  mkdir -p "$BUILD_DIR"
+  cp -R "$CLIENT_DIR/." "$BUILD_DIR/"
+fi
 
 [ -d "$BUILD_DIR/Build" ] || { echo "Error: $BUILD_DIR/Build が無い。先に Unity WebGL ビルドを行うこと。" >&2; exit 1; }
 [ -f "$BUILD_DIR/index.html" ] || { echo "Error: $BUILD_DIR/index.html が無い。" >&2; exit 1; }
@@ -108,37 +150,107 @@ open(dst, "w", encoding="utf-8").write(text)
 print(f"LOCAL_VERIFY=PASS local_assets={count} build_assets=4 version={ver}")
 PY
 
+if [[ "${HTML_ONLY}" -eq 1 ]]; then
+  echo "== --html-only: 本番配信中の index.html とアセット参照URLの完全一致を検証 =="
+  MISMATCH=0
+  for f in "Build/$NAME.loader.js" "Build/$NAME.data$EXT" "Build/$NAME.framework.js$EXT" "Build/$NAME.wasm$EXT" \
+           "TemplateData/favicon.ico" "TemplateData/style.css"; do
+    NEEDLE="${f}?v=${VERSION}"
+    if ! grep -qF "$NEEDLE" "$TMP_HTML"; then
+      echo "!! 生成した index.html に $NEEDLE が無い" >&2
+      MISMATCH=$((MISMATCH + 1))
+    fi
+    if ! grep -qF "$NEEDLE" <<< "$LIVE_HTML"; then
+      echo "!! 本番配信中の index.html に $NEEDLE が無い（想定versionと本番が食い違う）" >&2
+      MISMATCH=$((MISMATCH + 1))
+    fi
+  done
+  if [[ "$MISMATCH" -gt 0 ]]; then
+    echo "!! --html-only: アセット参照URLが本番と一致しない。中止する。" >&2
+    exit 1
+  fi
+  echo "   OK: 全アセット参照URLが本番配信中の index.html と一致（version=${VERSION}）"
+fi
+
 put() { # put <localfile> <s3key> <content-type>
   local extra=()
   [ -n "$ENCODING" ] && extra+=(--content-encoding "$ENCODING")
-  aws s3 cp "$1" "$S3_ROOT/$2" --region "$REGION" \
-    --content-type "$3" --cache-control "$CC_ASSET" ${extra[@]+"${extra[@]}"}
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    echo "[dry-run] aws s3 cp \"$1\" \"$S3_ROOT/$2\" --region ${REGION} --content-type \"$3\" --cache-control \"${CC_ASSET}\" ${extra[@]+"${extra[@]}"}"
+  else
+    aws s3 cp "$1" "$S3_ROOT/$2" --region "$REGION" \
+      --content-type "$3" --cache-control "$CC_ASSET" ${extra[@]+"${extra[@]}"}
+  fi
 }
 
-echo "== Build/ =="
-put "$BUILD_DIR/Build/$NAME.data$EXT"         "Build/$NAME.data$EXT"         application/octet-stream
-put "$BUILD_DIR/Build/$NAME.wasm$EXT"         "Build/$NAME.wasm$EXT"         application/wasm
-put "$BUILD_DIR/Build/$NAME.framework.js$EXT" "Build/$NAME.framework.js$EXT" application/javascript
-aws s3 cp "$BUILD_DIR/Build/$NAME.loader.js" "$S3_ROOT/Build/$NAME.loader.js" --region "$REGION" \
-  --content-type application/javascript --cache-control "$CC_ASSET"
-if [ -d "$BUILD_DIR/TemplateData" ]; then
-  aws s3 sync "$BUILD_DIR/TemplateData/" "$S3_ROOT/TemplateData/" --region "$REGION" --no-progress --cache-control "$CC_ASSET"
+if [[ "${HTML_ONLY}" -eq 0 ]]; then
+  echo "== Build/ =="
+  put "$BUILD_DIR/Build/$NAME.data$EXT"         "Build/$NAME.data$EXT"         application/octet-stream
+  put "$BUILD_DIR/Build/$NAME.wasm$EXT"         "Build/$NAME.wasm$EXT"         application/wasm
+  put "$BUILD_DIR/Build/$NAME.framework.js$EXT" "Build/$NAME.framework.js$EXT" application/javascript
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    echo "[dry-run] aws s3 cp \"$BUILD_DIR/Build/$NAME.loader.js\" \"$S3_ROOT/Build/$NAME.loader.js\" --region ${REGION} --content-type application/javascript --cache-control \"${CC_ASSET}\""
+  else
+    aws s3 cp "$BUILD_DIR/Build/$NAME.loader.js" "$S3_ROOT/Build/$NAME.loader.js" --region "$REGION" \
+      --content-type application/javascript --cache-control "$CC_ASSET"
+  fi
+  if [ -d "$BUILD_DIR/TemplateData" ]; then
+    if [[ "${DRY_RUN}" -eq 1 ]]; then
+      echo "[dry-run] aws s3 sync \"$BUILD_DIR/TemplateData/\" \"$S3_ROOT/TemplateData/\" --region ${REGION} --no-progress --cache-control \"${CC_ASSET}\""
+    else
+      aws s3 sync "$BUILD_DIR/TemplateData/" "$S3_ROOT/TemplateData/" --region "$REGION" --no-progress --cache-control "$CC_ASSET"
+    fi
+  fi
+  if [ -d "$BUILD_DIR/StreamingAssets" ]; then
+    if [[ "${DRY_RUN}" -eq 1 ]]; then
+      echo "[dry-run] aws s3 sync \"$BUILD_DIR/StreamingAssets/\" \"$S3_ROOT/StreamingAssets/\" --region ${REGION} --no-progress --cache-control \"${CC_ASSET}\""
+    else
+      aws s3 sync "$BUILD_DIR/StreamingAssets/" "$S3_ROOT/StreamingAssets/" --region "$REGION" --no-progress --cache-control "$CC_ASSET"
+    fi
+  fi
+else
+  echo "== --html-only: Build/・TemplateData/・StreamingAssets/ のアップロードをスキップ =="
 fi
-if [ -d "$BUILD_DIR/StreamingAssets" ]; then
-  aws s3 sync "$BUILD_DIR/StreamingAssets/" "$S3_ROOT/StreamingAssets/" --region "$REGION" --no-progress --cache-control "$CC_ASSET"
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "[dry-run] aws s3 cp \"$TMP_HTML\" \"$S3_ROOT/index.html\" --region ${REGION} --content-type \"text/html; charset=utf-8\" --cache-control \"${CC_HTML}\""
+else
+  aws s3 cp "$TMP_HTML" "$S3_ROOT/index.html" --region "$REGION" \
+    --content-type "text/html; charset=utf-8" --cache-control "$CC_HTML"
 fi
-aws s3 cp "$TMP_HTML" "$S3_ROOT/index.html" --region "$REGION" \
-  --content-type "text/html; charset=utf-8" --cache-control "$CC_HTML"
 
 # 版アーカイブ: 事故時に poi-rollback で戻せるようにする。
 # 正本: ~/.claude/manuals/incident-recovery-and-maintenance.md / 参照: poi-rollback warukyure --list
-echo "== 版アーカイブ (_archive/$VERSION) =="
-aws s3 sync "$S3_ROOT/" "$S3_ROOT/_archive/$VERSION/" --region "$REGION" --no-progress \
-  --exclude "_archive/*"
+if [[ "${HTML_ONLY}" -eq 0 ]]; then
+  echo "== 版アーカイブ (_archive/$VERSION) =="
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    echo "[dry-run] aws s3 sync \"$S3_ROOT/\" \"$S3_ROOT/_archive/$VERSION/\" --region ${REGION} --no-progress --exclude \"_archive/*\""
+  else
+    aws s3 sync "$S3_ROOT/" "$S3_ROOT/_archive/$VERSION/" --region "$REGION" --no-progress \
+      --exclude "_archive/*"
+  fi
+else
+  echo "== --html-only: archive をスキップ =="
+fi
 
 echo "== CloudFront invalidation =="
-INVALIDATION_ID="$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" \
-  --paths "/${S3_PREFIX}/*" --region "$REGION" --query 'Invalidation.Id' --output text)"
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  if [[ "${HTML_ONLY}" -eq 1 ]]; then
+    echo "[dry-run] aws cloudfront create-invalidation --distribution-id ${DISTRIBUTION_ID} --paths \"/${S3_PREFIX}/\" \"/${S3_PREFIX}/index.html\" --region ${REGION}"
+  else
+    echo "[dry-run] aws cloudfront create-invalidation --distribution-id ${DISTRIBUTION_ID} --paths \"/${S3_PREFIX}/*\" --region ${REGION}"
+  fi
+  echo "[dry-run] skip invalidation wait"
+  echo "[dry-run] skip remote verification"
+  echo "DONE(dry-run): ${DIST_URL}  (v${VERSION})"
+  exit 0
+fi
+if [[ "${HTML_ONLY}" -eq 1 ]]; then
+  INVALIDATION_ID="$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" \
+    --paths "/${S3_PREFIX}/" "/${S3_PREFIX}/index.html" --region "$REGION" --query 'Invalidation.Id' --output text)"
+else
+  INVALIDATION_ID="$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" \
+    --paths "/${S3_PREFIX}/*" --region "$REGION" --query 'Invalidation.Id' --output text)"
+fi
 [[ -n "$INVALIDATION_ID" && "$INVALIDATION_ID" != "None" ]] || { echo "Error: invalidation ID が無い。" >&2; exit 1; }
 aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION_ID" --id "$INVALIDATION_ID" --region "$REGION"
 
