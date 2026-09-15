@@ -49,6 +49,12 @@ public class WarukyureBoard : MonoBehaviour
 
     // ----------------- UI references -----------------
     private Canvas canvas;
+    // 2026-09-15 社長指示（全幅化）: 盤面(y=405..1224相当)一式をキャンバス下端に
+    // 常時吸着させるための下端アンカー基準点。SetupCanvas直後に生成し、
+    // 盤面画像・セル消灯・ランプ・ヘルプ/BET/SPIN・結果パネル・JPパネルを
+    // ここへ吸着させる（吸着すれば実測高さがどうであれ下端が一致し続ける）。
+    // 詳細: harness/reports/20260915-warukyure-noreload-fullwidth.md
+    private RectTransform boardRoot;
     private RectTransform lampRect;
     private GameObject resultPanel;
     private RectTransform resultPanelRect;
@@ -237,6 +243,7 @@ public class WarukyureBoard : MonoBehaviour
     {
         gameObject.name = "WarukyureBoard";
         SetupCanvas();
+        CreateBoardRoot();
         CreateBoardImage();
         CreateCellDimmers();
         CreateLamp();
@@ -285,6 +292,24 @@ public class WarukyureBoard : MonoBehaviour
         eventGO.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
     }
 
+    // 2026-09-15 社長指示（全幅化・ボタン100%可視）: 盤面一式(旧: canvas絶対y=405..1224)を
+    // 下端アンカーの箱に入れ、キャンバスの実測高さがCanvasScaler基準の1224に届かない機種でも
+    // 盤面の下端＝ヘルプ/BET/SPINが常にキャンバス実可視領域の下端に一致し続けるようにする
+    // （旧: 上端からの絶対offsetのため、実測高さ<1224の機種では下端側が可視範囲外に落ちていた）。
+    // 中身は従来どおり y=405 を原点とする相対配置のまま（"405 +"のオフセットをこの箱の
+    // anchorMin/Max/pivot=(0,0)自体に肩代わりさせるだけで、板絵・当たり判定の相対位置は無変更）。
+    void CreateBoardRoot()
+    {
+        GameObject go = new GameObject("BoardRoot");
+        go.transform.SetParent(canvas.transform, false);
+        boardRoot = go.AddComponent<RectTransform>();
+        boardRoot.anchorMin = new Vector2(0, 0);
+        boardRoot.anchorMax = new Vector2(0, 0);
+        boardRoot.pivot = new Vector2(0, 0);
+        boardRoot.anchoredPosition = Vector2.zero;
+        boardRoot.sizeDelta = new Vector2(720, 819);
+    }
+
     void CreateBoardImage()
     {
         Texture2D tex = Resources.Load<Texture2D>("art_final_v4");
@@ -295,12 +320,12 @@ public class WarukyureBoard : MonoBehaviour
         }
 
         GameObject go = new GameObject("Board");
-        go.transform.SetParent(canvas.transform, false);
+        go.transform.SetParent(boardRoot, false);
         RectTransform rt = go.AddComponent<RectTransform>();
         rt.anchorMin = new Vector2(0, 1);
         rt.anchorMax = new Vector2(0, 1);
         rt.pivot = new Vector2(0, 1);
-        rt.anchoredPosition = new Vector2(0, -405);
+        rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = new Vector2(720, 819);
 
         go.AddComponent<CanvasRenderer>();
@@ -438,12 +463,14 @@ public class WarukyureBoard : MonoBehaviour
             if (!dimTex.ContainsKey(track))
                 dimTex[track] = CreateRoundedRectTexture((int)s.x, (int)s.y, 5f, Color.white);
             GameObject go = new GameObject("dim_" + kv.Key);
-            go.transform.SetParent(canvas.transform, false);
+            go.transform.SetParent(boardRoot, false);
             RectTransform rt = go.AddComponent<RectTransform>();
             rt.anchorMin = new Vector2(0, 1);
             rt.anchorMax = new Vector2(0, 1);
             rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = new Vector2(kv.Value.x, -kv.Value.y);
+            // BoardData.CellCenters は「canvas絶対y(=405+盤面内y)」で格納されているため、
+            // BoardRoot(=盤面基準の箱)へ移した分だけ405を差し戻す。
+            rt.anchoredPosition = new Vector2(kv.Value.x, -(kv.Value.y - 405f));
             rt.sizeDelta = s;
             go.AddComponent<CanvasRenderer>();
             RawImage im = go.AddComponent<RawImage>();
@@ -457,7 +484,7 @@ public class WarukyureBoard : MonoBehaviour
     void CreateLamp()
     {
         GameObject go = new GameObject("Lamp");
-        go.transform.SetParent(canvas.transform, false);
+        go.transform.SetParent(boardRoot, false);
         lampRect = go.AddComponent<RectTransform>();
         lampRect.anchorMin = new Vector2(0, 1);
         lampRect.anchorMax = new Vector2(0, 1);
@@ -465,7 +492,8 @@ public class WarukyureBoard : MonoBehaviour
 
         Vector2 start;
         BoardData.TryGetCenter("o_01", out start);
-        lampRect.anchoredPosition = new Vector2(start.x, -start.y);
+        // BoardData値はcanvas絶対y。BoardRoot基準に合わせて405を差し戻す（dim_*と同じ理由）。
+        lampRect.anchoredPosition = new Vector2(start.x, -(start.y - 405f));
         lampRect.sizeDelta = new Vector2(34, 34);
 
         go.AddComponent<CanvasRenderer>();
@@ -544,14 +572,15 @@ public class WarukyureBoard : MonoBehaviour
     void CreateResultOverlay()
     {
         GameObject go = new GameObject("ResultPanel");
-        go.transform.SetParent(canvas.transform, false);
+        go.transform.SetParent(boardRoot, false);
         resultPanel = go;
 
         resultPanelRect = go.AddComponent<RectTransform>();
         resultPanelRect.anchorMin = new Vector2(0, 1);
         resultPanelRect.anchorMax = new Vector2(0, 1);
         resultPanelRect.pivot = new Vector2(0.5f, 0.5f);
-        resultPanelRect.anchoredPosition = new Vector2(360, -755.5f);
+        // 旧: canvas絶対y=755.5 → BoardRoot基準(405差し戻し)で350.5
+        resultPanelRect.anchoredPosition = new Vector2(360, -350.5f);
         resultPanelRect.sizeDelta = new Vector2(500, 160);
 
         go.AddComponent<CanvasRenderer>();
@@ -595,14 +624,15 @@ public class WarukyureBoard : MonoBehaviour
     {
         // 画面B：通常Header A + AdVirtua最前面。JPチャレンジは盤面を覆うオーバーレイ。
         GameObject go = new GameObject("JackpotPanel");
-        go.transform.SetParent(canvas.transform, false);
+        go.transform.SetParent(boardRoot, false);
         jackpotPanel = go;
 
         RectTransform rt = go.AddComponent<RectTransform>();
         rt.anchorMin = new Vector2(0, 1);
         rt.anchorMax = new Vector2(0, 1);
         rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = new Vector2(360, -814.5f);
+        // 旧: canvas絶対y=814.5 → BoardRoot基準(405差し戻し)で409.5（盤面と同じ720x819を覆う）
+        rt.anchoredPosition = new Vector2(360, -409.5f);
         rt.sizeDelta = new Vector2(720, 819);
 
         go.AddComponent<CanvasRenderer>();
@@ -702,7 +732,7 @@ public class WarukyureBoard : MonoBehaviour
     void CreateHelpButton()
     {
         Image img;
-        AddButton("Help", new Vector2(660, 405 + 655), new Vector2(32, 32), () => ToggleHelp(), out img);
+        AddButton("Help", new Vector2(660, 655), new Vector2(32, 32), () => ToggleHelp(), out img);
     }
 
     void CreateBetButtons()
@@ -713,7 +743,7 @@ public class WarukyureBoard : MonoBehaviour
         {
             int bet = int.Parse(betLabels[i]);
             Image img;
-            Button btn = AddButton("Bet" + betLabels[i], new Vector2(xs[i], 405 + 705), new Vector2(95, 96), () => ToggleBet(bet), out img);
+            Button btn = AddButton("Bet" + betLabels[i], new Vector2(xs[i], 705), new Vector2(95, 96), () => ToggleBet(bet), out img);
             betButtons[i] = btn;
             // 光りは板絵のピル枠に合わせた角丸で出す（矩形ベタ塗りだと枠からはみ出て見える）
             betButtonImages[i] = AddGlowOverlay(btn.transform, new Vector2(76, 78), 12);
@@ -724,7 +754,7 @@ public class WarukyureBoard : MonoBehaviour
     {
         Image img;
         // SPINは板絵側で1.25倍に貼り直したため、外形は texture x=528..697 / y=719..786
-        spinButton = AddButton("Spin", new Vector2(528, 405 + 719), new Vector2(170, 68), () => OnSpin(), out img);
+        spinButton = AddButton("Spin", new Vector2(528, 719), new Vector2(170, 68), () => OnSpin(), out img);
         spinButtonImage = img;
 
         GameObject txtGO = new GameObject("SpinText");
@@ -818,7 +848,9 @@ public class WarukyureBoard : MonoBehaviour
     Button AddButton(string name, Vector2 pos, Vector2 size, Action onClick, out Image image)
     {
         GameObject go = new GameObject(name);
-        go.transform.SetParent(canvas.transform, false);
+        // 2026-09-15 社長指示（全幅化）: 盤面のボタン(Help/BET/SPIN)はBoardRoot(下端吸着)の
+        // 子として配置する。posはBoardRoot内の相対y(=旧"405+"を除いた値)を渡すこと。
+        go.transform.SetParent(boardRoot, false);
         RectTransform rt = go.AddComponent<RectTransform>();
         rt.anchorMin = new Vector2(0, 1);
         rt.anchorMax = new Vector2(0, 1);
@@ -1639,7 +1671,8 @@ public class WarukyureBoard : MonoBehaviour
             Vector2 c;
             if (BoardData.TryGetCenter(cells[i], out c))
             {
-                path.Add(new Vector2(c.x, -c.y));
+                // BoardData値はcanvas絶対y。lampRectはBoardRoot基準になったため405を差し戻す。
+                path.Add(new Vector2(c.x, -(c.y - 405f)));
                 lampSizes.Add(CellSizeForTrack(BoardData.GetTrack(cells[i])));
                 lampTracks.Add(BoardData.GetTrack(cells[i]));
                 lampCells.Add(cells[i]);
@@ -1816,26 +1849,31 @@ public class WarukyureBoard : MonoBehaviour
 #endif
         // 結果が出きってからコレクションへ反映する。
         ApplyPendingBallMask();
-        // 2026-09-13 社長指示→メイン指摘で是正: リザルト→タイトル復帰の固着対策。共通ヘッダー
-        // 残高更新の後、通常/JACKPOT/FX/中断リカバリの全結果表示がここへ収束するタイミングで
-        // 1回だけリロードする。起動直後やタイトル表示のたびには呼ばれない(RunPoiResultは結果
-        // 表示時のみ実行される)。ただし allowReload は呼び出し元が「このrunの精算(S2sCommit/
-        // Resolve)が確定した、またはそもそもplatform runでなかった」ことを確認できた時だけ
-        // true。精算未確定(S2sCommit/Resolve失敗→TryAbortAndShowPopup経由の復旧表示等)では
-        // false のままリロードしない(未解決runのままリロードして精算の手がかりを失うのを防ぐ)。
-        // 2026-09-13 是正(第3回codex指摘P1): このコルーチンは呼び出しからここに到達するまで
-        // 最大7秒複数フレームyieldしており、その間にpendingUnsettledPlatformRunIdsの中身が
-        // (別経路の未精算run発生等で)変化しうる。allowReloadは呼び出し時点のスナップショット
-        // でしかないため、実際にreloadを実行する直前でも集合が空であることを再確認する。
-        // 2026-09-13 是正(第4回codex指摘P1 その2): 同じyield中に別のSPINが開始され
-        // TryPreparePlatform()の通信が進行中(まだAdd前)の場合も未解決run扱いにする。
-        // 2026-09-13 是正(第5回codex指摘P1): 成立有無が不明なrunがあれば禁止する。
-        if (allowReload && pendingUnsettledPlatformRunIds.Count == 0 && platformPrepareInFlight == 0 &&
-            !platformPrepareOutcomeUnknown)
+        // 2026-09-15 社長指摘是正「毎回リロードされるのがストレス」: 通常/JACKPOT/FX/
+        // 中断リカバリの結果表示後は、もうリロードしない(旧: 2026-09-13追加の
+        // allowReload成立時にPoiReloadPage()を1回呼ぶ実装を撤去。allowReload自体の
+        // 計算(呼び出し元のrun確定判定)は他のcodex是正箇所に影響するため残置しているが、
+        // ここでのreload呼び出しは削除した)。
+        // 2026-09-13導入コミット(0f96564)のメッセージ自身が「WarukyureBoardはisRunning
+        // フラグがOnSpin/ResetSpinState/EndRound/ShowPoiErrorの全経路で確実にクリアされる
+        // plain Buttonベースの作りのため、恒久固着の経路は無い(A: 変更なし・確認のみ)」と
+        // 結論している。つまりreloadはYabuzame側の別バグ対策を逐語移植した予防措置に
+        // 過ぎず、WarukyureBoard固有の固着が実証されたことは無い。
+        // 唯一実在するリスクは、共通リザルトDOM(poiresult/v2、外部kit)側のonCloseが
+        // 何らかの理由で発火せず、下のOnPoiResultDoneが呼ばれないまま上のwatchdog(7秒)に
+        // 達するケース: この場合 titleScreen.Reopen() が一度も呼ばれず、タイトルが
+        // 再表示されないまま操作不能に見える(reloadが隠していた固着の実体はここ)。
+        // PoiResultClose()はpoiresult.jslib:23で定義済みだったが、これまでどこからも
+        // 呼ばれておらず未使用のセーフティ手段だった。ここで初めて安全網として使い、
+        // DOMを強制的に閉じたうえでOnPoiResultDoneと同じ復帰処理を直接実行することで、
+        // リロード無しでも必ずタイトルへ戻す(既にコールバックが正常に来ていた場合は
+        // IsShowingが既にtrueなのでこのブロックは実行されない=二重呼び出しなし)。
+        if (!TitleScreen.IsShowing)
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
-            PoiReloadPage();
+            PoiResultClose();
 #endif
+            OnPoiResultDone("");
         }
     }
 

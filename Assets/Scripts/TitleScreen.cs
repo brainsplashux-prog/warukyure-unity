@@ -55,9 +55,16 @@ public class TitleScreen : MonoBehaviour
         GameObject rootGO = new GameObject("TitleRoot", typeof(RectTransform));
         rootGO.transform.SetParent(canvas.transform, false);
         root = rootGO.GetComponent<RectTransform>();
-        root.anchorMin = new Vector2(0f, 1f);
-        root.anchorMax = new Vector2(0f, 1f);
-        root.pivot = new Vector2(0f, 1f);
+        // 2026-09-15 社長指示（全幅化・START 100%可視）: 下端アンカーにする。
+        // CanvasScalerはmatchWidthOrHeight=0(幅基準)固定のため、実測の可視デザイン高さは
+        // 端末のアスペクト比次第で1224未満になる（WarukyureBoard.CreateBoardRoot()と同じ理由）。
+        // 上端アンカーのままだと下端にあるSTARTボタン当たり判定が可視範囲外に落ちるため、
+        // 背景画像・当たり判定を一体のまま下端へ吸着させ、はみ出しはSTARTより離れた上端側
+        // (キャラ絵の上部等)で吸収する。中身(bg/StartHit/エラー文)の相対配置は無変更。
+        // 詳細: harness/reports/20260915-warukyure-noreload-fullwidth.md
+        root.anchorMin = new Vector2(0f, 0f);
+        root.anchorMax = new Vector2(0f, 0f);
+        root.pivot = new Vector2(0f, 0f);
         root.anchoredPosition = Vector2.zero;
         root.sizeDelta = new Vector2(DesignW, DesignH);
         root.SetAsLastSibling(); // 常に最前面

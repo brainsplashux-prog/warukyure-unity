@@ -1476,36 +1476,31 @@
          見えている small viewport の下端がツールバー裏に入り、スクロール不能になる。
          100svh + aspect-ratio 720/1224 で常に全体が収まるようにする。
          ★テンプレートに焼き込み済み(2026-08-19)。以前は配信後のindex.htmlを手で直していたため
-           再ビルドのたびに消えていた(v0.0.12で実際に退行)。ここから消すな。 -->
-    <!-- 2026-09-15 検討記録: 「幅いっぱいに（100vw）」の単純適用は見送った。
-         CanvasScaler は matchWidthOrHeight=0(幅基準)・referenceResolution=720x1224固定。
-         幅を100vwへ、高さを現状の calc(100svh-top-bottom) のまま残すと、可視デザイン高さ=
-         720*(availH/availW) となり、availH/availW<1.7 の端末では下端がキャンバス矩形の
-         外へ出て「押せない」領域になる（マスクではなくRectTransform自体が短くなる）。
-         依頼が検証用に示した想定値 390x520(非game面)/390x640(game面) で実測（720x1224換算）:
-           - game面: 可視高=1181.7/1224 → SPINボタン(y719..787→ y1124..1192)が約15%欠け、
-             BETピル(y1110..1206)が約25%欠け。
-           - 非game面: 可視高=960/1224 → タイトルSTART当たり判定(y924..1074)が約76%欠け。
-         ボタン位置は承認済み板絵(design-approved/title/approved.png・board帯画像)に焼き込み
-         済みの実測値のため、ここだけ動かすのは「承認済みデザインは変更しない」に反する。
-         CanvasScalerをmatchWidthOrHeight=1(高さ基準)に倒す代替も検討したが、その場合は逆に
-         h/w比が1.7を超える端末（iPhone14以降の主流機種など）でSPIN/BET/盤面の右側が欠ける
-         （実測: iPhone14級 390x788(game面)でh/w=2.02→可視幅605.9/720＝右側114ユニット相当が
-         欠ける）ため、より広い機種層に新規regressionを生む。
-         → 幅は現状の aspect-ratio 派生値のまま変更せず、社長確定[社長確定]の別項目である
-         .game-description の最初画面外への退避（直下）だけを本日分として実施。
-         幅いっぱい化は「ボタン欠け」と衝突するため実装せず報告に回す（DECISIONS.md参照）。 -->
+           再ビルドのたびに消えていた(v0.0.12で実際に退行)。ここから消すな。
+         ※2026-09-15追記: aspect-ratio指定は下の全幅化ブロックで撤去済み（100svh基準のtop/
+           heightの考え方自体は継承）。iOS large/small viewport対策の要点(100svh)は継続有効。 -->
+    <!-- 2026-09-15 全幅化 実装記録（前回2026-09-15検討記録の後続。上の見送り判断を上書き）:
+         社長確定[社長確定]「まず一回横幅に合わせたバージョン見せてくれ。ボタンがそれで押せなく
+         なるならそれをどうにかする。誤魔化す対応を推奨する意味がわからない」を受け、
+         「幅=100vw かつ ボタン100%可視」を両立させる形で実装しなおした。
+         旧来の懸念（aspect-ratio固定のまま幅を100vwにすると高さがオーバーフローする／
+         矛盾するため見送り＝exp/fullwidth-20260915の問題）は、aspect-ratio自体を外して
+         height を利用可能領域(calc)そのものに固定することで解消（オーバーフローしない）。
+         残る「可視デザイン高さ(720*availH/availW)が1224未満になり得る」問題は、Unity側
+         (WarukyureBoard.CreateBoardRoot / TitleScreen.cs)で盤面・STARTボタンをキャンバス
+         下端に常時吸着させる実装に変更して対処（はみ出しは押せないボタンではなく、
+         押せないボタンからは離れたキャラ絵上部などの背景側で吸収する）。
+         依頼必須3viewport（390x664/390x750/430x740）で再計算し、SPIN/BET/START全て100%可視
+         を確認済み（harness/reports/20260915-warukyure-noreload-fullwidth.md 参照）。
+         exp/fullwidth-20260915 の内容（width:100vw化）はこのブロックに取り込んでmainへ統合。 -->
     <style>
       body { background-color: #F3E1C9; }
       body #unity-container.unity-mobile {
         position: fixed;
-        left: 50%;
+        left: 0;
         top: var(--poi-stage-top, var(--common-header-height));
-        transform: translateX(-50%);
-        width: auto;
+        width: 100vw;
         height: calc(100svh - var(--poi-stage-top, var(--common-header-height)) - var(--poi-stage-bottom, 0px));
-        aspect-ratio: 720 / 1224;
-        max-width: 100vw;
       }
       body #unity-container.unity-mobile #unity-canvas {
         width: 100%;
