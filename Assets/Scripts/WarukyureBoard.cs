@@ -55,6 +55,31 @@ public class WarukyureBoard : MonoBehaviour
     // ここへ吸着させる（吸着すれば実測高さがどうであれ下端が一致し続ける）。
     // 詳細: harness/reports/20260915-warukyure-noreload-fullwidth.md
     private RectTransform boardRoot;
+    // 2026-09-15 社長指摘「ゲーム画面はマスが半分見えなくなっている」対応（部分緩和）。
+    // BoardRoot内の最深ボタン=BETピル下端(local y=705+96=801)からBoardRoot自身の下端(819)
+    // までの18pxは空白。実可視デザイン高さHが1194(=BoardRootの高さ819+セル上の焼き込み
+    // バッファ30の残り真の空白ではなく1224相当)未満の機種では、その18pxの範囲内だけ
+    // BoardRootを上へ動かさず「持ち上げ量を減らす」方向、すなわちボタン側の下端が
+    // 可視範囲の下端を割らない上限までBoardRootをキャンバス下端から上に18px以内で
+    // 動かす（＝anchoredPosition.yを0～+18の範囲でなく、下端吸着のまま変えない）。
+    // 【重要】実際にはBoardRootは下端アンカー(0,0)のため、"下げる"ことはできない
+    // （下げるとボタンが可視範囲外に出て100%可視の要件に違反する）。よってこの18pxの
+    // 空白は「盤面上端のクリップ量を18px分だけ減らす」方向にしか使えず、抜本解決には
+    // ならない（残る主要因＝Ad-Virtuaゾーン405designUnit固定 or 盤面アートの縦圧縮、
+    // いずれも本タスクの権限外＝提案のみ。数値根拠: harness/reports/20260915-warukyure-stage-top.md）。
+    const float BoardRootHeight = 819f;
+    const float BoardBottomCriticalY = 801f; // BETピル下端(BoardRoot内local y)
+    const float BoardBottomSlack = BoardRootHeight - BoardBottomCriticalY; // 18
+    const float BoardScalerRefH = 1224f;
+    float boardLiftScreenW, boardLiftScreenH;
+
+    static float ComputeBoardLift()
+    {
+        if (Screen.width <= 0) return 0f;
+        float visibleDesignH = Screen.height * 720f / Screen.width;
+        float overflow = Mathf.Max(0f, BoardScalerRefH - visibleDesignH);
+        return Mathf.Min(BoardBottomSlack, overflow);
+    }
     private RectTransform lampRect;
     private GameObject resultPanel;
     private RectTransform resultPanelRect;
@@ -237,6 +262,16 @@ public class WarukyureBoard : MonoBehaviour
         // 累積プレイ時間の加算。本ゲームはタイトル/選択画面を持たず盤面がそのままプレイ画面なので、
         // クロスプロモのポップアップが開いている間だけ非加算とする（タブ非アクティブは PoiPlayTime 側で除外）。
         PoiPlayTime.Tick(!CrossPromoPopupUI.IsOpen);
+
+        // 2026-09-15: リサイズ/回転/iOSツールバー表示切替でHが変わってもBoardRootの
+        // 部分緩和(上記CreateBoardRoot参照)がズレたままにならないよう追従させる。
+        if (boardRoot != null &&
+            (!Mathf.Approximately(Screen.width, boardLiftScreenW) || !Mathf.Approximately(Screen.height, boardLiftScreenH)))
+        {
+            boardLiftScreenW = Screen.width;
+            boardLiftScreenH = Screen.height;
+            boardRoot.anchoredPosition = new Vector2(0, -ComputeBoardLift());
+        }
     }
 
     void Start()
@@ -306,8 +341,13 @@ public class WarukyureBoard : MonoBehaviour
         boardRoot.anchorMin = new Vector2(0, 0);
         boardRoot.anchorMax = new Vector2(0, 0);
         boardRoot.pivot = new Vector2(0, 0);
-        boardRoot.anchoredPosition = Vector2.zero;
+        // 2026-09-15 部分緩和(上記コメント参照): BETピル下端の18px空白の範囲内でのみ
+        // BoardRootを下げ、Ad-Virtuaゾーンとの重なりを18px分だけ減らす。
+        // ボタン(HELP/BET/SPIN)は常にBoardRootと一体で動くため、可視範囲外に出ることは無い。
+        boardRoot.anchoredPosition = new Vector2(0, -ComputeBoardLift());
         boardRoot.sizeDelta = new Vector2(720, 819);
+        boardLiftScreenW = Screen.width;
+        boardLiftScreenH = Screen.height;
     }
 
     void CreateBoardImage()

@@ -16,6 +16,26 @@ public class TitleScreen : MonoBehaviour
     // design-approved/title/approved.png 実測: x=110, y=924, w=500, h=150
     static readonly Rect StartHit = new Rect(110f, 924f, 500f, 150f);
 
+    // 2026-09-15 社長指摘「タイトルが上に引っ張られてロゴがLv帯に隠れる」対応。
+    // StartHit下端(1074)から画像下端(DesignH=1224)までの150pxは何も描かれていない空白
+    // （edge-detection実測: ロゴ本体の輪郭密度が上昇し始めるのは design-y≈155-165px、
+    //   それ以降キャラ絵まで輪郭密度は高いまま＝空白はStartHit下端より下の150pxだけ）。
+    // 実可視デザイン高さH(=Screen.height*720/Screen.width)が1224未満の機種では、
+    // その空白分だけ画像一式(TitleBg/StartHit/エラー文=root配下すべて一体)を下へずらし、
+    // ロゴ側の可視域を広げる。StartHitは画像と完全に一体で動くため
+    // 「今と全く同じ状態で100%可視・押下可能」は不変（中身の相対配置は無変更）。
+    // 数値の全根拠: harness/reports/20260915-warukyure-stage-top.md
+    static readonly float StartHitBottom = StartHit.y + StartHit.height;      // 1074
+    static readonly float TitleBottomSlack = DesignH - StartHitBottom;        // 150
+
+    static float ComputeTitleLift()
+    {
+        if (Screen.width <= 0) return 0f;
+        float visibleDesignH = Screen.height * DesignW / Screen.width; // CanvasScaler実測換算
+        float overflow = Mathf.Max(0f, DesignH - visibleDesignH);       // 旧方式でロゴ側が隠れる量
+        return Mathf.Min(TitleBottomSlack, overflow);                   // 空白(150)の範囲内でだけ下げる
+    }
+
     public static bool IsShowing { get; private set; }
 
     Canvas canvas;
@@ -24,6 +44,7 @@ public class TitleScreen : MonoBehaviour
     RectTransform startHitRect;
     Text errorText;
     Camera hitCamera;
+    float liftScreenW, liftScreenH;
 
     const float SessionTimeout = 10f;
     float sessionWaitTimer = 0f;
@@ -65,9 +86,14 @@ public class TitleScreen : MonoBehaviour
         root.anchorMin = new Vector2(0f, 0f);
         root.anchorMax = new Vector2(0f, 0f);
         root.pivot = new Vector2(0f, 0f);
-        root.anchoredPosition = Vector2.zero;
+        // 2026-09-15: 実可視高さHが1224未満の機種では下端固定(0)のままだとロゴがLv帯側で
+        // 隠れるため、StartHit下端の空白(最大150)だけ上へ食い込ませず下へ動かす
+        // （=キャンバス内でのrootの位置を下げる。中身の相対配置・当たり判定は無変更）。
+        root.anchoredPosition = new Vector2(0f, -ComputeTitleLift());
         root.sizeDelta = new Vector2(DesignW, DesignH);
         root.SetAsLastSibling(); // 常に最前面
+        liftScreenW = Screen.width;
+        liftScreenH = Screen.height;
 
         GameObject bgGO = new GameObject("TitleBg",
             typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
@@ -109,6 +135,16 @@ public class TitleScreen : MonoBehaviour
 
     void Update()
     {
+        if (root == null) return;
+        // 2026-09-15: リサイズ/回転/iOSツールバー表示切替でHが変わってもズレたままにしない。
+        // 既存の AdVirtuaResizeWatcher と同じ Screen.width/height ポーリング方式。
+        if (!Mathf.Approximately(Screen.width, liftScreenW) || !Mathf.Approximately(Screen.height, liftScreenH))
+        {
+            liftScreenW = Screen.width;
+            liftScreenH = Screen.height;
+            root.anchoredPosition = new Vector2(0f, -ComputeTitleLift());
+        }
+
         if (!IsShowing || startHitRect == null) return;
         if (hitCamera == null) ResolveCamera();
 
