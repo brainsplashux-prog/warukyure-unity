@@ -91,6 +91,26 @@ public class S2sCommitResponse
     public bool idempotent;
 }
 
+/// <summary>GET /api/v1/missions/current の mission 部分。cost_medal が1口の消費メダル数の正本。</summary>
+[Serializable]
+public class PlatformMissionInfo
+{
+    public int no;
+    public string metric;
+    public int threshold;
+    public int cost_medal;
+    public string reward_rank;
+}
+
+[Serializable]
+public class PlatformMissionCurrentResponse
+{
+    public bool ok;
+    public PlatformMissionInfo mission;
+    public int progress;
+    public string state;
+}
+
 /// <summary>PF plays で発行された 1 プレイの情報。</summary>
 public sealed class PlatformRun
 {
@@ -220,6 +240,25 @@ public sealed class PlatformApiClient
         if (parsed == null)
             throw new Exception("abort response malformed");
         return parsed;
+    }
+
+    /// <summary>
+    /// PF /missions/current から現在の1口消費メダル数(cost_medal)を取得する。
+    /// 2026-09-15 是正: SPIN前のBETボタン表示が常定100に固定されるバグへの対応。
+    /// run生成・メダル予約・トークン消費のいずれも発生しない読み取り専用GET
+    /// （ポータルのセッションcookieだけで完結し、Launch/Token/Playsの完了は不要）。
+    /// 取得できない場合(未ログイン・全ミッション踏破後でmission==null・通信エラー等)は
+    /// null を返す。呼び出し側は既存のmissionBetを維持し、100へ戻さないこと。
+    /// </summary>
+    public async Task<int?> GetCurrentMissionCostMedal()
+    {
+        var (statusCode, text) = await PlatformGet("/api/v1/missions/current");
+        if (statusCode < 200 || statusCode >= 300) return null;
+
+        var parsed = JsonUtility.FromJson<PlatformMissionCurrentResponse>(text);
+        if (parsed == null || !parsed.ok || parsed.mission == null) return null;
+        if (parsed.mission.cost_medal <= 0) return null;
+        return parsed.mission.cost_medal;
     }
 
     /// <summary>PF /wallet/balance から MEDAL 残高を取得する。</summary>

@@ -1264,6 +1264,7 @@ public class WarukyureBoard : MonoBehaviour
                     wallet = authRes.state.wallet;
                     ballMask = authRes.state.ballMask;
                     SetMissionBet(authRes.missionBet);
+                    yield return StartCoroutine(TryApplyPlatformMissionBet());
                     lastNet = 0;
                     sessionReady = true;
                     UpdateHeader();
@@ -1289,6 +1290,7 @@ public class WarukyureBoard : MonoBehaviour
                     wallet = res.state.wallet;
                     ballMask = res.state.ballMask;
                     SetMissionBet(res.missionBet);
+                    yield return StartCoroutine(TryApplyPlatformMissionBet());
                     lastNet = 0;
                     sessionReady = true;
                     UpdateHeader();
@@ -1318,9 +1320,36 @@ public class WarukyureBoard : MonoBehaviour
         wallet = initRes.state.wallet;
         ballMask = initRes.state.ballMask;
         SetMissionBet(initRes.missionBet);
+        yield return StartCoroutine(TryApplyPlatformMissionBet());
         lastNet = 0;
         sessionReady = true;
         UpdateHeader();
+    }
+
+    // 2026-09-15 是正: warukyure-api(InitSession応答)のmissionBetは既定100固定
+    // (本番Lambdaの環境変数MISSION_BET未設定)で、実際の1口単価はSPIN時のPF
+    // (ポイカジ・プラットフォーム)prepareで初めて届く。そのためSPIN前のBETボタンが
+    // 常に100表示になっていた(社長実機2026-09-15報告)。ここでPF /missions/current
+    // (run生成・メダル予約なしの読み取り専用GET)を叩き、取得できればSPIN前から
+    // 正しい単価を反映する。取得できない(standalone/demo・未ログイン・通信エラー等)
+    // 場合はwarukyure-apiから受け取った値のまま維持し、100へ戻さない。
+    IEnumerator TryApplyPlatformMissionBet()
+    {
+        if (platformClient == null)
+            platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));
+
+        var task = platformClient.GetCurrentMissionCostMedal();
+        yield return new WaitUntil(() => task.IsCompleted);
+
+        if (task.IsFaulted || task.IsCanceled)
+        {
+            Debug.LogWarning("[PLATFORM] missions/current failed; keeping warukyure-api missionBet: " + task.Exception?.Message);
+            yield break;
+        }
+
+        int? costMedal = task.Result;
+        if (costMedal.HasValue && costMedal.Value > 0)
+            SetMissionBet(costMedal.Value);
     }
 
     IEnumerator SpinRound()
