@@ -15,6 +15,80 @@
     <link rel="preload" href="Build/{{{ FRAMEWORK_FILENAME }}}" as="script">
     <link rel="preload" href="Build/{{{ DATA_FILENAME }}}" as="fetch" crossorigin="anonymous">
 
+    <script>
+    /* poi-audio-guard v2: 離脱で全音停止→次の操作で再開／復帰時の音声エラーを抑止 (bug-ledger #12) */
+    (function () {
+      if (window.__poiAudioGuard) return;
+      var G = window.__poiAudioGuard = { ctxs: [], media: [], waiting: false, inGesture: false };
+      var Orig = window.AudioContext || window.webkitAudioContext;
+      if (Orig) {
+        var origResume = Orig.prototype.resume;
+        var Wrapped = function (opts) {
+          var c = (opts === undefined) ? new Orig() : new Orig(opts);
+          G.ctxs.push(c);
+          return c;
+        };
+        Wrapped.prototype = Orig.prototype;
+        try { Object.setPrototypeOf(Wrapped, Orig); } catch (e) {} // static プロパティ(EventTarget等)も継承
+        try {
+          Orig.prototype.resume = function () {
+            if (G.waiting && !G.inGesture) return Promise.resolve();
+            try {
+              var p = origResume.apply(this, arguments);
+              if (p && p.catch) p.catch(function () {});
+              return p;
+            } catch (e) {
+              // iOS Safari: 復帰直後の resume() が InvalidStateError を同期throwすることがある(bug-ledger #12実測)
+              try { console.warn("[poi] audio resume failed:", e && e.message); } catch (e2) {}
+              return Promise.resolve();
+            }
+          };
+        } catch (e) {}
+        if (window.AudioContext) window.AudioContext = Wrapped;
+        if (window.webkitAudioContext) window.webkitAudioContext = Wrapped;
+      }
+      if (window.HTMLMediaElement) {
+        var origPlay = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = function () {
+          if (G.media.indexOf(this) < 0) G.media.push(this);
+          if (G.waiting && !G.inGesture) { this.__poiResume = true; return Promise.resolve(); }
+          return origPlay.apply(this, arguments);
+        };
+        G.origPlay = origPlay;
+      }
+      function stopAll() {
+        G.waiting = true;
+        G.ctxs.forEach(function (c) {
+          try { if (c.state === "running") { var p = c.suspend(); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
+        });
+        G.media.forEach(function (m) {
+          try { if (!m.paused) { m.__poiResume = true; m.pause(); } } catch (e) {}
+        });
+      }
+      function resumeAll() {
+        if (!G.waiting || document.visibilityState === "hidden") return;
+        G.waiting = false;
+        G.inGesture = true;
+        try {
+          G.ctxs.forEach(function (c) {
+            // "interrupted"(iOS) も含め running/closed 以外なら resume を試みる
+            try { if (c.state !== "running" && c.state !== "closed") { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
+          });
+          G.media.forEach(function (m) {
+            try { if (m.__poiResume) { m.__poiResume = false; var p = G.origPlay.call(m); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
+          });
+        } finally { G.inGesture = false; }
+      }
+      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") stopAll(); }, true);
+      window.addEventListener("pagehide", stopAll, true);
+      ["pointerdown", "touchstart", "touchend", "mousedown", "click", "keydown"].forEach(function (ev) {
+        window.addEventListener(ev, resumeAll, { passive: true, capture: true });
+      });
+      window.poiTryResumeAudio = resumeAll;
+      window.__poiIsAudioError = function (msg) { return /audio device|AudioContext|Web Audio|audioContext/i.test(String(msg || "")); };
+    })();
+    </script>
+
     <!-- POI-LOADER-KIT v1 BEGIN (generated from poicasi-org/loader/v1 — do not edit here) -->
 <style>#poi-loading {
   position: fixed;
@@ -1653,24 +1727,6 @@
       }
 
       var buildUrl = "Build";
-      // 音声アンロック: Unity の resume() は WebKit で同期throwすることがあり、
-      // その場合 .catch() が付かず window.onerror まで抜けてしまう。
-      // ジェスチャのたびに try/catch 付きで再開を試み、例外はここで止める。
-      window.poiTryResumeAudio = function () {
-        try {
-          var wa = (typeof WEBAudio !== "undefined") ? WEBAudio
-                 : (window.Module && window.Module.WEBAudio) ? window.Module.WEBAudio : null;
-          var ctx = wa && wa.audioContext;
-          if (!ctx || ctx.state === "running" || ctx.state === "closed") return;
-          var pr = ctx.resume();
-          if (pr && pr.catch) pr.catch(function () {});
-        } catch (e) {
-          try { console.warn("[poi] audio resume failed:", e && e.message); } catch (e2) {}
-        }
-      };
-      ["pointerdown", "touchstart", "mousedown", "click"].forEach(function (ev) {
-        window.addEventListener(ev, window.poiTryResumeAudio, { passive: true, capture: true });
-      });
       var cb = "";
       var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}" + cb;
       var config = {
@@ -1692,18 +1748,11 @@
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
         cacheControl: function (url) { return "no-store"; },
-        // iOS Safari は AudioContext の起動に失敗すると
-        // "InvalidStateError: Failed to start the audio device" を同期throwする。
-        // Unity ランタイム自体は生きているのに loader の window.onerror が
-        // 「An error occurred running the Unity content on this page」ダイアログを出し、
-        // 利用者にはゲームが壊れたように見える（bug-ledger #12・2026-09-04 ビンゴ）。
-        // 音が出ないだけで遊べるので、音声デバイス由来のものだけ握り潰す。
         errorHandler: function (err, url, line) {
           var msg = (err && err.message) ? err.message : String(err || "");
-          if (/audio device|AudioContext|Web Audio|audioContext/i.test(msg)) {
+          if (window.__poiIsAudioError && window.__poiIsAudioError(msg)) {
             try { console.warn("[poi] suppressed audio error:", msg); } catch (e) {}
-            try { window.poiTryResumeAudio && window.poiTryResumeAudio(); } catch (e) {}
-            return true; // ダイアログを出さない
+            return true;
           }
           return false; // それ以外は従来どおり Unity に処理させる
         },
