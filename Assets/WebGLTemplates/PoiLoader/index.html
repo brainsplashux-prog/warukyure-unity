@@ -1494,6 +1494,12 @@
          を確認済み（harness/reports/20260915-warukyure-noreload-fullwidth.md 参照）。
          exp/fullwidth-20260915 の内容（width:100vw化）はこのブロックに取り込んでmainへ統合。 -->
     <style>
+      /* 2026-09-15 社長指摘対応: bodyのみに背景色を設定していたため、iOS Safariの
+         動的ツールバー(100svh<>100lvh)でbody実高さが可視ビューポートより短くなる
+         瞬間に、html要素のブラウザ既定背景(白)が盤面下に露出していた
+         （肌色/薄い黄色/白の3色混在のうち「白」の出どころ）。html側にも同じ色を
+         敷いて地続きにする。座標・レイアウトは変更なし。 */
+      html { background-color: #F3E1C9; }
       body { background-color: #F3E1C9; }
       body #unity-container.unity-mobile {
         position: fixed;
