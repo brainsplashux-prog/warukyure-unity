@@ -1495,6 +1495,18 @@
          → 幅は現状の aspect-ratio 派生値のまま変更せず、社長確定[社長確定]の別項目である
          .game-description の最初画面外への退避（直下）だけを本日分として実施。
          幅いっぱい化は「ボタン欠け」と衝突するため実装せず報告に回す（DECISIONS.md参照）。 -->
+    <!-- 2026-09-15 社長確定・横幅優先版（DEV検証専用, exp/fullwidth-20260915）:
+         社長原文「まず一回横幅に合わせたバージョン見せてくれ。ボタンがそれで押せなく
+         なるならそれをどうにかする。誤魔化す対応を推奨する意味がわからない」。
+         直上コメント（2026-09-15検討記録）の「ボタン欠けと衝突するため実装せず」判断を
+         社長が明示的に上書きし、欠け覚悟でまず横幅いっぱい版を先に見せろと指示。
+         変更点は width/height の主従を反転しただけ：
+           旧: height を先に確定（利用可能高さ基準）→ width は aspect-ratio 派生
+               → 派生幅が画面幅を下回ると縮む（今回縮んだ原因そのもの）。
+           新: width を 100vw に固定 → height は aspect-ratio 派生（画面から上下に
+               はみ出してよい。はみ出した分は本項の目的通り「見えなくなってよい」）。
+         ヘッダーA/B・フッターの有無や top 位置（--poi-stage-top）は無変更。
+         本番配信・merge はしない（このブランチはDEVプレビュー用）。 -->
     <style>
       body { background-color: #F3E1C9; }
       body #unity-container.unity-mobile {
@@ -1502,8 +1514,8 @@
         left: 50%;
         top: var(--poi-stage-top, var(--common-header-height));
         transform: translateX(-50%);
-        width: auto;
-        height: calc(100svh - var(--poi-stage-top, var(--common-header-height)) - var(--poi-stage-bottom, 0px));
+        width: 100vw;
+        height: auto;
         aspect-ratio: 720 / 1224;
         max-width: 100vw;
       }
