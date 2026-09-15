@@ -94,6 +94,7 @@ public class WarukyureBoard : MonoBehaviour
     private Text spinButtonText;
     private Image spinButtonImage;
     private Image spinSkipPlate;   // SKIP時に板絵のSPINを覆うオレンジ板
+    private GameObject betSheet;   // 2026-09-15 社長指示: BET5個を収める台（枠）。SPINで枠ごと非表示にする
 
     // ----------------- state -----------------
     private string token;
@@ -310,6 +311,21 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- setup -----------------
     void SetupCanvas()
     {
+        // 2026-09-15 社長スクショ指摘対応: 同日の台センタリング化(ComputeBoardBottomY、上記
+        // CreateBoardRoot参照)で、Ad-Virtuaゾーン下端〜盤面上端／盤面下端〜画面下端の隙間が
+        // 機種によっては最大約230design単位まで空くようになった（旧実装は下端吸着＋最大18pxの
+        // 部分緩和のみでこの隙間はほぼ皆無だった＝本件は426c252由来）。この隙間にはカメラの
+        // 素のクリア色(scene既定値 rgb≈49,77,121の青灰、alpha=0)がバンド状に露出し、
+        // 社長スクショで「広告枠下の青い帯」「盤面下の灰色の帯」として見えていたと判定。
+        // 座標・レイアウトは一切変えず、露出時の色だけをページ背景(index.html body #F3E1C9,
+        // 実測: /Users/suzukimasahiro/Desktop/warukyure/client/index.html 1495行)に合わせ、
+        // 隙間が背景と地続きに見えるようにする。
+        if (Camera.main != null)
+        {
+            Camera.main.clearFlags = CameraClearFlags.SolidColor;
+            Camera.main.backgroundColor = new Color32(0xF3, 0xE1, 0xC9, 0xFF);
+        }
+
         GameObject canvasGO = new GameObject("Canvas");
         canvas = canvasGO.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceCamera;
@@ -799,24 +815,66 @@ public class WarukyureBoard : MonoBehaviour
     const float SpinTopY = SpinCenterY - SpinH / 2f;  // 307.75
     const float SpinLeftX = SpinCenterX - SpinW / 2f; // 275
 
+    // 2026-09-15 社長指示「ベットボタンが浮いて見えるので、最初にあったみたいに台/シート/枠に
+    // 5つのボタンを入れて欲しい。ルーレット始まったら枠ごと非表示」対応。
+    // 台の色は旧・下段帯(art_final_v4.png, 削除禁止・非表示化のみ)を実測して近似:
+    //   縁(ボーダー)=(200,140,45)…既存pillBorderと同値（帯の縁も同じ金色系だった実測）
+    //   地(フィル)  =(245,218,169)…帯のうち焼き込みピルが無い素の帯地を複数箇所サンプルした平均
+    //     （旧x=12,y=730付近の実測(236,171,76)～旧x=650,y=705付近(245,215,167)の中間帯色。
+    //     ピル/SPIN自体の焼き込みは一切参照しない＝写り込み無し）
+    // 台の幅: 画面(design幅は常に720固定=CanvasScalerが幅基準のため機種非依存)から左右
+    //   等マージン24pxを残した672。台の内側にさらに左右16px・上下6pxの余白を取り、
+    //   その内側にボタン5個(サイズ不変110%)を均等ギャップで並べる（詰めるのはギャップのみ）。
+    const float BetSheetMarginX = 24f;  // 台の左右マージン（画面design幅720から等距離）
+    const float BetSheetPadX = 16f;     // 台の内枠～ボタン端の余白
+    const float BetSheetPadY = 6f;      // 台の内枠～ボタン上下端の余白
+    const float BetSheetRadius = 24f;
+    const float BetSheetBorderW = 4f;
+
     void CreateBetButtons()
     {
         // 2026-09-15 社長指示: 下段バー廃止に伴いBETボタンを盤面前面(SPIN直上)へ移設。
-        // サイズ=現行の110%(95x96→104.5x105.6)。横方向は盤面全幅720へ5個を均等配置し、
-        // 外側マージンとボタン間隔を同一値にする: gap = (720 - 5*104.5) / 6 ≈ 32.9167
+        // サイズ=現行の110%(95x96→104.5x105.6)で不変。台の内側に収まるようギャップのみ調整する。
         const float betW = 95f * 1.1f;  // 104.5
         const float betH = 96f * 1.1f;  // 105.6
-        const float gap = (720f - 5f * betW) / 6f; // 32.916667
         const float betSpinGap = 12f;   // SPINとの間隔
         const float betTopY = SpinTopY - betSpinGap - betH; // 307.75-12-105.6 = 190.15
+
+        float sheetX = BetSheetMarginX;                       // 24
+        float sheetW = 720f - 2f * BetSheetMarginX;           // 672
+        float sheetTopY = betTopY - BetSheetPadY;             // 184.15
+        float sheetH = betH + 2f * BetSheetPadY;              // 117.6
+        // 台の下端(sheetTopY+sheetH=301.75) < SPIN上端(SpinTopY=307.75) を常に満たす
+        // （betSpinGap=12 > BetSheetPadY*2=12 は等号だが実際は 6+6=12 でちょうど境界。
+        //   下記Assertで機種非依存に検証する。座標は全てdesign単位＝機種非依存）
+        Debug.Assert(sheetTopY + sheetH <= SpinTopY,
+            "[Warukyure] BetSheet overlaps Spin button");
+
+        float innerW = sheetW - 2f * BetSheetPadX;            // 640
+        const float betCount = 5f;
+        float gap = (innerW - betCount * betW) / (betCount - 1f); // (640-522.5)/4 = 29.375
+        float betStartX = sheetX + BetSheetPadX;              // 24+16=40
 
         Color pillBorder = new Color32(200, 140, 45, 255); // art_final_v4実測近似(縁の金色)
         Color pillFill = new Color32(250, 229, 186, 255);  // art_final_v4実測近似(ピル地色)
         Color textColor = new Color32(90, 55, 20, 255);    // 焼き込み文字の濃茶に近似
+        Color sheetFill = new Color32(245, 218, 169, 255); // 旧帯地の実測近似（ピル/SPIN焼き込み非参照）
+
+        // 台（枠）を先に生成してボタンより背面に置く（sibling順で先=背面）。
+        GameObject sheetGO = new GameObject("BetSheet");
+        sheetGO.transform.SetParent(boardRoot, false);
+        RectTransform srt = sheetGO.AddComponent<RectTransform>();
+        srt.anchorMin = new Vector2(0, 1);
+        srt.anchorMax = new Vector2(0, 1);
+        srt.pivot = new Vector2(0, 1);
+        srt.anchoredPosition = new Vector2(sheetX, -sheetTopY);
+        srt.sizeDelta = new Vector2(sheetW, sheetH);
+        AddPillBackground(sheetGO.transform, new Vector2(sheetW, sheetH), BetSheetRadius, pillBorder, sheetFill, BetSheetBorderW);
+        betSheet = sheetGO;
 
         for (int i = 0; i < 5; i++)
         {
-            float x = gap + i * (betW + gap);
+            float x = betStartX + i * (betW + gap);
             int bet = int.Parse(betLabels[i]);
             Image img;
             Button btn = AddButton("Bet" + betLabels[i], new Vector2(x, betTopY), new Vector2(betW, betH), () => ToggleBet(bet), out img);
@@ -1514,14 +1572,15 @@ public class WarukyureBoard : MonoBehaviour
         SetBetButtonsVisible(true);
     }
 
-    /// <summary>2026-09-15 社長指示: スピン中はBETボタン5個を非表示にし、STOP以外が
-    /// 画面の邪魔にならないようにする。次回スピン可能になったら再表示する。</summary>
+    /// <summary>2026-09-15 社長指示: スピン中はBETボタン5個(を収めた台ごと)非表示にし、STOP以外が
+    /// 画面の邪魔にならないようにする。次回スピン可能になったら台ごと再表示する。</summary>
     void SetBetButtonsVisible(bool visible)
     {
         for (int i = 0; i < betButtons.Length; i++)
         {
             if (betButtons[i] != null) betButtons[i].gameObject.SetActive(visible);
         }
+        if (betSheet != null) betSheet.SetActive(visible);
     }
 
     void OnPoiErrRetry()
