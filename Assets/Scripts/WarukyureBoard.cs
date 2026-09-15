@@ -55,30 +55,33 @@ public class WarukyureBoard : MonoBehaviour
     // ここへ吸着させる（吸着すれば実測高さがどうであれ下端が一致し続ける）。
     // 詳細: harness/reports/20260915-warukyure-noreload-fullwidth.md
     private RectTransform boardRoot;
-    // 2026-09-15 社長指摘「ゲーム画面はマスが半分見えなくなっている」対応（部分緩和）。
-    // BoardRoot内の最深ボタン=BETピル下端(local y=705+96=801)からBoardRoot自身の下端(819)
-    // までの18pxは空白。実可視デザイン高さHが1194(=BoardRootの高さ819+セル上の焼き込み
-    // バッファ30の残り真の空白ではなく1224相当)未満の機種では、その18pxの範囲内だけ
-    // BoardRootを上へ動かさず「持ち上げ量を減らす」方向、すなわちボタン側の下端が
-    // 可視範囲の下端を割らない上限までBoardRootをキャンバス下端から上に18px以内で
-    // 動かす（＝anchoredPosition.yを0～+18の範囲でなく、下端吸着のまま変えない）。
-    // 【重要】実際にはBoardRootは下端アンカー(0,0)のため、"下げる"ことはできない
-    // （下げるとボタンが可視範囲外に出て100%可視の要件に違反する）。よってこの18pxの
-    // 空白は「盤面上端のクリップ量を18px分だけ減らす」方向にしか使えず、抜本解決には
-    // ならない（残る主要因＝Ad-Virtuaゾーン405designUnit固定 or 盤面アートの縦圧縮、
-    // いずれも本タスクの権限外＝提案のみ。数値根拠: harness/reports/20260915-warukyure-stage-top.md）。
-    const float BoardRootHeight = 819f;
-    const float BoardBottomCriticalY = 801f; // BETピル下端(BoardRoot内local y)
-    const float BoardBottomSlack = BoardRootHeight - BoardBottomCriticalY; // 18
-    const float BoardScalerRefH = 1224f;
+    // 2026-09-15 社長指示「ルーレット台を100px近く下げ中央配置。BET/SPINは盤面前面へ
+    // 移設してボタン専用の下段バーを廃止する」対応。
+    // 旧実装(BoardRoot高819=盤面819そのまま)では最深要素=BETピル下端(local801)から
+    // BoardRoot下端(819)までの18pxしか可動域が無く、Ad-Virtuaゾーン(405designUnit固定)
+    // との重なりを部分的にしか緩和できなかった（詳細根拠: harness/reports/
+    // 20260915-warukyure-stage-top.md）。
+    // 今回、下段のBET/SPIN帯(texture y=697..818, 実測確認済み=帯の背景色がy=697で
+    // 1段階変化する)をRawImage.uvRectで非表示化し、BoardRoot自体の高さを697へ短縮。
+    // その上で「Ad-Virtuaゾーン下端(405)～画面下端(H)」の可視領域内でBoardRootを
+    // 上下中央配置する。BET/SPINボタンはBoardRootの子のまま新座標へ再配置するため、
+    // BoardRootが動けば自動的に追従する。
+    const float BoardRootHeightOld = 819f;      // 旧・盤面アート全体の高さ（クロップ前）
+    const float BoardCropBandTopY = 697f;       // 帯の開始y（実測: ここでbg色が変化）
+    const float BoardRootHeight = BoardCropBandTopY; // クロップ後のBoardRoot高さ = 697
+    const float AdZoneHeight = 405f;            // AdVirtuaMonitorSetup.cs 側の固定値（読み取り専用参照。無変更）
     float boardLiftScreenW, boardLiftScreenH;
 
-    static float ComputeBoardLift()
+    // Ad-Virtuaゾーン下端(AdZoneHeight)〜画面下端(H)の可視領域内でBoardRoot(高さ697)を
+    // 上下中央配置したときの、BoardRoot下端の canvas-Y（Unity座標系・下原点・上向き正）。
+    // H = Screen.height * 720 / Screen.width（CanvasScaler: 幅基準固定・matchWidthOrHeight=0）。
+    static float ComputeBoardBottomY()
     {
         if (Screen.width <= 0) return 0f;
         float visibleDesignH = Screen.height * 720f / Screen.width;
-        float overflow = Mathf.Max(0f, BoardScalerRefH - visibleDesignH);
-        return Mathf.Min(BoardBottomSlack, overflow);
+        float availableH = visibleDesignH - AdZoneHeight;
+        float centeredBottomY = (availableH - BoardRootHeight) / 2f;
+        return Mathf.Max(0f, centeredBottomY);
     }
     private RectTransform lampRect;
     private GameObject resultPanel;
@@ -263,14 +266,14 @@ public class WarukyureBoard : MonoBehaviour
         // クロスプロモのポップアップが開いている間だけ非加算とする（タブ非アクティブは PoiPlayTime 側で除外）。
         PoiPlayTime.Tick(!CrossPromoPopupUI.IsOpen);
 
-        // 2026-09-15: リサイズ/回転/iOSツールバー表示切替でHが変わってもBoardRootの
-        // 部分緩和(上記CreateBoardRoot参照)がズレたままにならないよう追従させる。
+        // 2026-09-15: リサイズ/回転/iOSツールバー表示切替でHが変わってもBoardRoot(上下中央配置)
+        // がズレたままにならないよう追従させる。BET/SPINボタンはBoardRootの子のため自動追従。
         if (boardRoot != null &&
             (!Mathf.Approximately(Screen.width, boardLiftScreenW) || !Mathf.Approximately(Screen.height, boardLiftScreenH)))
         {
             boardLiftScreenW = Screen.width;
             boardLiftScreenH = Screen.height;
-            boardRoot.anchoredPosition = new Vector2(0, -ComputeBoardLift());
+            boardRoot.anchoredPosition = new Vector2(0, ComputeBoardBottomY());
         }
     }
 
@@ -327,10 +330,10 @@ public class WarukyureBoard : MonoBehaviour
         eventGO.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
     }
 
-    // 2026-09-15 社長指示（全幅化・ボタン100%可視）: 盤面一式(旧: canvas絶対y=405..1224)を
-    // 下端アンカーの箱に入れ、キャンバスの実測高さがCanvasScaler基準の1224に届かない機種でも
-    // 盤面の下端＝ヘルプ/BET/SPINが常にキャンバス実可視領域の下端に一致し続けるようにする
-    // （旧: 上端からの絶対offsetのため、実測高さ<1224の機種では下端側が可視範囲外に落ちていた）。
+    // 2026-09-15 社長指示（全幅化・ボタン100%可視、同日追って盤面センタリングへ更新）:
+    // 盤面一式を anchorMin/Max/pivot=(0,0) の箱(BoardRoot)に入れ、anchoredPosition.y で
+    // キャンバス下端からのオフセットを動的制御する。現在はAd-Virtuaゾーン下端〜画面下端の
+    // 可視領域内でBoardRootを上下中央配置する方式（上記ComputeBoardBottomY参照）。
     // 中身は従来どおり y=405 を原点とする相対配置のまま（"405 +"のオフセットをこの箱の
     // anchorMin/Max/pivot=(0,0)自体に肩代わりさせるだけで、板絵・当たり判定の相対位置は無変更）。
     void CreateBoardRoot()
@@ -341,11 +344,11 @@ public class WarukyureBoard : MonoBehaviour
         boardRoot.anchorMin = new Vector2(0, 0);
         boardRoot.anchorMax = new Vector2(0, 0);
         boardRoot.pivot = new Vector2(0, 0);
-        // 2026-09-15 部分緩和(上記コメント参照): BETピル下端の18px空白の範囲内でのみ
-        // BoardRootを下げ、Ad-Virtuaゾーンとの重なりを18px分だけ減らす。
-        // ボタン(HELP/BET/SPIN)は常にBoardRootと一体で動くため、可視範囲外に出ることは無い。
-        boardRoot.anchoredPosition = new Vector2(0, -ComputeBoardLift());
-        boardRoot.sizeDelta = new Vector2(720, 819);
+        // 2026-09-15 社長指示: Ad-Virtuaゾーン下端〜画面下端の可視領域内でBoardRoot
+        // (クロップ後高さ697)を上下中央配置する。ボタン(HELP/BET/SPIN)は常にBoardRootと
+        // 一体で動くため、可視範囲外に出ることは無い。
+        boardRoot.anchoredPosition = new Vector2(0, ComputeBoardBottomY());
+        boardRoot.sizeDelta = new Vector2(720, BoardRootHeight);
         boardLiftScreenW = Screen.width;
         boardLiftScreenH = Screen.height;
     }
@@ -366,12 +369,17 @@ public class WarukyureBoard : MonoBehaviour
         rt.anchorMax = new Vector2(0, 1);
         rt.pivot = new Vector2(0, 1);
         rt.anchoredPosition = Vector2.zero;
-        rt.sizeDelta = new Vector2(720, 819);
+        rt.sizeDelta = new Vector2(720, BoardRootHeight);
 
         go.AddComponent<CanvasRenderer>();
         RawImage img = go.AddComponent<RawImage>();
         img.texture = tex;
         img.raycastTarget = false;
+        // 2026-09-15 社長指示: 下段BET/SPIN帯(texture y=697..818)を非表示化。
+        // art_final_v4.png 自体は無変更（削除禁止）、uvRectで上側697/819だけを表示する。
+        // v=0が下端・v=1が上端（テクスチャ座標系）。保持する上側697pxはv=[(819-697)/819, 1]。
+        float keepBottomV = (BoardRootHeightOld - BoardRootHeight) / BoardRootHeightOld; // (819-697)/819
+        img.uvRect = new Rect(0f, keepBottomV, 1f, 1f - keepBottomV);
 
         CreateCollectionBalls(rt);
     }
@@ -775,27 +783,99 @@ public class WarukyureBoard : MonoBehaviour
         AddButton("Help", new Vector2(660, 655), new Vector2(32, 32), () => ToggleHelp(), out img);
     }
 
+    // 2026-09-15 社長指示: SPINは「画面中央かつ×4 RING(Ring4Track)と×2 ISLAND(Loop2Track)の
+    // 間、池と池の間」に配置。BoardData.CellCenters(canvas絶対y)から両トラックの外形を算出:
+    //   Ring4Track y範囲: i_01(524)~ball_i1(684) → BoardRoot内local = 119~279（セル半径18を
+    //     加味した外形下端 = 279+18 = 297）
+    //   Loop2Track y範囲: m_00(806)~m_16/m_12(958) → local = 401~553（セル半径14.5を加味した
+    //     外形上端 = 401-14.5 = 386.5）
+    //   池と池の間の中点 = (297 + 386.5) / 2 = 341.75 ← SPINの中心y（BoardRoot内local）
+    // 画面中央 = 盤面幅720の中央 = x=360（BoardRootはcanvas幅いっぱいの全幅のため盤面中央=画面中央）
+    // サイズは社長指示により不変（170x68）。
+    const float SpinCenterX = 360f;
+    const float SpinCenterY = 341.75f;
+    const float SpinW = 170f;
+    const float SpinH = 68f;
+    const float SpinTopY = SpinCenterY - SpinH / 2f;  // 307.75
+    const float SpinLeftX = SpinCenterX - SpinW / 2f; // 275
+
     void CreateBetButtons()
     {
-        // 帯を y=697..818 に焼き直したため、BETピルの実測外形は texture y=705..800（高さ96）
-        float[] xs = new[] { 16f, 119f, 222f, 325f, 428f };
+        // 2026-09-15 社長指示: 下段バー廃止に伴いBETボタンを盤面前面(SPIN直上)へ移設。
+        // サイズ=現行の110%(95x96→104.5x105.6)。横方向は盤面全幅720へ5個を均等配置し、
+        // 外側マージンとボタン間隔を同一値にする: gap = (720 - 5*104.5) / 6 ≈ 32.9167
+        const float betW = 95f * 1.1f;  // 104.5
+        const float betH = 96f * 1.1f;  // 105.6
+        const float gap = (720f - 5f * betW) / 6f; // 32.916667
+        const float betSpinGap = 12f;   // SPINとの間隔
+        const float betTopY = SpinTopY - betSpinGap - betH; // 307.75-12-105.6 = 190.15
+
+        Color pillBorder = new Color32(200, 140, 45, 255); // art_final_v4実測近似(縁の金色)
+        Color pillFill = new Color32(250, 229, 186, 255);  // art_final_v4実測近似(ピル地色)
+        Color textColor = new Color32(90, 55, 20, 255);    // 焼き込み文字の濃茶に近似
+
         for (int i = 0; i < 5; i++)
         {
+            float x = gap + i * (betW + gap);
             int bet = int.Parse(betLabels[i]);
             Image img;
-            Button btn = AddButton("Bet" + betLabels[i], new Vector2(xs[i], 705), new Vector2(95, 96), () => ToggleBet(bet), out img);
+            Button btn = AddButton("Bet" + betLabels[i], new Vector2(x, betTopY), new Vector2(betW, betH), () => ToggleBet(bet), out img);
             betButtons[i] = btn;
-            // 光りは板絵のピル枠に合わせた角丸で出す（矩形ベタ塗りだと枠からはみ出て見える）
-            betButtonImages[i] = AddGlowOverlay(btn.transform, new Vector2(76, 78), 12);
+
+            // 2026-09-15: 旧位置の焼き込みピル絵(帯ごと非表示化)の代わりに、新位置で
+            // ボタンとして視認できるよう手続き的にピル背景+文字を生成する（移設に伴う必須対応）。
+            AddPillBackground(btn.transform, new Vector2(betW, betH), 14f, pillBorder, pillFill, 4f);
+
+            GameObject txtGO = new GameObject("BetText");
+            txtGO.transform.SetParent(btn.transform, false);
+            RectTransform trt = txtGO.AddComponent<RectTransform>();
+            trt.anchorMin = Vector2.zero;
+            trt.anchorMax = Vector2.one;
+            trt.pivot = new Vector2(0.5f, 0.5f);
+            trt.anchoredPosition = Vector2.zero;
+            trt.sizeDelta = Vector2.zero;
+            Text betText = txtGO.AddComponent<Text>();
+            betText.font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+            if (betText.font == null) betText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            betText.fontSize = 20;
+            betText.alignment = TextAnchor.MiddleCenter;
+            betText.color = textColor;
+            betText.text = "BET " + betLabels[i] + "\n100枚"; // 表示文言は旧絵のまま維持（社長指示: 変更なし）
+
+            // 光りは110%スケールのピル枠に合わせた角丸で出す（矩形ベタ塗りだと枠からはみ出て見える）
+            betButtonImages[i] = AddGlowOverlay(btn.transform, new Vector2(76f * 1.1f, 78f * 1.1f), Mathf.RoundToInt(12f * 1.1f));
         }
     }
 
     void CreateSpinButton()
     {
         Image img;
-        // SPINは板絵側で1.25倍に貼り直したため、外形は texture x=528..697 / y=719..786
-        spinButton = AddButton("Spin", new Vector2(528, 719), new Vector2(170, 68), () => OnSpin(), out img);
+        spinButton = AddButton("Spin", new Vector2(SpinLeftX, SpinTopY), new Vector2(SpinW, SpinH), () => OnSpin(), out img);
         spinButtonImage = img;
+
+        // 2026-09-15: 旧位置の焼き込みSPIN絵(帯ごと非表示化)の代わりに、新位置で
+        // ボタンとして視認できるよう手続き的に赤ピル背景を生成する（移設に伴う必須対応）。
+        AddPillBackground(spinButton.transform, new Vector2(SpinW, SpinH), 18f,
+            new Color32(200, 140, 45, 255),  // 縁: 金色（BET同様の近似色で統一）
+            new Color32(170, 20, 15, 255),   // 塗り: 赤（art_final_v4実測近似）
+            4f);
+
+        // SKIP 中は新背景の「SPIN」と文字が重なって読めないため、ボタンごと差し替える。
+        // 背景を完全に覆うオレンジの角丸板を（背景の上・文字の下に）敷き、その上に SKIP を出す。
+        GameObject plateGO = new GameObject("SkipPlate");
+        plateGO.transform.SetParent(spinButton.transform, false);
+        RectTransform prt = plateGO.AddComponent<RectTransform>();
+        prt.anchorMin = Vector2.zero;
+        prt.anchorMax = Vector2.one;
+        prt.pivot = new Vector2(0.5f, 0.5f);
+        prt.anchoredPosition = Vector2.zero;
+        prt.sizeDelta = new Vector2(6f, 6f);   // 背景の赤がフチから覗かないよう少し大きく
+        spinSkipPlate = plateGO.AddComponent<Image>();
+        spinSkipPlate.sprite = MakeRoundedSprite(170, 68, 18, 2f);
+        spinSkipPlate.type = Image.Type.Simple;
+        spinSkipPlate.color = new Color(1f, 0.58f, 0.10f, 1f);   // オレンジ
+        spinSkipPlate.raycastTarget = false;
+        plateGO.SetActive(false);
 
         GameObject txtGO = new GameObject("SpinText");
         txtGO.transform.SetParent(spinButton.transform, false);
@@ -813,27 +893,9 @@ public class WarukyureBoard : MonoBehaviour
         spinButtonText.alignment = TextAnchor.MiddleCenter;
         spinButtonText.color = Color.white;
         spinButtonText.text = "SPIN";
-
-        // SKIP 中は板絵の「SPIN」と文字が重なって読めないため、ボタンごと差し替える。
-        // 板絵の SPIN を完全に覆うオレンジの角丸板を最背面に敷き、その上に SKIP を出す。
-        GameObject plateGO = new GameObject("SkipPlate");
-        plateGO.transform.SetParent(spinButton.transform, false);
-        RectTransform prt = plateGO.AddComponent<RectTransform>();
-        prt.anchorMin = Vector2.zero;
-        prt.anchorMax = Vector2.one;
-        prt.pivot = new Vector2(0.5f, 0.5f);
-        prt.anchoredPosition = Vector2.zero;
-        prt.sizeDelta = new Vector2(6f, 6f);   // 板絵の赤がフチから覗かないよう少し大きく
-        spinSkipPlate = plateGO.AddComponent<Image>();
-        spinSkipPlate.sprite = MakeRoundedSprite(170, 68, 18, 2f);
-        spinSkipPlate.type = Image.Type.Simple;
-        spinSkipPlate.color = new Color(1f, 0.58f, 0.10f, 1f);   // オレンジ
-        spinSkipPlate.raycastTarget = false;
-        plateGO.transform.SetAsFirstSibling();   // 文字より背面
-        plateGO.SetActive(false);
     }
 
-    /// <summary>SPIN ボタンを SPIN 表示（板絵のまま）と SKIP 表示（オレンジ板）で切り替える。</summary>
+    /// <summary>SPIN ボタンを SPIN 表示（赤ピル背景のまま）と SKIP 表示（オレンジ板）で切り替える。</summary>
     void SetSpinButtonSkipMode(bool skip)
     {
         if (spinSkipPlate != null) spinSkipPlate.gameObject.SetActive(skip);
@@ -883,6 +945,44 @@ public class WarukyureBoard : MonoBehaviour
         im.raycastTarget = false;
         im.color = new Color(0, 0, 0, 0);
         return im;
+    }
+
+    // 2026-09-15 社長指示対応: BET/SPINを盤面前面の新座標へ移設すると、元の焼き込み絵
+    // (ピル形の背景+縁取り)は旧位置(削除済み帯)に取り残されるため、視認できるボタンとして
+    // 機能させるにはピル背景の再現が必須（見た目改善ではなく、移設に伴う不可避対応）。
+    // 色は art_final_v4.png の該当ピル/SPIN部分をPillow実測して近似。
+    // 縁(枠)＋塗り の2枚重ねで簡易的なピル型ボタン背景を作る。戻り値＝塗り側Image(色変更用)。
+    Image AddPillBackground(Transform parent, Vector2 size, float radius, Color borderColor, Color fillColor, float borderWidth)
+    {
+        GameObject bgo = new GameObject("PillBorder");
+        bgo.transform.SetParent(parent, false);
+        RectTransform brt = bgo.AddComponent<RectTransform>();
+        brt.anchorMin = new Vector2(0.5f, 0.5f);
+        brt.anchorMax = new Vector2(0.5f, 0.5f);
+        brt.pivot = new Vector2(0.5f, 0.5f);
+        brt.anchoredPosition = Vector2.zero;
+        brt.sizeDelta = size;
+        Image border = bgo.AddComponent<Image>();
+        border.sprite = MakeRoundedSprite(Mathf.RoundToInt(size.x), Mathf.RoundToInt(size.y), Mathf.RoundToInt(radius), 2f);
+        border.type = Image.Type.Simple;
+        border.color = borderColor;
+        border.raycastTarget = false;
+
+        GameObject fgo = new GameObject("PillFill");
+        fgo.transform.SetParent(parent, false);
+        RectTransform frt = fgo.AddComponent<RectTransform>();
+        frt.anchorMin = new Vector2(0.5f, 0.5f);
+        frt.anchorMax = new Vector2(0.5f, 0.5f);
+        frt.pivot = new Vector2(0.5f, 0.5f);
+        frt.anchoredPosition = Vector2.zero;
+        Vector2 fillSize = new Vector2(size.x - borderWidth * 2f, size.y - borderWidth * 2f);
+        frt.sizeDelta = fillSize;
+        Image fill = fgo.AddComponent<Image>();
+        fill.sprite = MakeRoundedSprite(Mathf.RoundToInt(fillSize.x), Mathf.RoundToInt(fillSize.y), Mathf.RoundToInt(Mathf.Max(1f, radius - borderWidth)), 2f);
+        fill.type = Image.Type.Simple;
+        fill.color = fillColor;
+        fill.raycastTarget = false;
+        return fill;
     }
 
     Button AddButton(string name, Vector2 pos, Vector2 size, Action onClick, out Image image)
@@ -1151,6 +1251,8 @@ public class WarukyureBoard : MonoBehaviour
         isRunning = true;
         skipRequested = false;
         SetSpinButtonSkipMode(true);
+        // 2026-09-15 社長指示: SPINタップでBETボタンを非表示にし、回転中はSTOP以外を隠す。
+        SetBetButtonsVisible(false);
         DismissResultOverlay();
         UpdateBetButtonState();
 
@@ -1408,6 +1510,18 @@ public class WarukyureBoard : MonoBehaviour
         isRunning = false;
         skipRequested = false;
         SetSpinButtonSkipMode(false);
+        // 2026-09-15 社長指示: 次回スピン可能な状態に戻ったらBETボタンを再表示。
+        SetBetButtonsVisible(true);
+    }
+
+    /// <summary>2026-09-15 社長指示: スピン中はBETボタン5個を非表示にし、STOP以外が
+    /// 画面の邪魔にならないようにする。次回スピン可能になったら再表示する。</summary>
+    void SetBetButtonsVisible(bool visible)
+    {
+        for (int i = 0; i < betButtons.Length; i++)
+        {
+            if (betButtons[i] != null) betButtons[i].gameObject.SetActive(visible);
+        }
     }
 
     void OnPoiErrRetry()
@@ -1560,6 +1674,8 @@ public class WarukyureBoard : MonoBehaviour
         isRunning = false;
         skipRequested = false;
         SetSpinButtonSkipMode(false);
+        // 2026-09-15 社長指示: ラウンド終了・次回スピン可能になったらBETボタンを再表示。
+        SetBetButtonsVisible(true);
         if (!string.IsNullOrEmpty(error)) ShowResultOverlay(error, -1f);
 
         // クロスプロモ: ラウンド終了（＝リザルト表示）時のみ発火。プレイ中には割り込まない。
