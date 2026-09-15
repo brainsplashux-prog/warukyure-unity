@@ -35,6 +35,7 @@ public class WarukyureBoard : MonoBehaviour
     // 既存キーを上書きすると immutable キャッシュで旧版が永久に焼き付くため、新ファイル名にして参照を切り替える。
     const string JACKPOT_SE_URL = "https://lp.poicasi.co.jp/shared/poifx/v4/se/warukyure-jackpot-fan9.mp3";
     private int missionBet = 100;
+    private int playMissionBet = 100; // そのプレイのprepare(またはPF bet)確定直後に固定するmissionBetのスナップショット。resolve結果の表示に使う（missionBetが以後更新されても値がぶれないように）
     const float RUN_DURATION = 2.0f;
     const float HOLD_DURATION = 0.5f;
     const int MIN_PATH_STEPS = 35;
@@ -90,6 +91,7 @@ public class WarukyureBoard : MonoBehaviour
     private Text resultPanelText;
     private readonly Button[] betButtons = new Button[5];
     private readonly Image[] betButtonImages = new Image[5];
+    private readonly Text[] betTexts = new Text[5]; // BETボタンの「BET n\nXXX枚」表示。missionBet確定/更新時に文言を再計算するため保持
     private Button spinButton;
     private Text spinButtonText;
     private Image spinButtonImage;
@@ -901,7 +903,8 @@ public class WarukyureBoard : MonoBehaviour
             betText.fontSize = 20;
             betText.alignment = TextAnchor.MiddleCenter;
             betText.color = textColor;
-            betText.text = "BET " + betLabels[i] + "\n100枚"; // 表示文言は旧絵のまま維持（社長指示: 変更なし）
+            betTexts[i] = betText;
+            betText.text = "BET " + betLabels[i] + "\n" + missionBet.ToString("N0") + "枚"; // 1選択あたりの消費枚数=missionBet（cost=selectedBets.Count*missionBetと一致、口数ラベル自体には掛けない）。missionBet確定/変更時はUpdateBetButtonTexts()で再計算
 
             // 光りは110%スケールのピル枠に合わせた角丸で出す（矩形ベタ塗りだと枠からはみ出て見える）
             betButtonImages[i] = AddGlowOverlay(btn.transform, new Vector2(76f * 1.1f, 78f * 1.1f), Mathf.RoundToInt(12f * 1.1f));
@@ -1160,6 +1163,19 @@ public class WarukyureBoard : MonoBehaviour
             if (jackpotLampTexts[i] != null)
                 jackpotLampTexts[i].text = (i == 2) ? "JACKPOT" : jpAwardLabels[i];
         }
+        UpdateBetButtonTexts();
+    }
+
+    // BETボタンの「BET n\nXXX枚」表示をmissionBetの最新値で再計算する。
+    // CreateBetButtons()より先にSetMissionBet()が呼ばれる経路がある場合はbetTexts[i]がまだnullなのでスキップ
+    // （CreateBetButtons自身が生成直後にmissionBetの現在値で初期表示するため取りこぼしはない）。
+    void UpdateBetButtonTexts()
+    {
+        for (int i = 0; i < betTexts.Length; i++)
+        {
+            if (betTexts[i] != null)
+                betTexts[i].text = "BET " + betLabels[i] + "\n" + missionBet.ToString("N0") + "枚";
+        }
     }
 
     // 残高・コスト・純益の表示は共通ヘッダー（HTML側）が持つため、
@@ -1359,6 +1375,9 @@ public class WarukyureBoard : MonoBehaviour
             var prepareRes = JsonUtility.FromJson<PrepareResponse>(prepareBody);
             if (prepareRes != null) SetMissionBet(prepareRes.missionBet);
         }
+        // このプレイの単価をここで確定・保持する（PF有効時はTryPreparePlatform内のSetMissionBet(platformRun.Bet)で
+        // 既に反映済み）。以後missionBetが更新されてもこのプレイのリザルト表示はこの値のまま。
+        playMissionBet = missionBet;
 
         // resolve
         int[] bets = new int[selectedBets.Count];
@@ -1986,7 +2005,7 @@ public class WarukyureBoard : MonoBehaviour
         }
         else if (r.primaryType == "number")
         {
-            sb.Append($"数字 {r.number} × {r.multiplier} = {r.awardBreakdown.number}枚");
+            sb.Append($"数字 {r.number} × 倍率{r.multiplier} × {playMissionBet}枚 = {r.awardBreakdown.number}枚");
         }
         else if (r.primaryType == "castle")
         {
