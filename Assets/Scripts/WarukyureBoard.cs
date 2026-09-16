@@ -45,8 +45,10 @@ public class WarukyureBoard : MonoBehaviour
     const float LAMP_SPEED_FAST = 20f;  // マス/秒。従来＝約40マスを2.0秒＝約20マス/秒 と等速
     const float LAMP_SPEED_MID  = 10f;  // 「今のスピードの半分」
     const float LAMP_SPEED_SLOW = 5f;   // 「1秒間に5マス」
-    const int   LAMP_LAPS_FAST  = 2;    // 高速で2周
-    const float LAMP_LAPS_MID   = 0.5f; // 「ちょっと早い」が長いので半周で遅いに切り替える（2026-08-19 社長指示）
+    const int   LAMP_LAPS_FAST  = 1;    // 社長指示(2026-09-16): 停止までを短縮するため高速周回を2周→1周に削減
+    // 社長指示(2026-09-16): 低速区間を10〜15マスのランダム値にして停止位置を読ませない（固定位置での賭け見切りを防ぐ）
+    const int   LAMP_SLOW_MIN   = 10;
+    const int   LAMP_SLOW_MAX   = 15;
 
     // ----------------- UI references -----------------
     private Canvas canvas;
@@ -1850,6 +1852,21 @@ public class WarukyureBoard : MonoBehaviour
         }
     }
 
+    // 社長指示(2026-09-16): 高速1周→中速→低速k(10〜15マス、ランダム)で停止する経路の内訳を計算する。
+    // ソース区間・ターゲット区間の両方から共通で呼ぶ。
+    void ComputeLampPlan(int startIndex, int endIndex, int trackLen, out int fastSteps, out int midSteps, out int slowSteps, out int totalSteps)
+    {
+        int d = ((endIndex - startIndex) % trackLen + trackLen) % trackLen;
+        fastSteps = LAMP_LAPS_FAST * trackLen; // 1周
+        int k = UnityEngine.Random.Range(LAMP_SLOW_MIN, LAMP_SLOW_MAX + 1); // 両端含む10〜15
+        k = Mathf.Min(k, Mathf.Max(trackLen - 1, 0)); // 短いトラック(例: Ring4=8マス)で破綻しないよう上限をL-1に丸める
+        int rem = d;
+        if (rem < k) rem += trackLen; // 中速区間が負にならないよう1周分繰り上げる
+        midSteps = rem - k;
+        slowSteps = k;
+        totalSteps = fastSteps + rem;
+    }
+
     // ----------------- lamp path -----------------
     List<Vector2> BuildLampPath(string pathId, string stopId)
     {
@@ -1893,18 +1910,21 @@ public class WarukyureBoard : MonoBehaviour
             }
         }
 
-        int srcFast = LAMP_LAPS_FAST * srcL;
-        int srcMid  = Mathf.RoundToInt(LAMP_LAPS_MID * srcL);
-        int srcLap  = srcFast + srcMid;
-        int runIn = ((sourceIndex - homeIndex - srcLap) % srcL + srcL) % srcL;
+        // 社長指示(2026-09-16): 高速1周→中速→停止k(10〜15)マス手前から低速、で経路を組む。
+        // kはトラックごとに毎回ランダムに引き直す（固定位置での賭け見切りを防ぐ）。
+        // L=トラック長、startIdx=起点index、endIdx=終点(停止)index として、
+        // d=起点から終点までの周回距離(0..L-1)を求め、1周(fast)進んだ後の残り距離remから
+        // 低速kマスを差し引いた分を中速(mid)に割り当てる。最終マスは常にendIdxに一致する。
+        int fastSteps, midSteps, slowSteps, totalSteps;
+        ComputeLampPlan(homeIndex, sourceIndex, srcL, out fastSteps, out midSteps, out slowSteps, out totalSteps);
 
         List<string> cells = new List<string>();
         List<float> cellSpeeds = new List<float>();
         cells.Add(home);        cellSpeeds.Add(0f);
-        for (int i = 1; i <= srcLap + runIn; i++)
+        for (int i = 1; i <= totalSteps; i++)
         {
             cells.Add(srcArr[(homeIndex + i) % srcL]);
-            cellSpeeds.Add(i <= srcFast ? LAMP_SPEED_FAST : (i <= srcLap ? LAMP_SPEED_MID : LAMP_SPEED_SLOW));
+            cellSpeeds.Add(i <= fastSteps ? LAMP_SPEED_FAST : (i <= fastSteps + midSteps ? LAMP_SPEED_MID : LAMP_SPEED_SLOW));
         }
 
         // warp + target track
@@ -1915,14 +1935,12 @@ public class WarukyureBoard : MonoBehaviour
             {
                 int targetIndex = BoardData.GetIndex(targetCell);
                 int stopIndex   = BoardData.GetIndex(stopId);
-                int tFast = LAMP_LAPS_FAST * tgtL;
-                int tMid  = Mathf.RoundToInt(LAMP_LAPS_MID * tgtL);
-                int tLap  = tFast + tMid;
-                int tRunIn = ((stopIndex - targetIndex - tLap) % tgtL + tgtL) % tgtL;
-                for (int i = 1; i <= tLap + tRunIn; i++)
+                int tFastSteps, tMidSteps, tSlowSteps, tTotalSteps;
+                ComputeLampPlan(targetIndex, stopIndex, tgtL, out tFastSteps, out tMidSteps, out tSlowSteps, out tTotalSteps);
+                for (int i = 1; i <= tTotalSteps; i++)
                 {
                     cells.Add(tgtArr[(targetIndex + i) % tgtL]);
-                    cellSpeeds.Add(i <= tFast ? LAMP_SPEED_FAST : (i <= tLap ? LAMP_SPEED_MID : LAMP_SPEED_SLOW));
+                    cellSpeeds.Add(i <= tFastSteps ? LAMP_SPEED_FAST : (i <= tFastSteps + tMidSteps ? LAMP_SPEED_MID : LAMP_SPEED_SLOW));
                 }
             }
         }
