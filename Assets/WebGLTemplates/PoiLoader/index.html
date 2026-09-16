@@ -1572,7 +1572,7 @@
             apiPrefix: window.API_PREFIX
           });
           var footer = document.createElement('script');
-          footer.src = '/portal/poi-a8-footer.js';
+          footer.src = '/portal/poi-a8-footer.js?v=__BUILD_VERSION__';
           document.head.appendChild(footer);
         } catch (e) {
           if (typeof console !== 'undefined') console.warn('[poicasi-chrome:ready] failed', e);
