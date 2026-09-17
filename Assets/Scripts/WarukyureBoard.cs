@@ -2075,7 +2075,7 @@ public class WarukyureBoard : MonoBehaviour
             // 従来はどの分岐にも該当せずsbが空のままZ3(中央板)が白紙になっていた。
             // payout(r.awardBreakdown.total)だけを使った最低限のフォールバックを出す。
             if (r.awardBreakdown.total > 0)
-                sb.Append($"{r.awardBreakdown.total}枚 獲得");
+                sb.Append($"{r.awardBreakdown.total:N0}枚 獲得");
             else
                 sb.Append("はずれ");
         }
