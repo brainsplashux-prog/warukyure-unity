@@ -55,6 +55,33 @@ public class PlatformResolveResponse
     public string state;
     public int payout;
     public long wallet_version;
+    // シールブック（挑戦中シールブック抽選, 2026-09-17着手）: resolve 応答に乗る場合のみ非null。
+    // 表示は別タスク。ここでは受け皿としてパースして保持するだけ。
+    public PlatformSealbookDto sealbook;
+}
+
+[Serializable]
+public class PlatformSealbookReward
+{
+    public string asset_code;
+    public int amount;
+}
+
+[Serializable]
+public class PlatformSealbookDto
+{
+    public string sticker_id;
+    public int lv;
+    public int n;
+    public string rarity;
+    public string image_url;
+    public bool is_new;
+    public int count;
+    public int owned_kinds;
+    public bool book_completed;
+    public PlatformSealbookReward reward;
+    public int next_lv;
+    public bool finished;
 }
 
 [Serializable]
