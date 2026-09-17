@@ -1737,7 +1737,9 @@ public class WarukyureBoard : MonoBehaviour
                     if (resolved != null && resolved.ok && !string.IsNullOrEmpty(resolved.run_id))
                     {
                         ResetSpinState();
-                        string detail = resolved.payout > 0 ? $"{resolved.payout}枚" : "はずれ";
+                        string detail = resolved.payout > 0
+                            ? BuildScoreDetail("結果", $"{resolved.payout:N0}枚獲得")
+                            : BuildLoseDetail();
                         bool settled = resolved.state == "SETTLED" && resolved.run_id == runId;
                         platformSettledRunId = settled ? runId : null;
                         // ここのresolveはabort直後にリカバリとして呼んだもので、state=="SETTLED"
@@ -2042,38 +2044,103 @@ public class WarukyureBoard : MonoBehaviour
         EndRound("");
     }
 
+    // 2026-09-17 poiresult v6（案A）是正: 中央板(detailHtml)をキット標準の型
+    // （pr-a-formula＝式型 / pr-a-block＝スコア型 / pr-a-lose2＝はずれ型）に合わせる。
+    // 正本: ~/.claude/manuals/poiresult-standard.md §9-4。
+    // primaryType が想定外の値（サーバー未知/null/空）で来た場合にsbが空のまま
+    // Z3が白紙になっていた問題（fc1245e是正の後継）を、else分岐でpayoutベースの
+    // 代替表示に置き換えて塞ぐ。
+    static string EscapeHtml(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+    }
+
+    // 式型（pr-a-formula）: 材料行(最大4)＋結果。
+    static string BuildFormulaDetail(string[] materialLines, int resultValue, string unit = "枚")
+    {
+        StringBuilder h = new StringBuilder();
+        h.Append("<div class=\"pr-a-formula\">");
+        foreach (var line in materialLines)
+        {
+            if (string.IsNullOrEmpty(line)) continue;
+            h.Append("<div class=\"pr-a-mat-line pr-fit\">").Append(EscapeHtml(line)).Append("</div>");
+        }
+        h.Append("<div class=\"pr-a-eqline pr-fit\">＝</div>");
+        h.Append("<div class=\"pr-a-result pr-fit\">").Append(resultValue.ToString("N0"))
+         .Append("<span class=\"pr-u\">").Append(EscapeHtml(unit)).Append("</span></div>");
+        h.Append("</div>");
+        return h.ToString();
+    }
+
+    // はずれ型（pr-a-lose2）。補足ブロックは0〜1個。
+    static string BuildLoseDetail(string subLabel = null, string subText = null)
+    {
+        StringBuilder h = new StringBuilder();
+        h.Append("<div class=\"pr-a-block\"><div class=\"pr-a-label2\">結果</div>")
+         .Append("<div class=\"pr-a-lose2 pr-fit\">はずれ</div></div>");
+        if (!string.IsNullOrEmpty(subLabel) && !string.IsNullOrEmpty(subText))
+        {
+            h.Append("<div class=\"pr-a-block\"><div class=\"pr-a-label2\">").Append(EscapeHtml(subLabel)).Append("</div>")
+             .Append("<div class=\"pr-a-subnum pr-fit\">").Append(EscapeHtml(subText)).Append("</div></div>");
+        }
+        return h.ToString();
+    }
+
+    // スコア型（pr-a-block）1ブロック。
+    static string BuildScoreDetail(string label, string valueText)
+    {
+        StringBuilder h = new StringBuilder();
+        h.Append("<div class=\"pr-a-block\"><div class=\"pr-a-label2\">").Append(EscapeHtml(label)).Append("</div>")
+         .Append("<div class=\"pr-a-num2 pr-fit\">").Append(EscapeHtml(valueText)).Append("</div></div>");
+        return h.ToString();
+    }
+
     void ShowNormalResult(ResolveResponse r, bool allowReload)
     {
-        StringBuilder sb = new StringBuilder();
+        string detail;
         string reward = "";   // メダル以外の報酬名（無ければ空）
         if (r.primaryType == "out")
         {
-            sb.Append("はずれ");
+            detail = BuildLoseDetail();
         }
         else if (r.primaryType == "number")
         {
-            sb.Append($"数字 {r.number} × 倍率{r.multiplier} × {playMissionBet}枚 = {r.awardBreakdown.number}枚");
+            detail = BuildFormulaDetail(new[]
+            {
+                $"数字 {r.number}",
+                $"× 倍率 {r.multiplier}",
+                $"× {playMissionBet:N0}枚",
+            }, r.awardBreakdown.number);
         }
         else if (r.primaryType == "castle")
         {
             WarukyureSfx.PlayFanfare();   // 城到達のファンファーレ
-            sb.Append($"城 90 = {r.awardBreakdown.castle}枚");
+            detail = BuildFormulaDetail(new[] { "城 90" }, r.awardBreakdown.castle);
         }
         else if (r.primaryType == "ball")
         {
             string name = "???";
             if (r.collection != null && r.collection.ballType >= 0 && r.collection.ballType < 4)
                 name = ballNames[r.collection.ballType];
-            sb.Append($"BALL {name} ゲット");
             // [社長確定] 2026-09-06「ボールは残念じゃなくてやったねなのでフラグを直して」
             // メダルは0枚だがボールという報酬を得ている回。報酬名だけ渡し、当落はキットが決める。
             reward = $"{name}ボール";
+            detail = BuildScoreDetail("結果", $"{name}ボール獲得");
+        }
+        else
+        {
+            // 2026-09-17是正: primaryTypeがサーバーから未知/null/空の値で来た場合の
+            // 代替表示。payout(r.awardBreakdown.total)だけを使い、白紙を防ぐ。
+            detail = r.awardBreakdown.total > 0
+                ? BuildScoreDetail("結果", $"{r.awardBreakdown.total:N0}枚獲得")
+                : BuildLoseDetail();
         }
 
         // 精算表示は共通リザルト画面（poiresult v2）に一本化する。
         // 滞在5秒→自動クローズ→SPIN待機（＝本ゲームのタイトル相当）へ戻る。自動再開はしない。
         // = §5-2b [社長確定] 2026-09-06「全てをタイトル画面に戻せば共通化できるからそういう設計にする」。
-        StartCoroutine(RunPoiResult(r.awardBreakdown.total, sb.ToString(), reward, allowReload));
+        StartCoroutine(RunPoiResult(r.awardBreakdown.total, detail, reward, allowReload));
     }
 
     // ----------------- 共通リザルト画面 -----------------
@@ -2249,7 +2316,7 @@ public class WarukyureBoard : MonoBehaviour
         jackpotPanel.SetActive(false);
         jackpotPanelGroup.blocksRaycasts = false;
         SetNormalUIForChallenge(true);
-        yield return StartCoroutine(RunPoiResult(r.awardBreakdown.total, $"JACKPOT {r.bonusOutcome.award}枚", "", allowReload));
+        yield return StartCoroutine(RunPoiResult(r.awardBreakdown.total, BuildScoreDetail("JACKPOT", $"{r.bonusOutcome.award:N0}枚"), "", allowReload));
         EndRound("");
     }
 
