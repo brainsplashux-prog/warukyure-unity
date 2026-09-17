@@ -131,6 +131,7 @@ public class TitleScreen : MonoBehaviour
         // （game-layout-standard.md: ADVIRTUA を出せるのは実際に遊んでいるゲーム画面のみ）。
         AdVirtuaMonitorSetup.Hide();
         IsShowing = true;
+        Poicasi.Chrome.PoicasiChromeBridge.SetScreen(false); // タイトル表示中はヘッダーA+B
     }
 
     void Update()
@@ -245,6 +246,7 @@ public class TitleScreen : MonoBehaviour
         sessionWaitTimer = 0f;
         if (errorText != null) errorText.gameObject.SetActive(false);
         AdVirtuaMonitorSetup.Hide();
+        Poicasi.Chrome.PoicasiChromeBridge.SetScreen(false); // タイトル再表示中はヘッダーA+B
     }
 
     void Close()
@@ -252,5 +254,6 @@ public class TitleScreen : MonoBehaviour
         IsShowing = false;
         if (root != null) root.gameObject.SetActive(false);
         AdVirtuaMonitorSetup.Show();
+        Poicasi.Chrome.PoicasiChromeBridge.SetScreen(true); // タイトルを閉じてプレイ開始 → ヘッダーAのみ
     }
 }
