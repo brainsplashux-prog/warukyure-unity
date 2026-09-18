@@ -1139,12 +1139,41 @@ public class WarukyureBoard : MonoBehaviour
         }
         if (!IsDemoMode())
         {
-            int cost = selectedBets.Count * missionBet;
-            if (wallet < cost)
-            {
-                ShowResultOverlay($"残高不足です（必要 {cost:N0}枚）", 1.5f);
-                return;
-            }
+            StartCoroutine(OnSpinPreCheck());
+            return;
+        }
+        StartCoroutine(SpinRound());
+    }
+
+    // 2026-09-18 是正: SPIN事前判定の直前にプラットフォーム残高を取り直してから判定する。
+    // 起因＝init/state時点のwalletが自ゲームAPI内の値のままで、プラットフォームの
+    // 実残高（ヘッダー表示と同じ値）と食い違うと「ヘッダーは十分なのにSPIN事前判定だけ
+    // 残高不足」になる事故（社長報告2026-09-18）。取得に失敗した場合は判定をスキップして
+    // サーバー側のprepareに任せ、誤って弾かない。
+    IEnumerator OnSpinPreCheck()
+    {
+        if (platformClient == null)
+            platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));
+
+        var walletTask = platformClient.GetWalletBalance();
+        yield return new WaitUntil(() => walletTask.IsCompleted);
+
+        if (!walletTask.IsFaulted && !walletTask.IsCanceled)
+        {
+            wallet = walletTask.Result;
+        }
+        else
+        {
+            Debug.LogWarning("[PLATFORM] wallet/balance re-fetch failed at spin pre-check; skipping pre-check (server prepare will judge): " + walletTask.Exception?.Message);
+            StartCoroutine(SpinRound());
+            yield break;
+        }
+
+        int cost = selectedBets.Count * missionBet;
+        if (wallet < cost)
+        {
+            ShowResultOverlay($"残高不足です（必要 {cost:N0}枚）", 1.5f);
+            yield break;
         }
         StartCoroutine(SpinRound());
     }
@@ -1346,12 +1375,31 @@ public class WarukyureBoard : MonoBehaviour
         if (task.IsFaulted || task.IsCanceled)
         {
             Debug.LogWarning("[PLATFORM] missions/current failed; keeping warukyure-api missionBet: " + task.Exception?.Message);
-            yield break;
+        }
+        else
+        {
+            int? costMedal = task.Result;
+            if (costMedal.HasValue && costMedal.Value > 0)
+                SetMissionBet(costMedal.Value);
         }
 
-        int? costMedal = task.Result;
-        if (costMedal.HasValue && costMedal.Value > 0)
-            SetMissionBet(costMedal.Value);
+        // 2026-09-18 是正: wallet も missionBet と同じ場所・同じ作りで先取り同期する。
+        // init/auth/stateが返すwalletは自ゲームAPI内の値で、プラットフォームの実残高
+        // （ヘッダー表示と同じ値）になるのは、これまでは初回SPINがresolveした後だけ
+        // だった。そのため初回SPIN前は事前判定がヘッダーと食い違うwalletで弾くことが
+        // あった（社長報告2026-09-18）。取得に失敗したら既存のwalletのまま維持し、
+        // 例外で止めない。
+        var walletTask = platformClient.GetWalletBalance();
+        yield return new WaitUntil(() => walletTask.IsCompleted);
+
+        if (!walletTask.IsFaulted && !walletTask.IsCanceled)
+        {
+            wallet = walletTask.Result;
+        }
+        else
+        {
+            Debug.LogWarning("[PLATFORM] wallet/balance failed; keeping existing wallet: " + walletTask.Exception?.Message);
+        }
     }
 
     IEnumerator SpinRound()
