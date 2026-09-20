@@ -1439,7 +1439,9 @@ public class WarukyureBoard : MonoBehaviour
             if (string.IsNullOrEmpty(stuckId))
             {
                 EndRound(API_RETRY_MSG);
-                ShowPoiError("E-RETRY", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
+                // 2026-09-20: サーバーが実コード({"code":"..."}等)を返していればそれを渡し、
+                // 無ければ従来どおり固定タグへフォールバック。
+                ShowPoiError(ExtractServerErrorCode(lastErrorBody) ?? "E-RETRY", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
                 yield break;
             }
             currentRunId = stuckId;
@@ -1472,7 +1474,8 @@ public class WarukyureBoard : MonoBehaviour
             EndRound(API_RETRY_MSG);
             string runId = platformRun != null ? platformRun.RunId : currentRunId;
             string playToken = platformRun != null ? platformRun.PlayToken : null;
-            yield return StartCoroutine(TryAbortAndShowPopup("E-RESOLVE", runId, playToken));
+            // 2026-09-20: 実コードがあれば渡す。無ければ従来の固定タグへフォールバック。
+            yield return StartCoroutine(TryAbortAndShowPopup(ExtractServerErrorCode(lastErrorBody) ?? "E-RESOLVE", runId, playToken));
             yield break;
         }
 
@@ -1591,7 +1594,9 @@ public class WarukyureBoard : MonoBehaviour
             // 可能性を否定できない(runidはクライアントに届かず追跡不能)。以後の
             // reloadを永続的に禁止する。
             platformPrepareOutcomeUnknown = true;
-            ShowPoiError("E-PREPARE", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
+            // 2026-09-20: PF /plays (Prepare) がdaily_play_limit_reached等の429を返した場合、
+            // HttpStatusException.Body に載ったサーバーの実コードを渡す。無ければ従来のE-PREPARE。
+            ShowPoiError(ExtractServerErrorCode(task.Exception) ?? "E-PREPARE", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
             currentRunId = System.Guid.NewGuid().ToString();
             yield break;
         }
@@ -1623,7 +1628,8 @@ public class WarukyureBoard : MonoBehaviour
         {
             Debug.LogWarning("[PLATFORM] s2s_commit failed: " + s2sTask.Exception?.Message);
             EndRound(API_RETRY_MSG);
-            yield return StartCoroutine(TryAbortAndShowPopup("E-COMMIT", platformRun.RunId, platformRun.PlayToken, lastResult));
+            // 2026-09-20: 実コードがあれば渡す。無ければ従来のE-COMMIT。
+            yield return StartCoroutine(TryAbortAndShowPopup(ExtractServerErrorCode(s2sTask.Exception) ?? "E-COMMIT", platformRun.RunId, platformRun.PlayToken, lastResult));
             yield break;
         }
 
@@ -1634,7 +1640,8 @@ public class WarukyureBoard : MonoBehaviour
         {
             Debug.LogWarning("[PLATFORM] resolve failed: " + resolveTask.Exception?.Message);
             EndRound(API_RETRY_MSG);
-            yield return StartCoroutine(TryAbortAndShowPopup("E-SETTLE", platformRun.RunId, platformRun.PlayToken, lastResult));
+            // 2026-09-20: 実コードがあれば渡す。無ければ従来のE-SETTLE。
+            yield return StartCoroutine(TryAbortAndShowPopup(ExtractServerErrorCode(resolveTask.Exception) ?? "E-SETTLE", platformRun.RunId, platformRun.PlayToken, lastResult));
             yield break;
         }
 
@@ -1869,6 +1876,47 @@ public class WarukyureBoard : MonoBehaviour
         int j = body.IndexOf('"', i);
         if (j <= i) return null;
         return body.Substring(i, j - i);
+    }
+
+    // 2026-09-20 追加(社長指示: 日次プレイ上限で正確な文言を出す)。
+    // サーバーが返すエラー応答 {"code":"daily_play_limit_reached"} (poicasi-platform
+    // src/handler.mjs buildGameErrorResponse) や {"error":"..."} (play-cap.mjs等) から
+    // 実コードを取り出す。見つからなければnullを返し、呼び出し側は従来の固定フェーズ
+    // タグ(E-PREPARE等)へフォールバックする(=新しいエラー処理機構は増やさず、
+    // 既存の失敗パスに実コードを流し込む1本だけを通す)。
+    static string ExtractJsonStringField(string body, string key)
+    {
+        if (string.IsNullOrEmpty(body)) return null;
+        string needle = "\"" + key + "\":\"";
+        int i = body.IndexOf(needle, StringComparison.Ordinal);
+        if (i < 0) return null;
+        i += needle.Length;
+        int j = body.IndexOf('"', i);
+        if (j <= i) return null;
+        return body.Substring(i, j - i);
+    }
+
+    static string ExtractServerErrorCode(string body)
+    {
+        string code = ExtractJsonStringField(body, "code");
+        if (string.IsNullOrEmpty(code)) code = ExtractJsonStringField(body, "error");
+        return string.IsNullOrEmpty(code) ? null : code;
+    }
+
+    // task.Exception(AggregateException)の中からHttpStatusExceptionを探し、そのBodyから
+    // 実コードを取り出す。無ければnull。
+    static string ExtractServerErrorCode(AggregateException ex)
+    {
+        if (ex == null) return null;
+        HttpStatusException http = ex.InnerException as HttpStatusException;
+        if (http == null)
+        {
+            foreach (var inner in ex.InnerExceptions)
+            {
+                if (inner is HttpStatusException h) { http = h; break; }
+            }
+        }
+        return http == null ? null : ExtractServerErrorCode(http.Body);
     }
 
     IEnumerator ApiPost(string json, string idemKey, Action<string> onOk, Action<string> onErr)
