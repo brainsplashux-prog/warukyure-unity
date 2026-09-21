@@ -1788,6 +1788,23 @@ public class WarukyureBoard : MonoBehaviour
 
         // launch → token → plays(prepare)。失敗したら既存のゲーム Lambda フローへフォールバック。
         yield return StartCoroutine(TryPreparePlatform());
+#if JEM_BUILD
+        // JEM: platform prepareが失敗/不明のまま既存ゲームLambdaのprepare/resolveへ進むと、
+        // reserve無しの無償プレイになる(fail-closed違反)。失敗時のEndRoundとエラー表示は
+        // TryPreparePlatform内で済んでいるので、ここでは必ず終了する。
+        // (内側コルーチンのyield breakは外側のSpinRoundを止めないため、外側でも明示判定する)
+        if (!platformEnabled || platformRun == null)
+        {
+            // platformEnabled=trueかつplatformRun==null(Prepareがnullを返した異常系)だけは
+            // エラー表示が未実行なので、ここで補う。精算状況不明のため「返金済み」表示はしない。
+            if (isRunning)
+            {
+                EndRound(API_RETRY_MSG);
+                ShowPoiError("E-PREPARE", currentRunId, false, OnPoiErrRetry, OnPoiErrBack);
+            }
+            yield break;
+        }
+#endif
 
         // prepare
         string demoPart = IsDemoMode() ? ",\"demo\":true" : "";
@@ -1804,6 +1821,16 @@ public class WarukyureBoard : MonoBehaviour
         yield return StartCoroutine(ApiPost(prepareJson, currentRunId, (b) => prepareBody = b, (e) => prepareErr = e));
         if (!string.IsNullOrEmpty(prepareErr))
         {
+#if JEM_BUILD
+            // JEM: 409復旧でplatform runを切り離して既存runへ復帰する経路は、reserveを
+            // 伴わない無償プレイになるため使えない。取得済みのplatform runはabortを試み、
+            // エラー/回復表示で止める(不明な精算を「返金済み」とは表示しない)。
+            EndRound(API_RETRY_MSG);
+            yield return StartCoroutine(TryAbortAndShowPopup("E-PREPARE",
+                platformRun != null ? platformRun.RunId : currentRunId,
+                platformRun != null ? platformRun.PlayToken : null));
+            yield break;
+#else
             // 409＝前回の中断ランが残留している。そのrunIdを引き継いでresolveし、復帰させる。
             // 放置すると以後prepareが永久に409になり遊べなくなる（2026-08-19 社長報告）。
             string stuckId = (lastErrorCode == 409) ? ExtractStuckRunId(lastErrorBody) : null;
@@ -1817,6 +1844,7 @@ public class WarukyureBoard : MonoBehaviour
             // 中断ランは PF と紐付いていない可能性があるため、既存のゲームフローに戻す。
             platformEnabled = false;
             platformRun = null;
+#endif
         }
 
         // prepare 応答から最新 missionBet を受信（サーバー正本）。PF 有効時は plays() で受け取った bet を優先。
@@ -1968,7 +1996,13 @@ public class WarukyureBoard : MonoBehaviour
             // 可能性を否定できない(runidはクライアントに届かず追跡不能)。以後の
             // reloadを永続的に禁止する。
             platformPrepareOutcomeUnknown = true;
+#if JEM_BUILD
+            // JEM: playsのrun作成・reserveがサーバー側で確定済みか不明のため、
+            // 「返金済み」とは表示しない。
+            ShowPoiError("E-PREPARE", currentRunId, false, OnPoiErrRetry, OnPoiErrBack);
+#else
             ShowPoiError("E-PREPARE", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
+#endif
             currentRunId = System.Guid.NewGuid().ToString();
 #if JEM_BUILD
             // JEM: platform連携なしの既存ゲームLambdaフローへはフォールバックしない。
