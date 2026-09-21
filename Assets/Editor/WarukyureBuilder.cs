@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -11,6 +13,7 @@ public static class WarukyureBuilder
     [MenuItem("Warukyure/Build WebGL")]
     public static void BuildWebGL()
     {
+        RequireJemDefineMatch(expectJem: false);
         BuildCore("/Users/suzukimasahiro/Desktop/warukyure/client", "warukyure", "0.0.39");
     }
 
@@ -22,7 +25,29 @@ public static class WarukyureBuilder
     [MenuItem("Warukyure/Build WebGL (JEM jem-warukyure)")]
     public static void BuildWebGLJem()
     {
+        RequireJemDefineMatch(expectJem: true);
         BuildCore("/Users/suzukimasahiro/Desktop/warukyure/client-jem", "jem-warukyure", "0.0.1");
+    }
+
+    // ビルド種別と WebGL scripting define の JEM_BUILD 有無が一致しない場合、
+    // 出力先/テンプレートを一切触る前に停止する。JEM定義有効なworktreeで通常
+    // BuildWebGLを実行すると元WARUの client をJEMビルドで上書きしてしまい、
+    // 配信ガード(stamp_build_marker.sh / deploy_guard.sh)はBuild後のため防げない。
+    static void RequireJemDefineMatch(bool expectJem)
+    {
+        string symbols = PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.WebGL);
+        bool hasJem = symbols.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Contains("JEM_BUILD");
+        if (hasJem == expectJem) return;
+        string msg = expectJem
+            ? "[WarukyureBuilder] BuildWebGLJem requires WebGL define 'JEM_BUILD' " +
+              "(current: '" + symbols + "'). Run JEM/Enable JEM_BUILD define, restart Unity, then retry."
+            : "[WarukyureBuilder] BuildWebGL refused: WebGL define 'JEM_BUILD' is active " +
+              "(symbols: '" + symbols + "'). This would overwrite the normal warukyure client " +
+              "output with a JEM build. Use 'Warukyure/Build WebGL (JEM jem-warukyure)' instead.";
+        Debug.LogError(msg);
+        EditorApplication.Exit(1);
+        throw new InvalidOperationException(msg);
     }
 
     static void BuildCore(string clientOutPath, string productName, string bundleVersion)
