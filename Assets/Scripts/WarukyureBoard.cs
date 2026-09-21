@@ -228,21 +228,14 @@ public class WarukyureBoard : MonoBehaviour
     static readonly string[] JemGemAssetCodes = { "GEM_RUBY", "GEM_EMERALD", "GEM_CITRINE", "GEM_SAPPHIRE" };
     static readonly string[] JemGemResourcePaths = { "Gems/ruby_256", "Gems/emerald_256", "Gems/citrine_256", "Gems/sapphire_256" };
     static readonly int[] JemAllowedRates = { 1, 2, 5, 10, 20, 50, 100 };
+    // 2026-09-21 社長原文「レートは選択したら保存され、一個前に選択したレートがデフォルトになる」。
+    // JEM WARU専用キー(他ゲームのJemBetRateとは分離。元ポイ之信は出陣時保存だが
+    // 今回は「選択したら保存」を優先し、タイトルのレート選択の瞬間に保存する)。
+    const string JemBetRateKey = "jem_warukyure_bet_rate";
     int[] jemGemBalances;                    // PF wallet/balance から取得した4種残高(未取得=null)
     readonly Sprite[] jemGemSprites = new Sprite[4];
-    int jemGemIndex = -1;                    // 選択中の宝石(-1=未選択)
-    int jemRate = 1;                         // 選択中のレート
-    GameObject jemPanel;
-    CanvasGroup jemPanelGroup;
-    Button[] jemGemButtons;
-    Image[] jemGemGlow;
-    Text[] jemGemBalanceTexts;
-    Button[] jemRateButtons;
-    Image[] jemRateGlow;
-    Text jemCostText;
-    Image jemCostGemIcon;
-    Button jemConfirmButton;
-    Image jemConfirmFill;
+    int jemGemIndex = -1;                    // タイトルで選択中の宝石(-1=未選択)
+    int jemRate = 1;                         // タイトルで選択中のレート(PlayerPrefs保存済み値が既定)
     bool jemBalanceRequested;
 #endif
 
@@ -347,7 +340,11 @@ public class WarukyureBoard : MonoBehaviour
         CreateResultOverlay();
         CreateJackpotChallengeUI();
 #if JEM_BUILD
-        CreateJemPanel();
+        // JEM: 宝石アートと保存済みレートを先に読み込む（TitleScreen.Init が参照するため
+        // titleScreen 生成より前に行う）。選択UI自体は TitleScreen 側が持つ。
+        for (int i = 0; i < JemGemResourcePaths.Length; i++)
+            jemGemSprites[i] = Resources.Load<Sprite>(JemGemResourcePaths[i]);
+        LoadJemBetRate();
 #endif
         gameObject.AddComponent<SoundMuteButton>(); // game-layout-standard.md §2b 共通サウンドミュートボタン
         new GameObject("WarukyureBgm").AddComponent<WarukyureBgm>(); // BGMループ(ミュートはAudioListener一括)
@@ -1149,307 +1146,67 @@ public class WarukyureBoard : MonoBehaviour
     }
 
 #if JEM_BUILD
-    // ----------------- JEM 宝石/レート選択パネル -----------------
-    // 2026-09-21 社長確定(1=A/2=A・jem-games.md): SPINタップで開き、宝石4種(アイコン+×残数、
-    // 石名テキストなし)とrate(1/2/5/10/20/50/100)を選び、「BET口数N × rate」の消費宝石数を
-    // 確認してからパネル内のSPINボタンで開始する。盤面・BET候補・停止演出は元WARUのまま。
-    // UI部品は既存の手続き的生成(AddPillBackground/AddGlowOverlay/MakeRoundedSprite)を踏襲。
-    const float JemPanelW = 680f;
-    const float JemPanelH = 560f;
+    // ----------------- JEM 宝石/レート選択（タイトル画面側の状態正本） -----------------
+    // 2026-09-21 社長原文「ポイの信の野望と同じ作り」: 選択UIは盤面モーダルではなく
+    // タイトル画面(TitleScreen)に置く。ここでは選択状態・残高・PlayerPrefs保存だけを持ち、
+    // TitleScreen が以下の公開API経由で読み書きする。PF Prepareへは従来どおり
+    // JemGemAssetCodes[jemGemIndex] と jemRate を渡す（消費契約は無変更）。
+    public int JemGemCount => JemGemAssetCodes.Length;
+    public int JemSelectedGemIndex => jemGemIndex;
+    public int JemSelectedRate => jemRate;
+    public bool JemBalancesReady => jemGemBalances != null;
 
-    void CreateJemPanel()
+    public Sprite GetJemGemSprite(int index)
     {
-        for (int i = 0; i < JemGemResourcePaths.Length; i++)
-            jemGemSprites[i] = Resources.Load<Sprite>(JemGemResourcePaths[i]);
-
-        GameObject go = new GameObject("JemPanel");
-        go.transform.SetParent(boardRoot, false);
-        jemPanel = go;
-
-        RectTransform rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0, 1);
-        rt.anchorMax = new Vector2(0, 1);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = new Vector2(360, -348.5f); // BoardRoot(高697)中央
-        rt.sizeDelta = new Vector2(JemPanelW, JemPanelH);
-
-        go.AddComponent<CanvasRenderer>();
-        // 盤面への貫通タップ防止: パネル全面を覆う透明Image(raycastTarget)を張る。
-        // AddPillBackgroundの子ImageはraycastTarget=falseのため別途必要。
-        Image hitArea = go.AddComponent<Image>();
-        hitArea.color = new Color(0, 0, 0, 0);
-        // 背面: 台(BetSheet)と同系色のピル背景
-        AddPillBackground(go.transform, new Vector2(JemPanelW, JemPanelH), 24f,
-            new Color32(200, 140, 45, 255), new Color32(245, 218, 169, 255), 4f);
-
-        jemPanelGroup = go.AddComponent<CanvasGroup>();
-        jemPanelGroup.alpha = 0f;
-        jemPanelGroup.blocksRaycasts = false;
-
-        Font font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
-        if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        Color textColor = new Color32(90, 55, 20, 255);
-
-        // 見出し
-        Text title = JemPanelText(go.transform, "JemPanelTitle", new Vector2(0, 30), new Vector2(JemPanelW - 40, 44), 30, textColor, font);
-        title.text = "宝石とレートをえらぶ";
-
-        // 宝石4種（ルビー→エメラルド→シトリン→サファイア）。アイコン+×残数のみ。
-        jemGemButtons = new Button[4];
-        jemGemGlow = new Image[4];
-        jemGemBalanceTexts = new Text[4];
-        const float gemW = 120f, gemH = 150f, gemY = 92f;
-        float gemGap = (JemPanelW - 80f - 4f * gemW) / 3f;
-        for (int i = 0; i < 4; i++)
-        {
-            float x = -JemPanelW / 2f + 40f + gemW / 2f + i * (gemW + gemGap);
-            GameObject ggo = new GameObject("JemGem" + i);
-            ggo.transform.SetParent(go.transform, false);
-            RectTransform grt = ggo.AddComponent<RectTransform>();
-            grt.anchorMin = new Vector2(0.5f, 1f);
-            grt.anchorMax = new Vector2(0.5f, 1f);
-            grt.pivot = new Vector2(0.5f, 1f);
-            grt.anchoredPosition = new Vector2(x, -gemY);
-            grt.sizeDelta = new Vector2(gemW, gemH);
-
-            // 選択光り(ピル枠) → アイコン → ×残数 の順に重ねる
-            Image bg = AddPillBackground(ggo.transform, new Vector2(gemW, gemH), 16f,
-                new Color32(200, 140, 45, 255), new Color32(250, 229, 186, 255), 3f);
-            jemGemGlow[i] = bg;
-
-            GameObject iconGO = new GameObject("Icon");
-            iconGO.transform.SetParent(ggo.transform, false);
-            RectTransform irt = iconGO.AddComponent<RectTransform>();
-            irt.anchorMin = new Vector2(0.5f, 1f);
-            irt.anchorMax = new Vector2(0.5f, 1f);
-            irt.pivot = new Vector2(0.5f, 1f);
-            irt.anchoredPosition = new Vector2(0, -8f);
-            irt.sizeDelta = new Vector2(96f, 96f);
-            Image icon = iconGO.AddComponent<Image>();
-            icon.sprite = jemGemSprites[i];
-            icon.preserveAspect = true;
-            icon.raycastTarget = false;
-
-            Text bal = JemPanelText(ggo.transform, "Balance", new Vector2(0, 108), new Vector2(gemW, 34), 26, textColor, font);
-            bal.text = "×-";
-            jemGemBalanceTexts[i] = bal;
-
-            Image ghit = ggo.AddComponent<Image>(); // 当たり判定用の透明Image(子ImageはraycastTarget=false)
-            ghit.color = new Color(0, 0, 0, 0);
-            Button gbtn = ggo.AddComponent<Button>();
-            gbtn.targetGraphic = ghit;
-            int captured = i;
-            gbtn.onClick.AddListener(() => { WarukyureSfx.PlayTap(); OnJemGemTapped(captured); });
-            jemGemButtons[i] = gbtn;
-        }
-
-        // レート7種 ×1/×2/×5/×10/×20/×50/×100
-        jemRateButtons = new Button[JemAllowedRates.Length];
-        jemRateGlow = new Image[JemAllowedRates.Length];
-        const float rateW = 78f, rateH = 56f, rateY = 268f;
-        float rateGap = (JemPanelW - 80f - JemAllowedRates.Length * rateW) / (JemAllowedRates.Length - 1f);
-        for (int i = 0; i < JemAllowedRates.Length; i++)
-        {
-            float x = -JemPanelW / 2f + 40f + rateW / 2f + i * (rateW + rateGap);
-            GameObject rgo = new GameObject("JemRate" + JemAllowedRates[i]);
-            rgo.transform.SetParent(go.transform, false);
-            RectTransform rrt = rgo.AddComponent<RectTransform>();
-            rrt.anchorMin = new Vector2(0.5f, 1f);
-            rrt.anchorMax = new Vector2(0.5f, 1f);
-            rrt.pivot = new Vector2(0.5f, 1f);
-            rrt.anchoredPosition = new Vector2(x, -rateY);
-            rrt.sizeDelta = new Vector2(rateW, rateH);
-
-            Image fill = AddPillBackground(rgo.transform, new Vector2(rateW, rateH), 14f,
-                new Color32(200, 140, 45, 255), new Color32(250, 229, 186, 255), 3f);
-            jemRateGlow[i] = fill;
-
-            Text rt2 = JemPanelText(rgo.transform, "RateText", Vector2.zero, new Vector2(rateW, rateH), 26, textColor, font);
-            rt2.text = "×" + JemAllowedRates[i];
-
-            Image rhit = rgo.AddComponent<Image>();
-            rhit.color = new Color(0, 0, 0, 0);
-            Button rbtn = rgo.AddComponent<Button>();
-            rbtn.targetGraphic = rhit;
-            int capturedRate = JemAllowedRates[i];
-            rbtn.onClick.AddListener(() => { WarukyureSfx.PlayTap(); OnJemRateTapped(capturedRate); });
-            jemRateButtons[i] = rbtn;
-        }
-
-        // 消費確認行: [選択宝石アイコン] ×(BET口数 × rate) = 消費数
-        GameObject costGO = new GameObject("JemCost");
-        costGO.transform.SetParent(go.transform, false);
-        RectTransform crt = costGO.AddComponent<RectTransform>();
-        crt.anchorMin = new Vector2(0.5f, 1f);
-        crt.anchorMax = new Vector2(0.5f, 1f);
-        crt.pivot = new Vector2(0.5f, 1f);
-        crt.anchoredPosition = new Vector2(0, -352f);
-        crt.sizeDelta = new Vector2(JemPanelW - 80f, 60f);
-
-        GameObject cIconGO = new GameObject("CostGemIcon");
-        cIconGO.transform.SetParent(costGO.transform, false);
-        RectTransform cirt = cIconGO.AddComponent<RectTransform>();
-        cirt.anchorMin = new Vector2(0f, 0.5f);
-        cirt.anchorMax = new Vector2(0f, 0.5f);
-        cirt.pivot = new Vector2(0f, 0.5f);
-        cirt.anchoredPosition = new Vector2(30f, 0f);
-        cirt.sizeDelta = new Vector2(52f, 52f);
-        jemCostGemIcon = cIconGO.AddComponent<Image>();
-        jemCostGemIcon.preserveAspect = true;
-        jemCostGemIcon.raycastTarget = false;
-
-        jemCostText = JemPanelText(costGO.transform, "CostText", new Vector2(96f, 0), new Vector2(JemPanelW - 80f - 96f, 60f), 26, textColor, font);
-        jemCostText.alignment = TextAnchor.MiddleLeft;
-
-        // 確定(SPIN)ボタン + 閉じるボタン
-        const float btnY = 448f;
-        GameObject cgo = new GameObject("JemConfirm");
-        cgo.transform.SetParent(go.transform, false);
-        RectTransform cbrt = cgo.AddComponent<RectTransform>();
-        cbrt.anchorMin = new Vector2(0.5f, 1f);
-        cbrt.anchorMax = new Vector2(0.5f, 1f);
-        cbrt.pivot = new Vector2(0.5f, 1f);
-        cbrt.anchoredPosition = new Vector2(-90f, -btnY);
-        cbrt.sizeDelta = new Vector2(300f, 80f);
-        jemConfirmFill = AddPillBackground(cgo.transform, new Vector2(300f, 80f), 18f,
-            new Color32(200, 140, 45, 255), new Color32(170, 20, 15, 255), 4f);
-        Text cText = JemPanelText(cgo.transform, "ConfirmText", Vector2.zero, new Vector2(300f, 80f), 30, Color.white, font);
-        cText.text = "この内容でSPIN";
-        Image chit = cgo.AddComponent<Image>();
-        chit.color = new Color(0, 0, 0, 0);
-        jemConfirmButton = cgo.AddComponent<Button>();
-        jemConfirmButton.targetGraphic = chit;
-        jemConfirmButton.onClick.AddListener(() => ConfirmJemAndSpin());
-
-        GameObject xgo = new GameObject("JemClose");
-        xgo.transform.SetParent(go.transform, false);
-        RectTransform xrt = xgo.AddComponent<RectTransform>();
-        xrt.anchorMin = new Vector2(0.5f, 1f);
-        xrt.anchorMax = new Vector2(0.5f, 1f);
-        xrt.pivot = new Vector2(0.5f, 1f);
-        xrt.anchoredPosition = new Vector2(230f, -btnY);
-        xrt.sizeDelta = new Vector2(160f, 80f);
-        AddPillBackground(xgo.transform, new Vector2(160f, 80f), 18f,
-            new Color32(200, 140, 45, 255), new Color32(120, 110, 100, 255), 4f);
-        Text xText = JemPanelText(xgo.transform, "CloseText", Vector2.zero, new Vector2(160f, 80f), 28, Color.white, font);
-        xText.text = "戻る";
-        Image xhit = xgo.AddComponent<Image>();
-        xhit.color = new Color(0, 0, 0, 0);
-        Button xbtn = xgo.AddComponent<Button>();
-        xbtn.targetGraphic = xhit;
-        xbtn.onClick.AddListener(() => { WarukyureSfx.PlayTap(); CloseJemPanel(); });
-
-        go.SetActive(false);
+        return (index >= 0 && index < jemGemSprites.Length) ? jemGemSprites[index] : null;
     }
 
-    Text JemPanelText(Transform parent, string name, Vector2 posFromTopCenter, Vector2 size, int fontSize, Color color, Font font)
+    // 残高未取得は null（=残高不明。選択不可として扱う）。
+    public int? GetJemGemBalance(int index)
     {
-        GameObject go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        RectTransform rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.5f, 1f);
-        rt.anchorMax = new Vector2(0.5f, 1f);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = new Vector2(posFromTopCenter.x, -posFromTopCenter.y);
-        rt.sizeDelta = size;
-        Text t = go.AddComponent<Text>();
-        t.font = font;
-        t.fontSize = fontSize;
-        t.alignment = TextAnchor.MiddleCenter;
-        t.color = color;
-        t.raycastTarget = false;
-        return t;
+        if (jemGemBalances == null || index < 0 || index >= jemGemBalances.Length) return null;
+        return jemGemBalances[index];
     }
 
-    void OnJemGemTapped(int index)
+    // タイトルの宝石タップ。残高不明(未取得)または所持0は選択しない。
+    public bool SelectJemGemForTitle(int index)
     {
-        if (index < 0 || index >= JemGemAssetCodes.Length) return;
-        if (jemGemBalances != null && jemGemBalances[index] <= 0) return; // 所持0は選べない
+        if (index < 0 || index >= JemGemAssetCodes.Length) return false;
+        if (jemGemBalances == null || jemGemBalances[index] <= 0) return false;
         jemGemIndex = index;
-        UpdateJemPanelVisuals();
+        return true;
     }
 
-    void OnJemRateTapped(int rate)
+    // タイトルのレート選択。「選択したら保存」(2026-09-21 社長原文)どおり、
+    // この呼び出しの時点で JEM専用 PlayerPrefs キーへ即時保存する。
+    public bool SelectJemRateForTitle(int rate)
     {
-        if (System.Array.IndexOf(JemAllowedRates, rate) < 0) return;
+        if (System.Array.IndexOf(JemAllowedRates, rate) < 0) return false;
         jemRate = rate;
-        UpdateJemPanelVisuals();
+        PlayerPrefs.SetInt(JemBetRateKey, rate);
+        PlayerPrefs.Save();
+        UpdateBetButtonTexts(); // BETボタンの「×rate」表示を選択レートへ合わせる
+        return true;
     }
 
-    void OpenJemPanel()
+    // 残高未取得の時だけ取得を開始する（TitleScreen側の再要求用。二重起動しない）。
+    public void RequestJemBalances()
     {
-        if (jemPanel == null) return;
-        // 残高未取得なら開くたびに一度だけ取得を試みる(取得失敗時も開いて ×- 表示のまま選べない)。
-        if (jemGemBalances == null && !jemBalanceRequested)
-        {
-            jemBalanceRequested = true;
-            StartCoroutine(RefreshJemBalances());
-        }
-        jemPanel.SetActive(true);
-        jemPanelGroup.alpha = 1f;
-        jemPanelGroup.blocksRaycasts = true;
-        UpdateJemPanelVisuals();
+        if (jemGemBalances != null || jemBalanceRequested) return;
+        jemBalanceRequested = true;
+        StartCoroutine(RefreshJemBalances());
     }
 
-    void CloseJemPanel()
+    // PlayerPrefsから読み込み、許可値(1/2/5/10/20/50/100)以外は1へ戻す。
+    void LoadJemBetRate()
     {
-        if (jemPanel == null) return;
-        jemPanelGroup.alpha = 0f;
-        jemPanelGroup.blocksRaycasts = false;
-        jemPanel.SetActive(false);
-    }
-
-    void UpdateJemPanelVisuals()
-    {
-        if (jemPanel == null) return;
-        for (int i = 0; i < 4; i++)
+        int stored = PlayerPrefs.GetInt(JemBetRateKey, 1);
+        jemRate = System.Array.IndexOf(JemAllowedRates, stored) >= 0 ? stored : 1;
+        if (jemRate != stored)
         {
-            bool hasBalance = jemGemBalances == null || jemGemBalances[i] > 0; // 未取得時は触れるが確定時に弾く
-            bool selected = i == jemGemIndex;
-            if (jemGemGlow[i] != null)
-                jemGemGlow[i].color = selected ? new Color32(255, 205, 60, 255) : new Color32(250, 229, 186, 255);
-            if (jemGemButtons[i] != null)
-                jemGemButtons[i].interactable = hasBalance;
-            if (jemGemBalanceTexts[i] != null)
-                jemGemBalanceTexts[i].text = jemGemBalances == null ? "×-" : "×" + jemGemBalances[i].ToString("N0");
+            PlayerPrefs.SetInt(JemBetRateKey, jemRate);
+            PlayerPrefs.Save();
         }
-        for (int i = 0; i < JemAllowedRates.Length; i++)
-        {
-            if (jemRateGlow[i] != null)
-                jemRateGlow[i].color = (JemAllowedRates[i] == jemRate)
-                    ? new Color32(255, 205, 60, 255) : new Color32(250, 229, 186, 255);
-        }
-
-        int n = selectedBets.Count;
-        bool ready = jemGemIndex >= 0 && n > 0;
-        int cost = n * jemRate;
-        if (jemCostGemIcon != null)
-        {
-            jemCostGemIcon.sprite = jemGemIndex >= 0 ? jemGemSprites[jemGemIndex] : null;
-            jemCostGemIcon.enabled = jemGemIndex >= 0;
-        }
-        if (jemCostText != null)
-            jemCostText.text = ready
-                ? $"消費: {n}口 × {jemRate} ＝ ×{cost:N0}"
-                : "宝石とレートをえらんでください";
-        if (jemConfirmButton != null) jemConfirmButton.interactable = ready;
-        if (jemConfirmFill != null) jemConfirmFill.color = ready ? new Color32(170, 20, 15, 255) : new Color32(140, 120, 110, 255);
-    }
-
-    // パネルの確定ボタン。ここだけが消費を確定してSPINを開始する(誤タップ即ベット防止)。
-    void ConfirmJemAndSpin()
-    {
-        WarukyureSfx.PlayTap();
-        if (isRunning || !sessionReady) return;
-        if (jemGemIndex < 0 || System.Array.IndexOf(JemAllowedRates, jemRate) < 0) return;
-        if (jemGemBalances != null && jemGemBalances[jemGemIndex] <= 0)
-        {
-            jemGemIndex = -1;
-            UpdateJemPanelVisuals();
-            return;
-        }
-        CloseJemPanel();
-        StartCoroutine(SpinRound());
     }
 #endif
 
@@ -1494,10 +1251,17 @@ public class WarukyureBoard : MonoBehaviour
             return;
         }
 #if JEM_BUILD
-        // JEM: SPIN前に宝石×レート×口数の消費を確認するパネルを開く。
-        // 消費の確定はパネルの「SPIN」ボタン(ConfirmJemAndSpin)だけが行う(誤タップ即ベット防止)。
-        // ローカルの残高事前判定は行わない(社長確定: wallet事前判定を使わない。reserveはPF/サーバー任せ)。
-        OpenJemPanel();
+        // JEM(2026-09-21 社長原文): 宝石・レート選択はタイトル画面で済んでいる前提。
+        // SPINでは選択モーダルを再表示しない。gem未選択・残高未取得・不正rateでは
+        // 消費を始めず通知だけ行う(fail-closed)。残高不足の事前拒否は行わず、
+        // 従来どおりPF/サーバーreserveを消費可否の正本とする(2026-09-21レビュー是正)。
+        if (jemGemIndex < 0 || jemGemBalances == null
+            || System.Array.IndexOf(JemAllowedRates, jemRate) < 0)
+        {
+            ShowResultOverlay("タイトルで宝石とレートをえらんでください", 1.5f);
+            return;
+        }
+        StartCoroutine(SpinRound());
 #else
         if (!IsDemoMode())
         {
@@ -1549,10 +1313,16 @@ public class WarukyureBoard : MonoBehaviour
 
     // BETボタンの「BET n\n<1口あたりの消費>」表示。missionBet確定/変更時にUpdateBetButtonTexts()で再計算。
     // 1選択あたりの消費=missionBet（cost=selectedBets.Count*missionBetと一致、口数ラベル自体には掛けない）。
-    // JEM_BUILDではmissionBet=rate(=1口あたり宝石rate個)で、表示は「×rate」。
+    // JEM_BUILDでは1口あたり=同種宝石×rate個。タイトルで選んだレート(jemRate)を表示し、
+    // レート選択(SelectJemRateForTitle)でも即時反映される。PF確定のrun.betとは
+    // TryPreparePlatform→SetMissionBet経由で一致するため実数値は変わらない。
     string BetButtonLabel(string betLabel)
     {
+#if JEM_BUILD
+        return "BET " + betLabel + "\n" + AmountLabel(jemRate);
+#else
         return "BET " + betLabel + "\n" + AmountLabel(missionBet);
+#endif
     }
 
     // 残高・コスト・純益の表示は共通ヘッダー（HTML側）が持つため、
@@ -1732,19 +1502,22 @@ public class WarukyureBoard : MonoBehaviour
         if (platformClient == null)
             platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));
 
+        jemBalanceRequested = true;
         var task = platformClient.GetGemBalances();
         yield return new WaitUntil(() => task.IsCompleted);
 
         if (task.IsFaulted || task.IsCanceled)
         {
             Debug.LogWarning("[JEM] wallet/balance (gems) failed; keeping previous balances: " + task.Exception?.Message);
+            // 失敗時は未取得のまま(=残高不明。選択・消費を開始させない)。次の要求で再試行できるよう戻す。
+            jemBalanceRequested = false;
             yield break;
         }
         jemGemBalances = task.Result;
-        // 残高0の宝石が選択中なら未選択へ戻す(選べない旨はパネル側で非活性表示)。
+        // 残高0の宝石が選択中なら未選択へ戻す(タイトルの宝石ボタン側で非活性表示される)。
+        // 選択中レート(jemRate)は残高の増減では勝手に変更しない(2026-09-21受入条件)。
         if (jemGemIndex >= 0 && jemGemBalances != null && jemGemBalances[jemGemIndex] <= 0)
             jemGemIndex = -1;
-        UpdateJemPanelVisuals();
     }
 #endif
 
@@ -1978,8 +1751,9 @@ public class WarukyureBoard : MonoBehaviour
         // デクリメントする。
         platformPrepareInFlight++;
 #if JEM_BUILD
-        // JEM: 選んだ宝石(asset_code)とrateをplaysへ送る(2026-09-21 社長確定 2=A)。
-        // ConfirmJemAndSpin で jemGemIndex>=0 と JemAllowedRates 内であることを確認済み。
+        // JEM: タイトルで選んだ宝石(asset_code)とrateをplaysへ送る(2026-09-21 社長確定 2=A)。
+        // OnSpin で jemGemIndex>=0・残高取得済み・rate正当を確認済み。
+        // 消費可否(残高×口数)はここの Prepare/reserve が正本。
         var task = platformClient.Prepare(JemGemAssetCodes[jemGemIndex], jemRate);
 #else
         var task = platformClient.Prepare();
