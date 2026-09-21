@@ -138,11 +138,10 @@ public sealed class PlatformApiClient
     // JEM分離(jem-games.md §2): 別URL・別platform games.jsonエントリ(jem-warukyure)を叩く。
     // 元warukyureのgame_idは1文字も変えない。
     public const string GameId = "jem-warukyure";
-    // JEM専用ゲームLambda(jem-warukyure-api)の既定エンドポイント。
-    // 2026-09-21時点でDEV/本番とも未作成のため空のままにする。
-    // 空の場合は SendRaw が例外を投げて通信を拒否する(fail-closed)。
+    // JEM専用ゲームLambda(jem-warukyure-api)の既定エンドポイント(DEV)。
+    // AWS実測URL(2026-09-21 社長承認)。本番は呼び出し側から API_URL を渡す。
     // 元warukyure-apiのURLをここへfallbackとして書いてはいけない(誤配信防止)。
-    public const string DefaultEndpoint = "";
+    public const string DefaultEndpoint = "https://svixy4jdl5.execute-api.ap-northeast-1.amazonaws.com";
 #else
     public const string GameId = "warukyure";
     // ゲーム Lambda 既定エンドポイント（DEV）。本番は呼び出し側から API_URL を渡す。

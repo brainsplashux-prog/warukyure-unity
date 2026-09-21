@@ -16,9 +16,10 @@ public class WarukyureBoard : MonoBehaviour
     //   Editor など absoluteURL が空の場合は DEV（本番へ誤射しない側に倒す）。
 #if JEM_BUILD
     // JEM分離(2026-09-21 社長確定・jem-games.md §2): 専用Lambda jem-warukyure-api のみを使う。
-    // DEV/本番とも未作成のため空のままにし、InitSession冒頭でfail-closedする(通信しない)。
+    // DEVはAWS実測URLを設定済み(2026-09-21 社長承認)。本番は未作成のため空のままにし、
+    // InitSession冒頭でfail-closedする(通信しない)。
     // ここへ元warukyure-apiのURLをfallbackとして書いてはいけない(誤配信防止)。
-    const string API_URL_DEV  = "";
+    const string API_URL_DEV  = "https://svixy4jdl5.execute-api.ap-northeast-1.amazonaws.com/";
     const string API_URL_PROD = "";
     const string TOKEN_KEY = "jem_warukyure_token";
 #else
