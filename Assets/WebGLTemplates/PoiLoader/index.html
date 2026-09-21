@@ -1642,6 +1642,112 @@
   <link rel="stylesheet" href="https://lp.poicasi.co.jp/shared/poierr/v3/poierr.css">
   <script src="https://lp.poicasi.co.jp/shared/poierr/v3/poierr.js"></script>
 
+    <!-- JEM-SELECTOR-BRIDGE v1: 共通宝石選択UI(shared jem-selector)とUnityの境界。
+         JEMビルド(window.POI_GAME_ID==='jem-warukyure')のときだけ共有loaderを読み、
+         通常WARUビルドでは一切ロード・挙動変更しない。宝石行・レートパネルの
+         DOM/CSS・宝石順・画像URL・レート配列は共通部品(catalog.js/jem-selector.js)が
+         持ち、ここにはコピーしない。契約: shared/jem-selector/v1/CONTRACT.md -->
+    <script>
+    (function () {
+      var S = window.__jemSel = { handle: null, loading: false, failed: null,
+                                  pending: [], stateReceived: false, visible: false };
+      // Unityインスタンス未確立(Awake中のmount完了等)では無言廃棄せず保留キューへ。
+      // 確立後にflushして ready/failed を確実に届ける。同一methodの保留は最新のみ
+      // (ready/failedの二重配送を避ける)。
+      function send(method, arg) {
+        try {
+          if (window.unityInstance && typeof window.unityInstance.SendMessage === 'function') {
+            window.unityInstance.SendMessage('WarukyureBoard', method, arg || '');
+            return true;
+          }
+          if (typeof Module !== 'undefined' && Module && typeof Module.SendMessage === 'function') {
+            Module.SendMessage('WarukyureBoard', method, arg || '');
+            return true;
+          }
+        } catch (e) {}
+        for (var i = S.pending.length - 1; i >= 0; i--) {
+          if (S.pending[i].m === method) { S.pending[i].a = arg || ''; return false; }
+        }
+        S.pending.push({ m: method, a: arg || '' });
+        return false;
+      }
+      // インスタンス確立をポーリングし、保留通知を配送する。
+      // 通常WARUでは pending が常に空のため実質no-op（POI_GAME_ID注入順に依存しない）。
+      setInterval(function () {
+        if (!S.pending.length) return;
+        var q = S.pending; S.pending = [];
+        for (var i = 0; i < q.length; i++) send(q[i].m, q[i].a);
+      }, 200);
+      function loaderUrl() {
+        // DEV配信は /game/jem-warukyure-dev/ → DEVの本体を読むloader。
+        // それ以外(JEM本番 /game/jem-warukyure/)は本番loader。
+        var dev = location.pathname.indexOf('/game/jem-warukyure-dev/') === 0;
+        return dev ? '/shared/jem-selector-dev/v1/jem-selector-loader.js'
+                   : '/shared/jem-selector/v1/jem-selector-loader.js';
+      }
+      function inject(src) {
+        return new Promise(function (resolve, reject) {
+          var s = document.createElement('script');
+          s.src = src;
+          s.onload = function () { resolve(); };
+          s.onerror = function () { reject(new Error('jem-selector loader failed: ' + src)); };
+          document.head.appendChild(s);
+        });
+      }
+      function fail(kind, e) {
+        S.failed = kind + ': ' + String((e && e.message) || e);
+        try { console.error('[jem-selector] ' + S.failed); } catch (e2) {}
+        send('OnJemSelectorFailed', S.failed);
+      }
+      // Unity(WarukyureBoard)から jslib 経由で呼ばれる。loaderロード→mount→
+      // ready通知までをここで行う。失敗・契約不一致は OnJemSelectorFailed で明示し、
+      // 旧UIへのフォールバックはしない（再試行は再度 mount を呼ぶだけでよい）。
+      // S.loading / S.handle ガードで二重mountを防ぐ。
+      S.mount = function () {
+        if (window.POI_GAME_ID !== 'jem-warukyure') return; // 通常WARUでは何もしない
+        if (S.handle) { send('OnJemSelectorReady', ''); return; }
+        if (S.loading) return;
+        S.loading = true;
+        inject(loaderUrl())
+          .then(function () { return window.JemSelectorLoader.load(); })
+          .then(function (ui) {
+            var host = document.getElementById('unity-container');
+            S.handle = ui.mount(host, {
+              // ユーザーコールバックは Unity の ready update 到着前には届けない。
+              onRateSelected: function (a, r) { if (S.stateReceived) send('OnJemRateSelected', a + '|' + r); },
+              onStart: function (a, r) { if (S.stateReceived) send('OnJemStart', a + '|' + r); }
+            });
+            S.loading = false;
+            // mount直後は共通側rootの既定表示に依存せず、Unityのshow/hide指示が
+            // 来るまで記録済みの希望状態(S.visible)へ明示的に合わせる。
+            // タイトル終了後に非同期ロードが完了しても宝石行が盤面に残らない。
+            try {
+              if (S.visible) { if (S.handle.show) S.handle.show(); }
+              else if (S.handle.hide) S.handle.hide();
+            } catch (e) {}
+            send('OnJemSelectorReady', '');
+          })
+          .catch(function (err) {
+            S.loading = false;
+            fail('load', err);
+          });
+      };
+      // 壊れたstateは黙殺しない: parse失敗・契約違反は fail-closed でUnityへ通知する。
+      S.update = function (json) {
+        if (!S.handle) return;
+        var state;
+        try { state = JSON.parse(json || '{}'); }
+        catch (e) { fail('invalid state json', e); return; }
+        try { S.handle.update(state); S.stateReceived = true; }
+        catch (e) { fail('state rejected', e); }
+      };
+      S.show = function () { S.visible = true; if (S.handle) S.handle.show(); };
+      S.hide = function () { S.visible = false; if (S.handle) S.handle.hide(); };
+      S.releaseStart = function () { if (S.handle) S.handle.releaseStart(); };
+      S.isOpen = function () { return !!(S.handle && S.handle.isOpen()); };
+    })();
+    </script>
+
   </head>
   <body>
     <script>

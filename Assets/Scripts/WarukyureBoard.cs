@@ -221,22 +221,54 @@ public class WarukyureBoard : MonoBehaviour
 
 #if JEM_BUILD
     // ----------------- JEM 宝石/レート選択 -----------------
-    // 2026-09-21 社長確定(2=A): 元WARUの1〜5口BETは維持し、1口あたり同種宝石1個×rateを消費。
-    // 4種は価値同一・記載順は ルビー→エメラルド→シトリン→サファイア(2026-09-19 社長確定。
-    // 正本: poicasi-org/designs/gems/README.md)。石名テキストは表示しない([icon]×数のみ)。
-    // 配列3つは index が同じ宝石を指すよう対応させる。PlatformApiClient.JemGemAssetCodesForBalance も同順。
-    static readonly string[] JemGemAssetCodes = { "GEM_RUBY", "GEM_EMERALD", "GEM_CITRINE", "GEM_SAPPHIRE" };
-    static readonly string[] JemGemResourcePaths = { "Gems/ruby_256", "Gems/emerald_256", "Gems/citrine_256", "Gems/sapphire_256" };
+    // 2026-09-21 社長指示: 宝石選択UIはブラウザ共通部品 /shared/jem-selector(-dev)/v1 に統一。
+    // 表示順・asset code・アイコン・レート配列の正本は共通catalog(catalog.js)で、
+    // ゲーム側は固定配列・画像パスを持たない。ここが持つのは asset_code キーの残高map・
+    // 選択中のasset code・レート(PlayerPrefs保存)だけ。
+    // 消費契約(2026-09-21 社長確定2=A): 元WARUの1〜5口BETは維持し、1口あたり同種宝石1個×rate。
     static readonly int[] JemAllowedRates = { 1, 2, 5, 10, 20, 50, 100 };
     // 2026-09-21 社長原文「レートは選択したら保存され、一個前に選択したレートがデフォルトになる」。
     // JEM WARU専用キー(他ゲームのJemBetRateとは分離。元ポイ之信は出陣時保存だが
     // 今回は「選択したら保存」を優先し、タイトルのレート選択の瞬間に保存する)。
     const string JemBetRateKey = "jem_warukyure_bet_rate";
-    int[] jemGemBalances;                    // PF wallet/balance から取得した4種残高(未取得=null)
-    readonly Sprite[] jemGemSprites = new Sprite[4];
-    int jemGemIndex = -1;                    // タイトルで選択中の宝石(-1=未選択)
-    int jemRate = 1;                         // タイトルで選択中のレート(PlayerPrefs保存済み値が既定)
+    Dictionary<string, int> jemGemBalances;  // PF wallet/balance の GEM_* 残高map(未取得=null)
+    string jemAssetCode;                     // 共通selectorで選択中の宝石 asset_code(null=未選択)
+    int jemRate = 1;                         // 選択中のレート(PlayerPrefs保存済み値が既定)
     bool jemBalanceRequested;
+    bool jemSelectorReady;                   // 共通selectorのmount完了(=updateを受付可能)
+    bool jemSelectorFailed;                  // ロード失敗/契約不一致。fail-closed・旧UIへ戻さない
+    string lastJemSelectorStateJson;         // 最後に送信したupdate(JSON)。差分送信で毎フレーム再描画を防ぐ
+#endif
+
+#if JEM_BUILD
+    // ---- 共通 jem-selector との境界(JemSelectorBridge.jslib / index.html の __jemSel) ----
+    // 境界は WebGL だけ。Editor/他プラットフォームはno-opスタブ。
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void JemSelectorMount();
+
+    [DllImport("__Internal")]
+    private static extern void JemSelectorUpdate(string stateJson);
+
+    [DllImport("__Internal")]
+    private static extern void JemSelectorShow();
+
+    [DllImport("__Internal")]
+    private static extern void JemSelectorHide();
+
+    [DllImport("__Internal")]
+    private static extern void JemSelectorReleaseStart();
+
+    [DllImport("__Internal")]
+    private static extern int JemSelectorIsOpen();
+#else
+    private static void JemSelectorMount() { }
+    private static void JemSelectorUpdate(string stateJson) { }
+    private static void JemSelectorShow() { }
+    private static void JemSelectorHide() { }
+    private static void JemSelectorReleaseStart() { }
+    private static int JemSelectorIsOpen() { return 0; }
+#endif
 #endif
 
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -340,10 +372,8 @@ public class WarukyureBoard : MonoBehaviour
         CreateResultOverlay();
         CreateJackpotChallengeUI();
 #if JEM_BUILD
-        // JEM: 宝石アートと保存済みレートを先に読み込む（TitleScreen.Init が参照するため
-        // titleScreen 生成より前に行う）。選択UI自体は TitleScreen 側が持つ。
-        for (int i = 0; i < JemGemResourcePaths.Length; i++)
-            jemGemSprites[i] = Resources.Load<Sprite>(JemGemResourcePaths[i]);
+        // JEM: 保存済みレートを先に読み込む（共通selectorへ渡すため
+        // titleScreen 生成より前に行う）。宝石画像・選択UI自体はブラウザ共通部品が持つ。
         LoadJemBetRate();
 #endif
         gameObject.AddComponent<SoundMuteButton>(); // game-layout-standard.md §2b 共通サウンドミュートボタン
@@ -1146,34 +1176,30 @@ public class WarukyureBoard : MonoBehaviour
     }
 
 #if JEM_BUILD
-    // ----------------- JEM 宝石/レート選択（タイトル画面側の状態正本） -----------------
-    // 2026-09-21 社長原文「ポイの信の野望と同じ作り」: 選択UIは盤面モーダルではなく
-    // タイトル画面(TitleScreen)に置く。ここでは選択状態・残高・PlayerPrefs保存だけを持ち、
-    // TitleScreen が以下の公開API経由で読み書きする。PF Prepareへは従来どおり
-    // JemGemAssetCodes[jemGemIndex] と jemRate を渡す（消費契約は無変更）。
-    public int JemGemCount => JemGemAssetCodes.Length;
-    public int JemSelectedGemIndex => jemGemIndex;
+    // ----------------- JEM 宝石/レート選択（共通selector接続の状態正本） -----------------
+    // 2026-09-21 社長指示: 選択UIはブラウザ共通部品 jem-selector が描く。
+    // ここでは選択状態・残高map・PlayerPrefs保存・PF連携だけを持ち、TitleScreenと
+    // 共通selector(JS側のSendMessageコールバック)が以下の公開API経由で読み書きする。
+    // PF Prepareへは選択中の asset_code と jemRate を渡す（消費契約は無変更）。
+    public string JemSelectedAssetCode => jemAssetCode;
     public int JemSelectedRate => jemRate;
     public bool JemBalancesReady => jemGemBalances != null;
+    public bool JemSelectorReady => jemSelectorReady;
+    public bool JemSelectorFailed => jemSelectorFailed;
 
-    public Sprite GetJemGemSprite(int index)
+    // 残高未取得・mapに存在しないasset codeは null（=残高不明。選択不可として扱う）。
+    public int? GetJemGemBalance(string assetCode)
     {
-        return (index >= 0 && index < jemGemSprites.Length) ? jemGemSprites[index] : null;
+        if (jemGemBalances == null || string.IsNullOrEmpty(assetCode)) return null;
+        return jemGemBalances.TryGetValue(assetCode, out int bal) ? bal : (int?)null;
     }
 
-    // 残高未取得は null（=残高不明。選択不可として扱う）。
-    public int? GetJemGemBalance(int index)
+    // 共通UIから来たasset codeは残高mapに存在し、正数であることを検査する。
+    public bool SelectJemGemForTitle(string assetCode)
     {
-        if (jemGemBalances == null || index < 0 || index >= jemGemBalances.Length) return null;
-        return jemGemBalances[index];
-    }
-
-    // タイトルの宝石タップ。残高不明(未取得)または所持0は選択しない。
-    public bool SelectJemGemForTitle(int index)
-    {
-        if (index < 0 || index >= JemGemAssetCodes.Length) return false;
-        if (jemGemBalances == null || jemGemBalances[index] <= 0) return false;
-        jemGemIndex = index;
+        if (string.IsNullOrEmpty(assetCode)) return false;
+        if (jemGemBalances == null || !jemGemBalances.TryGetValue(assetCode, out int bal) || bal <= 0) return false;
+        jemAssetCode = assetCode;
         return true;
     }
 
@@ -1207,6 +1233,125 @@ public class WarukyureBoard : MonoBehaviour
             PlayerPrefs.SetInt(JemBetRateKey, jemRate);
             PlayerPrefs.Save();
         }
+    }
+
+    // ---- 共通 jem-selector との境界 ----
+
+    // loaderロード＋mountを開始する。TitleScreen.Init/Reopenから呼ぶ（JS側で冪等）。
+    public void MountJemSelector()
+    {
+        JemSelectorMount();
+    }
+
+    // 残高map・保存レート・開始可否(ready)を共通UIへ渡す。
+    // 毎フレーム呼ばれても、前回送信JSONと同じなら送らない（DOM再描画を避ける差分送信）。
+    public void PushJemSelectorState()
+    {
+        if (!jemSelectorReady || jemSelectorFailed) return;
+        // JSON生成はUnity非依存の JemSelectorState へ分離（非GUIテストで実出力をparse検証）。
+        // 外側オブジェクトは必ず閉じる。keyはJSONエスケープ済み。負残高・空key等の異常値を
+        // 含む場合は null が返り、そのstateは送信しない(fail closed。lastJsonも更新しない)。
+        string json = JemSelectorState.BuildStateJson(sessionReady, jemRate, jemGemBalances);
+        if (json == null)
+        {
+            Debug.LogError("[JEM] selector state build failed (abnormal balance map); update not sent");
+            return;
+        }
+        if (json == lastJemSelectorStateJson) return;
+        lastJemSelectorStateJson = json;
+        JemSelectorUpdate(json);
+    }
+
+    // タイトル再表示/終了で共通UIを show/hide する。
+    public void ShowJemSelector() { JemSelectorShow(); }
+    public void HideJemSelector() { JemSelectorHide(); }
+
+    // 共通レートパネルが開いているか（原画STARTへのタップ貫通防止）。
+    public bool IsJemSelectorPanelOpen() { return JemSelectorIsOpen() != 0; }
+
+    // ---- JS(SendMessage)からのコールバック。GameObject名 "WarukyureBoard" 宛 ----
+
+    // 共通selectorのロード＋mount完了通知。初期残高/保存レート/readyをここで渡す。
+    public void OnJemSelectorReady(string _)
+    {
+        jemSelectorReady = true;
+        jemSelectorFailed = false;
+        PushJemSelectorState();
+        // mount完了がタイトル表示中/終了後のどちらで起きても、現在のTitleScreen状態へ
+        // 明示的にshow/hideを合わせる（非同期ロード完了後に宝石行が盤面へ残らない）。
+        if (TitleScreen.IsShowing) JemSelectorShow();
+        else JemSelectorHide();
+    }
+
+    // ロード失敗・契約不一致。開始を拒否する(fail-closed。旧Unity個別UIへは戻さない)。
+    public void OnJemSelectorFailed(string message)
+    {
+        jemSelectorReady = false;
+        jemSelectorFailed = true;
+        Debug.LogError("[JEM] shared jem-selector load/contract failed: " + message);
+        if (titleScreen != null) titleScreen.OnJemSelectorFailed(message);
+    }
+
+    // レートタップ＝選択+保存だけ（開始・賭けはしない。PF Prepare/reserveは呼ばない）。
+    // selector/session未ready・残高mapに無いasset・0残高・許可値外rate・残高超過rateの
+    // callbackは全て無操作(何も保存しない)。全検査を通って初めてPlayerPrefsへ保存する。
+    public void OnJemRateSelected(string payload)
+    {
+        if (!jemSelectorReady || jemSelectorFailed || !sessionReady) return;
+        if (!TryParseJemSelectorPayload(payload, out string assetCode, out int rate)) return;
+        int? bal = GetJemGemBalance(assetCode);
+        if (!bal.HasValue || bal.Value <= 0) return;
+        if (System.Array.IndexOf(JemAllowedRates, rate) < 0 || rate > bal.Value) return;
+        if (!SelectJemGemForTitle(assetCode)) return;
+        SelectJemRateForTitle(rate);   // 全検査通過後にのみ保存（許可値は上で検証済み）
+    }
+
+    // 出陣＝選択宝石とレートで開始。失敗時は releaseStart() で再試行可能に戻す。
+    public void OnJemStart(string payload)
+    {
+        if (!TryParseJemSelectorPayload(payload, out string assetCode, out int rate)
+            || !sessionReady
+            || !jemSelectorReady || jemSelectorFailed
+            || System.Array.IndexOf(JemAllowedRates, rate) < 0
+            || !SelectJemGemForTitle(assetCode))
+        {
+            FailJemSelectorStart("その宝石では開始できません");
+            return;
+        }
+        int? bal = GetJemGemBalance(assetCode);
+        if (!bal.HasValue || bal.Value < rate)
+        {
+            FailJemSelectorStart("残高にあわせてレートをえらんでください");
+            return;
+        }
+        SelectJemRateForTitle(rate);
+        if (titleScreen == null || !titleScreen.CloseFromJemSelector())
+        {
+            JemSelectorReleaseStart();
+            return;
+        }
+        // 開始成功後もロックを解除しておく（出陣ロックはreleaseStart()でしか戻らない
+        // 契約のため、このままだと次回タイトルで出陣が永久にdisabledになる）。
+        WarukyureSfx.PlayTap();
+        JemSelectorReleaseStart();
+    }
+
+    void FailJemSelectorStart(string message)
+    {
+        if (titleScreen != null) titleScreen.ShowJemNotice(message);
+        JemSelectorReleaseStart();
+    }
+
+    // JSコールバックのペイロード "asset_code|rate"。asset_codeに'|'は含まれない。
+    static bool TryParseJemSelectorPayload(string payload, out string assetCode, out int rate)
+    {
+        assetCode = null;
+        rate = -1;
+        if (string.IsNullOrEmpty(payload)) return false;
+        int sep = payload.IndexOf('|');
+        if (sep <= 0 || sep == payload.Length - 1) return false;
+        assetCode = payload.Substring(0, sep);
+        return int.TryParse(payload.Substring(sep + 1), out rate);
     }
 #endif
 
@@ -1251,11 +1396,12 @@ public class WarukyureBoard : MonoBehaviour
             return;
         }
 #if JEM_BUILD
-        // JEM(2026-09-21 社長原文): 宝石・レート選択はタイトル画面で済んでいる前提。
-        // SPINでは選択モーダルを再表示しない。gem未選択・残高未取得・不正rateでは
+        // JEM(2026-09-21 社長原文): 宝石・レート選択は共通selectorで済んでいる前提。
+        // SPINでは選択UIを再表示しない。gem未選択・残高未取得・所持0・不正rateでは
         // 消費を始めず通知だけ行う(fail-closed)。残高不足の事前拒否は行わず、
         // 従来どおりPF/サーバーreserveを消費可否の正本とする(2026-09-21レビュー是正)。
-        if (jemGemIndex < 0 || jemGemBalances == null
+        if (string.IsNullOrEmpty(jemAssetCode) || jemGemBalances == null
+            || !jemGemBalances.TryGetValue(jemAssetCode, out int jemBal) || jemBal <= 0
             || System.Array.IndexOf(JemAllowedRates, jemRate) < 0)
         {
             ShowResultOverlay("タイトルで宝石とレートをえらんでください", 1.5f);
@@ -1514,10 +1660,13 @@ public class WarukyureBoard : MonoBehaviour
             yield break;
         }
         jemGemBalances = task.Result;
-        // 残高0の宝石が選択中なら未選択へ戻す(タイトルの宝石ボタン側で非活性表示される)。
+        // 選択中の宝石が残高0/不明になったら未選択へ戻す(共通UI側で非活性表示される)。
         // 選択中レート(jemRate)は残高の増減では勝手に変更しない(2026-09-21受入条件)。
-        if (jemGemIndex >= 0 && jemGemBalances != null && jemGemBalances[jemGemIndex] <= 0)
-            jemGemIndex = -1;
+        if (jemAssetCode != null
+            && (!jemGemBalances.TryGetValue(jemAssetCode, out int selBal) || selBal <= 0))
+            jemAssetCode = null;
+        // 残高再取得後は共通UIの表示を更新する(×Nの反映・残高割れレートの無効化は共通側)。
+        PushJemSelectorState();
     }
 #endif
 
@@ -1752,9 +1901,9 @@ public class WarukyureBoard : MonoBehaviour
         platformPrepareInFlight++;
 #if JEM_BUILD
         // JEM: タイトルで選んだ宝石(asset_code)とrateをplaysへ送る(2026-09-21 社長確定 2=A)。
-        // OnSpin で jemGemIndex>=0・残高取得済み・rate正当を確認済み。
+        // OnSpin で jemAssetCode選択済み・残高取得済み・rate正当を確認済み。
         // 消費可否(残高×口数)はここの Prepare/reserve が正本。
-        var task = platformClient.Prepare(JemGemAssetCodes[jemGemIndex], jemRate);
+        var task = platformClient.Prepare(jemAssetCode, jemRate);
 #else
         var task = platformClient.Prepare();
 #endif

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -403,12 +404,10 @@ public sealed class PlatformApiClient
     }
 
 #if JEM_BUILD
-    // JEM_BUILD: 宝石選択UI向けに4種の残高を一括取得する。
-    // 並び順は 2026-09-19 社長確定の記載順ルール: ルビー→エメラルド→シトリン→サファイア
-    // (正本: poicasi-org/designs/gems/README.md)。呼び出し側の並びと一致させる。
-    public static readonly string[] JemGemAssetCodesForBalance = { "GEM_RUBY", "GEM_EMERALD", "GEM_CITRINE", "GEM_SAPPHIRE" };
-
-    public async Task<int[]> GetGemBalances()
+    // JEM_BUILD: 宝石選択UI向けに GEM_ 系資産の残高を asset_code キーの辞書で返す。
+    // 表示順・種類・アイコンは共通catalog(shared/jem-selector)が正本のため、
+    // ゲーム側は固定配列を持たない（2026-09-21 社長指示・共通化）。
+    public async Task<Dictionary<string, int>> GetGemBalances()
     {
         var (statusCode, text) = await PlatformGet("/api/v1/wallet/balance");
         if (statusCode < 200 || statusCode >= 300)
@@ -417,18 +416,12 @@ public sealed class PlatformApiClient
         var parsed = JsonUtility.FromJson<PlatformWalletBalanceResponse>(text);
         if (parsed == null || parsed.assets == null) throw new Exception("wallet/balance response malformed");
 
-        var result = new int[JemGemAssetCodesForBalance.Length];
+        var result = new Dictionary<string, int>();
         foreach (var asset in parsed.assets)
         {
-            if (asset == null) continue;
-            for (int i = 0; i < JemGemAssetCodesForBalance.Length; i++)
-            {
-                if (asset.asset_code == JemGemAssetCodesForBalance[i])
-                {
-                    result[i] = asset.available_units;
-                    break;
-                }
-            }
+            if (asset == null || string.IsNullOrEmpty(asset.asset_code)) continue;
+            if (!asset.asset_code.StartsWith("GEM_")) continue;
+            result[asset.asset_code] = asset.available_units;
         }
         return result;
     }
