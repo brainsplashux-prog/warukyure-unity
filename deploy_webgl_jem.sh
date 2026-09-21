@@ -265,7 +265,16 @@ fi
 aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION_ID" --id "$INVALIDATION_ID" --region "$REGION"
 
 REMOTE_HTML="$(mktemp -t jem-warukyure-deployed-index)"
-curl -fsSL --max-time 30 "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
+if [[ -n "${JEM_WARUKYURE_DEV_AUTH_FILE:-}" ]]; then
+  AUTH_ID="$(grep '^id=' "$JEM_WARUKYURE_DEV_AUTH_FILE" | head -1 | cut -d= -f2-)"
+  AUTH_PW="$(grep '^pass=' "$JEM_WARUKYURE_DEV_AUTH_FILE" | head -1 | cut -d= -f2-)"
+  [[ -n "$AUTH_ID" && -n "$AUTH_PW" ]] || { echo "Error: 資格情報ファイルに id=/pass= が無い: $JEM_WARUKYURE_DEV_AUTH_FILE" >&2; exit 1; }
+  AUTH_ID_ESC="$(printf '%s' "$AUTH_ID" | sed 's/[\\"]/\\&/g')"
+  AUTH_PW_ESC="$(printf '%s' "$AUTH_PW" | sed 's/[\\"]/\\&/g')"
+  curl -fsSL --max-time 30 --config <(printf 'user = "%s:%s"\n' "$AUTH_ID_ESC" "$AUTH_PW_ESC") "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
+else
+  curl -fsSL --max-time 30 "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
+fi
 python3 - "$REMOTE_HTML" "$VERSION" "$NAME" "$EXT" <<'PY'
 import re, sys
 path, ver, name, ext = sys.argv[1:]; text = open(path, encoding="utf-8").read()
