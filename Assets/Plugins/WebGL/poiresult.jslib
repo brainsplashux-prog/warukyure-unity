@@ -1,4 +1,8 @@
 mergeInto(LibraryManager.library, {
+  // 2026-09-21 JEM分離: game_id はページ側(index.html)が window.POI_GAME_ID に置く値を優先し、
+  // 無ければ元WARUの 'warukyure' を使う。JEMビルドは patch_build_index.sh が
+  // window.POI_GAME_ID='jem-warukyure' を差し込む。
+
   // Calls the shared poiresult/v2 kit (loaded externally from lp.poicasi.co.jp).
   // payout drives the tiers (>=1000 MEGA / >0 BIG / 0 LOSE) inside the kit.
   // reward = メダル以外の報酬名（例: くまボール）。payout が 0 でも報酬があれば当たり扱いになる。
@@ -43,8 +47,10 @@ mergeInto(LibraryManager.library, {
     try {
       var runId = UTF8ToString(runIdPtr);
       if (!runId) return;
+      var gid = (typeof window !== 'undefined' && typeof window.POI_GAME_ID === 'string' && window.POI_GAME_ID)
+        ? window.POI_GAME_ID : 'warukyure';
       window.dispatchEvent(new CustomEvent('poicasi:campaign-result-ready', {
-        detail: { game_id: 'warukyure', run_id: runId }
+        detail: { game_id: gid, run_id: runId }
       }));
     } catch (e) {}
   },
@@ -52,7 +58,9 @@ mergeInto(LibraryManager.library, {
   // poicasi:audio-state。runtimeの初期化が遅れても拾えるよう最新状態をwindowに置き、数回再送する（音量は変えない）。
   PoiCampaignAudioState: function (muted) {
     try {
-      window.__poicasiAudioState = { game_id: 'warukyure', muted: !!muted };
+      var gid = (typeof window !== 'undefined' && typeof window.POI_GAME_ID === 'string' && window.POI_GAME_ID)
+        ? window.POI_GAME_ID : 'warukyure';
+      window.__poicasiAudioState = { game_id: gid, muted: !!muted };
       var fire = function () {
         var s = window.__poicasiAudioState;
         if (!s) return;

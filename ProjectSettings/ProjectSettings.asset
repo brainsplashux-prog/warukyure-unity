@@ -581,7 +581,8 @@ PlayerSettings:
   webGLCloseOnQuit: 0
   webWasm2023: 0
   webEnableSubmoduleStrippingCompatibility: 0
-  scriptingDefineSymbols: {}
+  scriptingDefineSymbols:
+    WebGL: JEM_BUILD
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend: {}

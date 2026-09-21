@@ -134,9 +134,20 @@ public sealed class PlatformRun
 /// </summary>
 public sealed class PlatformApiClient
 {
+#if JEM_BUILD
+    // JEM分離(jem-games.md §2): 別URL・別platform games.jsonエントリ(jem-warukyure)を叩く。
+    // 元warukyureのgame_idは1文字も変えない。
+    public const string GameId = "jem-warukyure";
+    // JEM専用ゲームLambda(jem-warukyure-api)の既定エンドポイント。
+    // 2026-09-21時点でDEV/本番とも未作成のため空のままにする。
+    // 空の場合は SendRaw が例外を投げて通信を拒否する(fail-closed)。
+    // 元warukyure-apiのURLをここへfallbackとして書いてはいけない(誤配信防止)。
+    public const string DefaultEndpoint = "";
+#else
     public const string GameId = "warukyure";
     // ゲーム Lambda 既定エンドポイント（DEV）。本番は呼び出し側から API_URL を渡す。
     public const string DefaultEndpoint = "https://b5yl9sml5l.execute-api.ap-northeast-1.amazonaws.com";
+#endif
     // PF 既定エンドポイント（dev stage）。WebGL では jslib から同一生成元 URL を取得する。
     private const string FallbackPlatformBaseUrl = "https://c9nrwvslv8.execute-api.ap-northeast-1.amazonaws.com/dev";
     private const int TimeoutSeconds = 10;
@@ -180,15 +191,19 @@ public sealed class PlatformApiClient
     /// <summary>
     /// launch → token → plays で 1 プレイを prepare する。
     /// クライアントは units を送らず、消費数は PF 側が決定する。
+    /// assetCode は賭け対象の資産コード(通常ビルドはMEDAL固定、JEM_BUILDは選択した宝石)。
+    /// rate は倍率(1/2/5/10/20/50/100のいずれか。通常ビルドは常に既定の1)。
+    /// PF契約: 省略=1、許可値外は400、消費数=units×rate。1でも明示送信して問題ない契約のため
+    /// 分岐は設けず常に送る(jem-poinoshin PlatformApiClient.cs と同じ型)。
     /// </summary>
-    public async Task<PlatformRun> Prepare()
+    public async Task<PlatformRun> Prepare(string assetCode = "MEDAL", int rate = 1)
     {
         if (string.IsNullOrEmpty(PlatformSession.Cookie))
             Debug.LogWarning("[PlatformApiClient] PlatformSession.Cookie is empty; launch may fail without credentials");
 
         string launchCode = await Launch();
         string playToken = await Token(launchCode);
-        var prepared = await Plays(playToken, "MEDAL");
+        var prepared = await Plays(playToken, assetCode, rate);
 
         return new PlatformRun(prepared.run_id, playToken, prepared.bet, prepared.expires_at);
     }
@@ -306,9 +321,9 @@ public sealed class PlatformApiClient
         return parsed.play_token;
     }
 
-    private async Task<PlatformPlaysResponse> Plays(string playToken, string assetCode)
+    private async Task<PlatformPlaysResponse> Plays(string playToken, string assetCode, int rate)
     {
-        string body = "{\"asset_code\":\"" + EscapeJsonString(assetCode) + "\"}";
+        string body = "{\"asset_code\":\"" + EscapeJsonString(assetCode) + "\",\"rate\":" + rate + "}";
         var (statusCode, text) = await PlatformPost($"/api/v1/games/{GameId}/plays", body, playToken);
         if (statusCode < 200 || statusCode >= 300)
             throw new HttpStatusException(statusCode, $"plays failed: HTTP {statusCode}");
@@ -386,9 +401,47 @@ public sealed class PlatformApiClient
         return tcs.Task;
     }
 
+#if JEM_BUILD
+    // JEM_BUILD: 宝石選択UI向けに4種の残高を一括取得する。
+    // 並び順は 2026-09-19 社長確定の記載順ルール: ルビー→エメラルド→シトリン→サファイア
+    // (正本: poicasi-org/designs/gems/README.md)。呼び出し側の並びと一致させる。
+    public static readonly string[] JemGemAssetCodesForBalance = { "GEM_RUBY", "GEM_EMERALD", "GEM_CITRINE", "GEM_SAPPHIRE" };
+
+    public async Task<int[]> GetGemBalances()
+    {
+        var (statusCode, text) = await PlatformGet("/api/v1/wallet/balance");
+        if (statusCode < 200 || statusCode >= 300)
+            throw new HttpStatusException(statusCode, $"wallet/balance failed: HTTP {statusCode}");
+
+        var parsed = JsonUtility.FromJson<PlatformWalletBalanceResponse>(text);
+        if (parsed == null || parsed.assets == null) throw new Exception("wallet/balance response malformed");
+
+        var result = new int[JemGemAssetCodesForBalance.Length];
+        foreach (var asset in parsed.assets)
+        {
+            if (asset == null) continue;
+            for (int i = 0; i < JemGemAssetCodesForBalance.Length; i++)
+            {
+                if (asset.asset_code == JemGemAssetCodesForBalance[i])
+                {
+                    result[i] = asset.available_units;
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+#endif
+
     /// <summary>既存 ゲーム Lambda への生 POST。</summary>
     private async Task<(long statusCode, string text)> SendRaw(string jsonBody)
     {
+#if JEM_BUILD
+        // fail-closed: JEM専用Lambdaが未作成(=endpoint空)の間は通信しない。
+        // 元warukyure-apiへ誤って流すとplay_token検証401→abort返還や誤課金に繋がるため。
+        if (string.IsNullOrEmpty(endpoint))
+            throw new InvalidOperationException("JEM_BUILD: jem-warukyure-api endpoint is not configured");
+#endif
         var tcs = new TaskCompletionSource<(long, string)>();
         UnityWebRequest req = new UnityWebRequest(endpoint, UnityWebRequest.kHttpVerbPOST);
         byte[] body = Encoding.UTF8.GetBytes(jsonBody);

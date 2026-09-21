@@ -11,10 +11,24 @@ public static class WarukyureBuilder
     [MenuItem("Warukyure/Build WebGL")]
     public static void BuildWebGL()
     {
+        BuildCore("/Users/suzukimasahiro/Desktop/warukyure/client", "warukyure", "0.0.39");
+    }
+
+    // JEM版(jem-warukyure)専用ビルド。元WARUの出力先client/productName/versionを
+    // 一切上書きしない(2026-09-21 社長確定 1=A: 別URL・別ゲーム)。
+    // 実行前に ProjectSettings.asset の scriptingDefineSymbols.WebGL に JEM_BUILD が
+    // 入っていること(このワークツリーではコミット済み)。マーカー/ガードは
+    // stamp_build_marker.sh / deploy_guard.sh が担当する。
+    [MenuItem("Warukyure/Build WebGL (JEM jem-warukyure)")]
+    public static void BuildWebGLJem()
+    {
+        BuildCore("/Users/suzukimasahiro/Desktop/warukyure/client-jem", "jem-warukyure", "0.0.1");
+    }
+
+    static void BuildCore(string clientOutPath, string productName, string bundleVersion)
+    {
         // 1. 既存シーンの Ad-Virtua 構造を事前検査
         AdVirtuaFrontmostValidator.ValidateAdVirtuaFrontmost();
-
-        string clientOutPath = "/Users/suzukimasahiro/Desktop/warukyure/client";
 
         // Ensure PoiLoader cache-buster variable is empty so deploy script adds ?v=.
         string templatePath = Path.Combine(Application.dataPath, "WebGLTemplates/PoiLoader/index.html");
@@ -27,8 +41,8 @@ public static class WarukyureBuilder
 
         // Configure player
         PlayerSettings.companyName = "poicasi";
-        PlayerSettings.productName = "warukyure";
-        PlayerSettings.bundleVersion = "0.0.39";
+        PlayerSettings.productName = productName;
+        PlayerSettings.bundleVersion = bundleVersion;
         PlayerSettings.defaultWebScreenWidth = 720;
         PlayerSettings.defaultWebScreenHeight = 1224;
 

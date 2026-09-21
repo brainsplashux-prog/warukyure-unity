@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# わるきゅーれ(DEV) Unity WebGL 本番配信スクリプト（キャッシュ規約 webgl-cache-standard.md 準拠）
+# JEM わるきゅーれ(jem-warukyure) Unity WebGL 本番配信スクリプト（deploy_webgl.sh のS3_PREFIX違いコピー）
+# 既存warukyure本番(game/warukyure)へは一切書き込まない。書き込み前に必ず
+# patch_build_index.sh(JEMマーカー焼き込み)と deploy_guard.sh を通す。
+# (ビルドマーカーがJEMでない、またはtargetがgame/jem-warukyure系でない場合はexit 1)
 #
 # 🛑規約:
 #   - index.html は no-store 系（毎回取り直す）
@@ -15,23 +18,22 @@ trap 'exit 1' ERR
 # --- デプロイ前ゲート（handoff §3-C 施策1 / 正本 incident-recovery-and-maintenance.md §9）---
 # 「戻せる版が無い」「キャッシュが焼き付く」状態で出させないための機械ゲート。
 # リリース宣言済みサービスは NG で exit 1 する。SKIP_PREFLIGHT=1 で明示的に飛ばせる。
-PREFLIGHT="$HOME/.claude/skills/poikatsu-deploy/scripts/preflight_master.sh"
-if [ -z "${SKIP_PREFLIGHT:-}" ] && [ -x "$PREFLIGHT" ]; then
-  "$PREFLIGHT" warukyure || { echo "preflight NG のためデプロイ中止（直すか SKIP_PREFLIGHT=1）" >&2; exit 1; }
-fi
+# jem-warukyure は services/preflight 未登録のため preflight_master.sh は通さない。
+# (元WARU用preflightを通すとサービス名不一致で常にNGになる。代わりに deploy_guard.sh が
+#  JEMビルドマーカーとprefixの整合を機械的に保証する)
 
 REGION="ap-northeast-1"
 BUCKET="poicasi-lp"
 # 2026-09-04: ベータ第2波の掲出URL正本(poicasi-platform/config/beta-lineup.json)に合わせ既定を本番 game/warukyure へ。
 # dev配信は WARUKYURE_S3_PREFIX=game/warukyure-dev ./deploy_webgl.sh で明示指定する。
 # 2026-09-10 社長裁定「俺の認識は /game/warukyure/」: 配信先は下の2つ以外を許可しない。
-S3_PREFIX="${WARUKYURE_S3_PREFIX:-game/warukyure}"
+S3_PREFIX="${JEM_WARUKYURE_S3_PREFIX:-game/jem-warukyure}"
 case "$S3_PREFIX" in
-  game/warukyure|game/warukyure-dev) ;;
-  *) echo "Error: 配信先 '$S3_PREFIX' は許可されていない（game/warukyure か game/warukyure-dev のみ）" >&2; exit 1 ;;
+  game/jem-warukyure|game/jem-warukyure-dev) ;;
+  *) echo "Error: 配信先 '$S3_PREFIX' は許可されていない（game/jem-warukyure か game/jem-warukyure-dev のみ）" >&2; exit 1 ;;
 esac
 DISTRIBUTION_ID="E3L7ISRXI1446E"
-BUILD_DIR="$(cd "$(dirname "$0")" && pwd)/Builds/WebGL"
+BUILD_DIR="$(cd "$(dirname "$0")" && pwd)/Builds/WebGL-jem"
 CC_HTML="no-cache, no-store, must-revalidate"
 CC_ASSET="public, max-age=31536000, immutable"
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -84,20 +86,24 @@ if [[ -z "$VERSION" ]]; then
 fi
 [[ "$VERSION" =~ ^[A-Za-z0-9_.~:-]+$ ]] || { echo "Error: unsafe version: $VERSION" >&2; exit 1; }
 
-# Build ステージング: Builder の出力先 (~/Desktop/warukyure/client) から Builds/WebGL へコピー。
+# Build ステージング: Builder の出力先 (~/Desktop/warukyure/client-jem、JEM専用) から Builds/WebGL-jem へコピー。
+# 元WARUの client/ 出力・Builds/WebGL ステージングは一切触らない。
 # 削除操作は一切行わない。--html-only 時はコピーしない（既存の Builds/WebGL/index.html をそのまま使う。
 # コピーすると Unity 生の出力で上書きされ、HTML だけの変更が消えてしまうため）。
 if [[ "${HTML_ONLY}" -eq 0 ]]; then
-  CLIENT_DIR="$HOME/Desktop/warukyure/client"
+  CLIENT_DIR="$HOME/Desktop/warukyure/client-jem"
   [ -d "$CLIENT_DIR" ] || { echo "Error: $CLIENT_DIR が無い。先に Unity WebGL ビルドを行うこと。" >&2; exit 1; }
   echo "== copy client build from $CLIENT_DIR to $BUILD_DIR =="
   mkdir -p "$BUILD_DIR"
   cp -R "$CLIENT_DIR/." "$BUILD_DIR/"
 fi
 
-# JEM/通常ビルド取り違えガード(jem-games.md §4): Builds/.build-marker の BUILD_TYPE と
-# S3_PREFIX の整合を検査する。マーカーが無い場合は stamp_build_marker.sh を先に実行すること。
-"$(cd "$(dirname "$0")" && pwd)/deploy_guard.sh" "$S3_PREFIX"
+# JEM/通常ビルド取り違えガード + index.htmlへのJEMマーカー焼き込み(dry-runでも必ず通す)。
+# 順序: stamp_build_marker.sh(ビルド後手動)済みの Builds/.build-marker を guard が検査し、
+# patch_build_index.sh が Builds/WebGL-jem/index.html をJEM向け(title/meta/POI_GAME_ID)に書き換える。
+REPO_ROOT_GUARD="$(cd "$(dirname "$0")" && pwd)"
+"$REPO_ROOT_GUARD/deploy_guard.sh" "$S3_PREFIX"
+"$REPO_ROOT_GUARD/patch_build_index.sh"
 
 [ -d "$BUILD_DIR/Build" ] || { echo "Error: $BUILD_DIR/Build が無い。先に Unity WebGL ビルドを行うこと。" >&2; exit 1; }
 [ -f "$BUILD_DIR/index.html" ] || { echo "Error: $BUILD_DIR/index.html が無い。" >&2; exit 1; }
@@ -113,11 +119,11 @@ elif [ -f "$BUILD_DIR/Build/$NAME.wasm.gz" ];       then EXT=".gz";       ENCODI
 elif [ -f "$BUILD_DIR/Build/$NAME.wasm.unityweb" ]; then EXT=".unityweb"; ENCODING=""
 elif [ -f "$BUILD_DIR/Build/$NAME.wasm" ];          then EXT="";          ENCODING=""
 else echo "Error: Build/$NAME.wasm* が無い。" >&2; exit 1; fi
-echo "== わるきゅーれ(DEV) deploy  name=$NAME  ext=${EXT:-none}  version=$VERSION"
+echo "== JEM わるきゅーれ deploy  name=$NAME  ext=${EXT:-none}  version=$VERSION"
 
 # 3. index.html に ?v=$VERSION を打ち込む（既存の ?v= は付け替え＝多重付与しない）
 echo "== index.html (?v=$VERSION を付与) =="
-TMP_HTML="$(mktemp -t deploy_index)"
+TMP_HTML="$(mktemp -t jem-warukyure-deploy-index)"
 python3 - "$BUILD_DIR/index.html" "$TMP_HTML" "$VERSION" "$NAME" "$EXT" <<'PY'
 import re, sys
 src, dst, ver, name, ext = sys.argv[1:]
@@ -223,7 +229,7 @@ else
 fi
 
 # 版アーカイブ: 事故時に poi-rollback で戻せるようにする。
-# 正本: ~/.claude/manuals/incident-recovery-and-maintenance.md / 参照: poi-rollback warukyure --list
+# 正本: ~/.claude/manuals/incident-recovery-and-maintenance.md / 参照: poi-rollback jem-warukyure --list
 if [[ "${HTML_ONLY}" -eq 0 ]]; then
   echo "== 版アーカイブ (_archive/$VERSION) =="
   if [[ "${DRY_RUN}" -eq 1 ]]; then
@@ -258,7 +264,7 @@ fi
 [[ -n "$INVALIDATION_ID" && "$INVALIDATION_ID" != "None" ]] || { echo "Error: invalidation ID が無い。" >&2; exit 1; }
 aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION_ID" --id "$INVALIDATION_ID" --region "$REGION"
 
-REMOTE_HTML="$(mktemp -t deployed_index)"
+REMOTE_HTML="$(mktemp -t jem-warukyure-deployed-index)"
 curl -fsSL --max-time 30 "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
 python3 - "$REMOTE_HTML" "$VERSION" "$NAME" "$EXT" <<'PY'
 import re, sys

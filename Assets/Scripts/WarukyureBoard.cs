@@ -14,8 +14,18 @@ public class WarukyureBoard : MonoBehaviour
     // 環境切替: 1ソースで DEV/本番 の両方を配信する（2026-08-22 本番リリース）。
     //   配信先 URL に "warukyure-dev" を含む＝DEV、それ以外＝本番。
     //   Editor など absoluteURL が空の場合は DEV（本番へ誤射しない側に倒す）。
+#if JEM_BUILD
+    // JEM分離(2026-09-21 社長確定・jem-games.md §2): 専用Lambda jem-warukyure-api のみを使う。
+    // DEV/本番とも未作成のため空のままにし、InitSession冒頭でfail-closedする(通信しない)。
+    // ここへ元warukyure-apiのURLをfallbackとして書いてはいけない(誤配信防止)。
+    const string API_URL_DEV  = "";
+    const string API_URL_PROD = "";
+    const string TOKEN_KEY = "jem_warukyure_token";
+#else
     const string API_URL_DEV  = "https://b5yl9sml5l.execute-api.ap-northeast-1.amazonaws.com/";
     const string API_URL_PROD = "https://f8fod9qgw3.execute-api.ap-northeast-1.amazonaws.com/";
+    const string TOKEN_KEY = "warukyure_token";
+#endif
     private static string apiUrlCache;
     static string API_URL
     {
@@ -23,12 +33,13 @@ public class WarukyureBoard : MonoBehaviour
         {
             if (apiUrlCache != null) return apiUrlCache;
             string u = Application.absoluteURL;
+            // JEMのDEV配信は /game/jem-warukyure-dev/。"jem-warukyure-dev"は
+            // "warukyure-dev"を部分文字列として含むため、この判定は両ビルドで共通に使える。
             bool isProd = !string.IsNullOrEmpty(u) && u.IndexOf("warukyure-dev", StringComparison.Ordinal) < 0;
             apiUrlCache = isProd ? API_URL_PROD : API_URL_DEV;
             return apiUrlCache;
         }
     }
-    const string TOKEN_KEY = "warukyure_token";
     // JACKPOT 演出の poifx v4 用ファンファーレ SE。
     // [社長確定 2026-09-06]「OKこれをJACKPOT獲得時の曲に変更してくれ（城獲得は変更なし）」
     // → fan9_levelup_rush（曲3秒＋余韻3秒／6.2秒）に差し替え。城到達側(se/se_fanfare=fan6_triumph)は不変。
@@ -36,6 +47,15 @@ public class WarukyureBoard : MonoBehaviour
     const string JACKPOT_SE_URL = "https://lp.poicasi.co.jp/shared/poifx/v4/se/warukyure-jackpot-fan9.mp3";
     private int missionBet = 100;
     private int playMissionBet = 100; // そのプレイのprepare(またはPF bet)確定直後に固定するmissionBetのスナップショット。resolve結果の表示に使う（missionBetが以後更新されても値がぶれないように）
+#if JEM_BUILD
+    // JEM_BUILD: 1口あたりの単価は「同種宝石1個×rate」。サーバー確定 run.bet が正本で、
+    // missionBet フィールドにはその値(=rate)を載せる。表示は枚ではなく ×数。
+    static string UnitLabel => "個";
+    static string AmountLabel(int n) => "×" + n.ToString("N0");
+#else
+    static string UnitLabel => "枚";
+    static string AmountLabel(int n) => n.ToString("N0") + "枚";
+#endif
     const float RUN_DURATION = 2.0f;
     const float HOLD_DURATION = 0.5f;
     const int MIN_PATH_STEPS = 35;
@@ -198,6 +218,33 @@ public class WarukyureBoard : MonoBehaviour
     // 構造上発生しないため、操作不能にはならない、という判断根拠)。
     private bool platformPrepareOutcomeUnknown;
 
+#if JEM_BUILD
+    // ----------------- JEM 宝石/レート選択 -----------------
+    // 2026-09-21 社長確定(2=A): 元WARUの1〜5口BETは維持し、1口あたり同種宝石1個×rateを消費。
+    // 4種は価値同一・記載順は ルビー→エメラルド→シトリン→サファイア(2026-09-19 社長確定。
+    // 正本: poicasi-org/designs/gems/README.md)。石名テキストは表示しない([icon]×数のみ)。
+    // 配列3つは index が同じ宝石を指すよう対応させる。PlatformApiClient.JemGemAssetCodesForBalance も同順。
+    static readonly string[] JemGemAssetCodes = { "GEM_RUBY", "GEM_EMERALD", "GEM_CITRINE", "GEM_SAPPHIRE" };
+    static readonly string[] JemGemResourcePaths = { "Gems/ruby_256", "Gems/emerald_256", "Gems/citrine_256", "Gems/sapphire_256" };
+    static readonly int[] JemAllowedRates = { 1, 2, 5, 10, 20, 50, 100 };
+    int[] jemGemBalances;                    // PF wallet/balance から取得した4種残高(未取得=null)
+    readonly Sprite[] jemGemSprites = new Sprite[4];
+    int jemGemIndex = -1;                    // 選択中の宝石(-1=未選択)
+    int jemRate = 1;                         // 選択中のレート
+    GameObject jemPanel;
+    CanvasGroup jemPanelGroup;
+    Button[] jemGemButtons;
+    Image[] jemGemGlow;
+    Text[] jemGemBalanceTexts;
+    Button[] jemRateButtons;
+    Image[] jemRateGlow;
+    Text jemCostText;
+    Image jemCostGemIcon;
+    Button jemConfirmButton;
+    Image jemConfirmFill;
+    bool jemBalanceRequested;
+#endif
+
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")]
     private static extern void PoiFxJackpot(string tier, int amount, string unit, string gameObjectName, string onDoneMethod, string se);
@@ -298,6 +345,9 @@ public class WarukyureBoard : MonoBehaviour
         CreateSpinButton();
         CreateResultOverlay();
         CreateJackpotChallengeUI();
+#if JEM_BUILD
+        CreateJemPanel();
+#endif
         gameObject.AddComponent<SoundMuteButton>(); // game-layout-standard.md §2b 共通サウンドミュートボタン
         new GameObject("WarukyureBgm").AddComponent<WarukyureBgm>(); // BGMループ(ミュートはAudioListener一括)
 
@@ -906,7 +956,7 @@ public class WarukyureBoard : MonoBehaviour
             betText.alignment = TextAnchor.MiddleCenter;
             betText.color = textColor;
             betTexts[i] = betText;
-            betText.text = "BET " + betLabels[i] + "\n" + missionBet.ToString("N0") + "枚"; // 1選択あたりの消費枚数=missionBet（cost=selectedBets.Count*missionBetと一致、口数ラベル自体には掛けない）。missionBet確定/変更時はUpdateBetButtonTexts()で再計算
+            betText.text = BetButtonLabel(betLabels[i]);
 
             // 光りは110%スケールのピル枠に合わせた角丸で出す（矩形ベタ塗りだと枠からはみ出て見える）
             betButtonImages[i] = AddGlowOverlay(btn.transform, new Vector2(76f * 1.1f, 78f * 1.1f), Mathf.RoundToInt(12f * 1.1f));
@@ -1097,6 +1147,311 @@ public class WarukyureBoard : MonoBehaviour
         rt.anchoredPosition = basePos;
     }
 
+#if JEM_BUILD
+    // ----------------- JEM 宝石/レート選択パネル -----------------
+    // 2026-09-21 社長確定(1=A/2=A・jem-games.md): SPINタップで開き、宝石4種(アイコン+×残数、
+    // 石名テキストなし)とrate(1/2/5/10/20/50/100)を選び、「BET口数N × rate」の消費宝石数を
+    // 確認してからパネル内のSPINボタンで開始する。盤面・BET候補・停止演出は元WARUのまま。
+    // UI部品は既存の手続き的生成(AddPillBackground/AddGlowOverlay/MakeRoundedSprite)を踏襲。
+    const float JemPanelW = 680f;
+    const float JemPanelH = 560f;
+
+    void CreateJemPanel()
+    {
+        for (int i = 0; i < JemGemResourcePaths.Length; i++)
+            jemGemSprites[i] = Resources.Load<Sprite>(JemGemResourcePaths[i]);
+
+        GameObject go = new GameObject("JemPanel");
+        go.transform.SetParent(boardRoot, false);
+        jemPanel = go;
+
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0, 1);
+        rt.anchorMax = new Vector2(0, 1);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = new Vector2(360, -348.5f); // BoardRoot(高697)中央
+        rt.sizeDelta = new Vector2(JemPanelW, JemPanelH);
+
+        go.AddComponent<CanvasRenderer>();
+        // 盤面への貫通タップ防止: パネル全面を覆う透明Image(raycastTarget)を張る。
+        // AddPillBackgroundの子ImageはraycastTarget=falseのため別途必要。
+        Image hitArea = go.AddComponent<Image>();
+        hitArea.color = new Color(0, 0, 0, 0);
+        // 背面: 台(BetSheet)と同系色のピル背景
+        AddPillBackground(go.transform, new Vector2(JemPanelW, JemPanelH), 24f,
+            new Color32(200, 140, 45, 255), new Color32(245, 218, 169, 255), 4f);
+
+        jemPanelGroup = go.AddComponent<CanvasGroup>();
+        jemPanelGroup.alpha = 0f;
+        jemPanelGroup.blocksRaycasts = false;
+
+        Font font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+        if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        Color textColor = new Color32(90, 55, 20, 255);
+
+        // 見出し
+        Text title = JemPanelText(go.transform, "JemPanelTitle", new Vector2(0, 30), new Vector2(JemPanelW - 40, 44), 30, textColor, font);
+        title.text = "宝石とレートをえらぶ";
+
+        // 宝石4種（ルビー→エメラルド→シトリン→サファイア）。アイコン+×残数のみ。
+        jemGemButtons = new Button[4];
+        jemGemGlow = new Image[4];
+        jemGemBalanceTexts = new Text[4];
+        const float gemW = 120f, gemH = 150f, gemY = 92f;
+        float gemGap = (JemPanelW - 80f - 4f * gemW) / 3f;
+        for (int i = 0; i < 4; i++)
+        {
+            float x = -JemPanelW / 2f + 40f + gemW / 2f + i * (gemW + gemGap);
+            GameObject ggo = new GameObject("JemGem" + i);
+            ggo.transform.SetParent(go.transform, false);
+            RectTransform grt = ggo.AddComponent<RectTransform>();
+            grt.anchorMin = new Vector2(0.5f, 1f);
+            grt.anchorMax = new Vector2(0.5f, 1f);
+            grt.pivot = new Vector2(0.5f, 1f);
+            grt.anchoredPosition = new Vector2(x, -gemY);
+            grt.sizeDelta = new Vector2(gemW, gemH);
+
+            // 選択光り(ピル枠) → アイコン → ×残数 の順に重ねる
+            Image bg = AddPillBackground(ggo.transform, new Vector2(gemW, gemH), 16f,
+                new Color32(200, 140, 45, 255), new Color32(250, 229, 186, 255), 3f);
+            jemGemGlow[i] = bg;
+
+            GameObject iconGO = new GameObject("Icon");
+            iconGO.transform.SetParent(ggo.transform, false);
+            RectTransform irt = iconGO.AddComponent<RectTransform>();
+            irt.anchorMin = new Vector2(0.5f, 1f);
+            irt.anchorMax = new Vector2(0.5f, 1f);
+            irt.pivot = new Vector2(0.5f, 1f);
+            irt.anchoredPosition = new Vector2(0, -8f);
+            irt.sizeDelta = new Vector2(96f, 96f);
+            Image icon = iconGO.AddComponent<Image>();
+            icon.sprite = jemGemSprites[i];
+            icon.preserveAspect = true;
+            icon.raycastTarget = false;
+
+            Text bal = JemPanelText(ggo.transform, "Balance", new Vector2(0, 108), new Vector2(gemW, 34), 26, textColor, font);
+            bal.text = "×-";
+            jemGemBalanceTexts[i] = bal;
+
+            Image ghit = ggo.AddComponent<Image>(); // 当たり判定用の透明Image(子ImageはraycastTarget=false)
+            ghit.color = new Color(0, 0, 0, 0);
+            Button gbtn = ggo.AddComponent<Button>();
+            gbtn.targetGraphic = ghit;
+            int captured = i;
+            gbtn.onClick.AddListener(() => { WarukyureSfx.PlayTap(); OnJemGemTapped(captured); });
+            jemGemButtons[i] = gbtn;
+        }
+
+        // レート7種 ×1/×2/×5/×10/×20/×50/×100
+        jemRateButtons = new Button[JemAllowedRates.Length];
+        jemRateGlow = new Image[JemAllowedRates.Length];
+        const float rateW = 78f, rateH = 56f, rateY = 268f;
+        float rateGap = (JemPanelW - 80f - JemAllowedRates.Length * rateW) / (JemAllowedRates.Length - 1f);
+        for (int i = 0; i < JemAllowedRates.Length; i++)
+        {
+            float x = -JemPanelW / 2f + 40f + rateW / 2f + i * (rateW + rateGap);
+            GameObject rgo = new GameObject("JemRate" + JemAllowedRates[i]);
+            rgo.transform.SetParent(go.transform, false);
+            RectTransform rrt = rgo.AddComponent<RectTransform>();
+            rrt.anchorMin = new Vector2(0.5f, 1f);
+            rrt.anchorMax = new Vector2(0.5f, 1f);
+            rrt.pivot = new Vector2(0.5f, 1f);
+            rrt.anchoredPosition = new Vector2(x, -rateY);
+            rrt.sizeDelta = new Vector2(rateW, rateH);
+
+            Image fill = AddPillBackground(rgo.transform, new Vector2(rateW, rateH), 14f,
+                new Color32(200, 140, 45, 255), new Color32(250, 229, 186, 255), 3f);
+            jemRateGlow[i] = fill;
+
+            Text rt2 = JemPanelText(rgo.transform, "RateText", Vector2.zero, new Vector2(rateW, rateH), 26, textColor, font);
+            rt2.text = "×" + JemAllowedRates[i];
+
+            Image rhit = rgo.AddComponent<Image>();
+            rhit.color = new Color(0, 0, 0, 0);
+            Button rbtn = rgo.AddComponent<Button>();
+            rbtn.targetGraphic = rhit;
+            int capturedRate = JemAllowedRates[i];
+            rbtn.onClick.AddListener(() => { WarukyureSfx.PlayTap(); OnJemRateTapped(capturedRate); });
+            jemRateButtons[i] = rbtn;
+        }
+
+        // 消費確認行: [選択宝石アイコン] ×(BET口数 × rate) = 消費数
+        GameObject costGO = new GameObject("JemCost");
+        costGO.transform.SetParent(go.transform, false);
+        RectTransform crt = costGO.AddComponent<RectTransform>();
+        crt.anchorMin = new Vector2(0.5f, 1f);
+        crt.anchorMax = new Vector2(0.5f, 1f);
+        crt.pivot = new Vector2(0.5f, 1f);
+        crt.anchoredPosition = new Vector2(0, -352f);
+        crt.sizeDelta = new Vector2(JemPanelW - 80f, 60f);
+
+        GameObject cIconGO = new GameObject("CostGemIcon");
+        cIconGO.transform.SetParent(costGO.transform, false);
+        RectTransform cirt = cIconGO.AddComponent<RectTransform>();
+        cirt.anchorMin = new Vector2(0f, 0.5f);
+        cirt.anchorMax = new Vector2(0f, 0.5f);
+        cirt.pivot = new Vector2(0f, 0.5f);
+        cirt.anchoredPosition = new Vector2(30f, 0f);
+        cirt.sizeDelta = new Vector2(52f, 52f);
+        jemCostGemIcon = cIconGO.AddComponent<Image>();
+        jemCostGemIcon.preserveAspect = true;
+        jemCostGemIcon.raycastTarget = false;
+
+        jemCostText = JemPanelText(costGO.transform, "CostText", new Vector2(96f, 0), new Vector2(JemPanelW - 80f - 96f, 60f), 26, textColor, font);
+        jemCostText.alignment = TextAnchor.MiddleLeft;
+
+        // 確定(SPIN)ボタン + 閉じるボタン
+        const float btnY = 448f;
+        GameObject cgo = new GameObject("JemConfirm");
+        cgo.transform.SetParent(go.transform, false);
+        RectTransform cbrt = cgo.AddComponent<RectTransform>();
+        cbrt.anchorMin = new Vector2(0.5f, 1f);
+        cbrt.anchorMax = new Vector2(0.5f, 1f);
+        cbrt.pivot = new Vector2(0.5f, 1f);
+        cbrt.anchoredPosition = new Vector2(-90f, -btnY);
+        cbrt.sizeDelta = new Vector2(300f, 80f);
+        jemConfirmFill = AddPillBackground(cgo.transform, new Vector2(300f, 80f), 18f,
+            new Color32(200, 140, 45, 255), new Color32(170, 20, 15, 255), 4f);
+        Text cText = JemPanelText(cgo.transform, "ConfirmText", Vector2.zero, new Vector2(300f, 80f), 30, Color.white, font);
+        cText.text = "この内容でSPIN";
+        Image chit = cgo.AddComponent<Image>();
+        chit.color = new Color(0, 0, 0, 0);
+        jemConfirmButton = cgo.AddComponent<Button>();
+        jemConfirmButton.targetGraphic = chit;
+        jemConfirmButton.onClick.AddListener(() => ConfirmJemAndSpin());
+
+        GameObject xgo = new GameObject("JemClose");
+        xgo.transform.SetParent(go.transform, false);
+        RectTransform xrt = xgo.AddComponent<RectTransform>();
+        xrt.anchorMin = new Vector2(0.5f, 1f);
+        xrt.anchorMax = new Vector2(0.5f, 1f);
+        xrt.pivot = new Vector2(0.5f, 1f);
+        xrt.anchoredPosition = new Vector2(230f, -btnY);
+        xrt.sizeDelta = new Vector2(160f, 80f);
+        AddPillBackground(xgo.transform, new Vector2(160f, 80f), 18f,
+            new Color32(200, 140, 45, 255), new Color32(120, 110, 100, 255), 4f);
+        Text xText = JemPanelText(xgo.transform, "CloseText", Vector2.zero, new Vector2(160f, 80f), 28, Color.white, font);
+        xText.text = "戻る";
+        Image xhit = xgo.AddComponent<Image>();
+        xhit.color = new Color(0, 0, 0, 0);
+        Button xbtn = xgo.AddComponent<Button>();
+        xbtn.targetGraphic = xhit;
+        xbtn.onClick.AddListener(() => { WarukyureSfx.PlayTap(); CloseJemPanel(); });
+
+        go.SetActive(false);
+    }
+
+    Text JemPanelText(Transform parent, string name, Vector2 posFromTopCenter, Vector2 size, int fontSize, Color color, Font font)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 1f);
+        rt.anchorMax = new Vector2(0.5f, 1f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = new Vector2(posFromTopCenter.x, -posFromTopCenter.y);
+        rt.sizeDelta = size;
+        Text t = go.AddComponent<Text>();
+        t.font = font;
+        t.fontSize = fontSize;
+        t.alignment = TextAnchor.MiddleCenter;
+        t.color = color;
+        t.raycastTarget = false;
+        return t;
+    }
+
+    void OnJemGemTapped(int index)
+    {
+        if (index < 0 || index >= JemGemAssetCodes.Length) return;
+        if (jemGemBalances != null && jemGemBalances[index] <= 0) return; // 所持0は選べない
+        jemGemIndex = index;
+        UpdateJemPanelVisuals();
+    }
+
+    void OnJemRateTapped(int rate)
+    {
+        if (System.Array.IndexOf(JemAllowedRates, rate) < 0) return;
+        jemRate = rate;
+        UpdateJemPanelVisuals();
+    }
+
+    void OpenJemPanel()
+    {
+        if (jemPanel == null) return;
+        // 残高未取得なら開くたびに一度だけ取得を試みる(取得失敗時も開いて ×- 表示のまま選べない)。
+        if (jemGemBalances == null && !jemBalanceRequested)
+        {
+            jemBalanceRequested = true;
+            StartCoroutine(RefreshJemBalances());
+        }
+        jemPanel.SetActive(true);
+        jemPanelGroup.alpha = 1f;
+        jemPanelGroup.blocksRaycasts = true;
+        UpdateJemPanelVisuals();
+    }
+
+    void CloseJemPanel()
+    {
+        if (jemPanel == null) return;
+        jemPanelGroup.alpha = 0f;
+        jemPanelGroup.blocksRaycasts = false;
+        jemPanel.SetActive(false);
+    }
+
+    void UpdateJemPanelVisuals()
+    {
+        if (jemPanel == null) return;
+        for (int i = 0; i < 4; i++)
+        {
+            bool hasBalance = jemGemBalances == null || jemGemBalances[i] > 0; // 未取得時は触れるが確定時に弾く
+            bool selected = i == jemGemIndex;
+            if (jemGemGlow[i] != null)
+                jemGemGlow[i].color = selected ? new Color32(255, 205, 60, 255) : new Color32(250, 229, 186, 255);
+            if (jemGemButtons[i] != null)
+                jemGemButtons[i].interactable = hasBalance;
+            if (jemGemBalanceTexts[i] != null)
+                jemGemBalanceTexts[i].text = jemGemBalances == null ? "×-" : "×" + jemGemBalances[i].ToString("N0");
+        }
+        for (int i = 0; i < JemAllowedRates.Length; i++)
+        {
+            if (jemRateGlow[i] != null)
+                jemRateGlow[i].color = (JemAllowedRates[i] == jemRate)
+                    ? new Color32(255, 205, 60, 255) : new Color32(250, 229, 186, 255);
+        }
+
+        int n = selectedBets.Count;
+        bool ready = jemGemIndex >= 0 && n > 0;
+        int cost = n * jemRate;
+        if (jemCostGemIcon != null)
+        {
+            jemCostGemIcon.sprite = jemGemIndex >= 0 ? jemGemSprites[jemGemIndex] : null;
+            jemCostGemIcon.enabled = jemGemIndex >= 0;
+        }
+        if (jemCostText != null)
+            jemCostText.text = ready
+                ? $"消費: {n}口 × {jemRate} ＝ ×{cost:N0}"
+                : "宝石とレートをえらんでください";
+        if (jemConfirmButton != null) jemConfirmButton.interactable = ready;
+        if (jemConfirmFill != null) jemConfirmFill.color = ready ? new Color32(170, 20, 15, 255) : new Color32(140, 120, 110, 255);
+    }
+
+    // パネルの確定ボタン。ここだけが消費を確定してSPINを開始する(誤タップ即ベット防止)。
+    void ConfirmJemAndSpin()
+    {
+        WarukyureSfx.PlayTap();
+        if (isRunning || !sessionReady) return;
+        if (jemGemIndex < 0 || System.Array.IndexOf(JemAllowedRates, jemRate) < 0) return;
+        if (jemGemBalances != null && jemGemBalances[jemGemIndex] <= 0)
+        {
+            jemGemIndex = -1;
+            UpdateJemPanelVisuals();
+            return;
+        }
+        CloseJemPanel();
+        StartCoroutine(SpinRound());
+    }
+#endif
+
     // ----------------- interaction -----------------
     void ToggleBet(int bet)
     {
@@ -1137,6 +1492,12 @@ public class WarukyureBoard : MonoBehaviour
             ShowResultOverlay("BETを1つ以上選んでください", 1.5f);
             return;
         }
+#if JEM_BUILD
+        // JEM: SPIN前に宝石×レート×口数の消費を確認するパネルを開く。
+        // 消費の確定はパネルの「SPIN」ボタン(ConfirmJemAndSpin)だけが行う(誤タップ即ベット防止)。
+        // ローカルの残高事前判定は行わない(社長確定: wallet事前判定を使わない。reserveはPF/サーバー任せ)。
+        OpenJemPanel();
+#else
         if (!IsDemoMode())
         {
             int cost = selectedBets.Count * missionBet;
@@ -1147,12 +1508,17 @@ public class WarukyureBoard : MonoBehaviour
             }
         }
         StartCoroutine(SpinRound());
+#endif
     }
 
     void ToggleHelp()
     {
         if (isRunning) return;
+#if JEM_BUILD
+        ShowResultOverlay($"2/4/6/8/20 を選んで SPIN\n1口 = 宝石1個 × レート / 数字に止まれば number × 倍率 × レート", -1f);
+#else
         ShowResultOverlay($"2/4/6/8/20 を選んで SPIN\n1口{missionBet}枚 / 数字に止まれば number × 倍率 × {missionBet} 枚", -1f);
+#endif
     }
 
     void SetMissionBet(int value)
@@ -1176,8 +1542,16 @@ public class WarukyureBoard : MonoBehaviour
         for (int i = 0; i < betTexts.Length; i++)
         {
             if (betTexts[i] != null)
-                betTexts[i].text = "BET " + betLabels[i] + "\n" + missionBet.ToString("N0") + "枚";
+                betTexts[i].text = BetButtonLabel(betLabels[i]);
         }
+    }
+
+    // BETボタンの「BET n\n<1口あたりの消費>」表示。missionBet確定/変更時にUpdateBetButtonTexts()で再計算。
+    // 1選択あたりの消費=missionBet（cost=selectedBets.Count*missionBetと一致、口数ラベル自体には掛けない）。
+    // JEM_BUILDではmissionBet=rate(=1口あたり宝石rate個)で、表示は「×rate」。
+    string BetButtonLabel(string betLabel)
+    {
+        return "BET " + betLabel + "\n" + AmountLabel(missionBet);
     }
 
     // 残高・コスト・純益の表示は共通ヘッダー（HTML側）が持つため、
@@ -1244,6 +1618,16 @@ public class WarukyureBoard : MonoBehaviour
     // ----------------- API -----------------
     IEnumerator InitSession()
     {
+#if JEM_BUILD
+        // fail-closed: jem-warukyure-api が未作成(API_URL空)の間は一切通信せず、
+        // 元warukyure-apiへもfallbackしない。作成後に API_URL_DEV/PROD を入れて有効化する。
+        if (string.IsNullOrEmpty(API_URL))
+        {
+            Debug.LogError("[JEM] jem-warukyure-api endpoint is not configured; refusing to start session");
+            ShowResultOverlay("JEM版は現在準備中です", -1f);
+            yield break;
+        }
+#endif
         // poicasi-auth から戻ってきた直後なら、ゲスト token より認証を優先する。
         string paCode = TakePaCode();
         if (!string.IsNullOrEmpty(paCode))
@@ -1266,7 +1650,7 @@ public class WarukyureBoard : MonoBehaviour
                     wallet = authRes.state.wallet;
                     ballMask = authRes.state.ballMask;
                     SetMissionBet(authRes.missionBet);
-                    yield return StartCoroutine(TryApplyPlatformMissionBet());
+                    yield return StartCoroutine(ApplyPlatformUnitAndBalances());
                     lastNet = 0;
                     sessionReady = true;
                     UpdateHeader();
@@ -1292,7 +1676,7 @@ public class WarukyureBoard : MonoBehaviour
                     wallet = res.state.wallet;
                     ballMask = res.state.ballMask;
                     SetMissionBet(res.missionBet);
-                    yield return StartCoroutine(TryApplyPlatformMissionBet());
+                    yield return StartCoroutine(ApplyPlatformUnitAndBalances());
                     lastNet = 0;
                     sessionReady = true;
                     UpdateHeader();
@@ -1322,11 +1706,46 @@ public class WarukyureBoard : MonoBehaviour
         wallet = initRes.state.wallet;
         ballMask = initRes.state.ballMask;
         SetMissionBet(initRes.missionBet);
-        yield return StartCoroutine(TryApplyPlatformMissionBet());
+        yield return StartCoroutine(ApplyPlatformUnitAndBalances());
         lastNet = 0;
         sessionReady = true;
         UpdateHeader();
     }
+
+    // セッション確立直後の単価/残高取得。通常ビルドはPF missions/currentで1口メダル単価を
+    // 先取りする(TryApplyPlatformMissionBet)。JEM_BUILDではミッションMEDAL単価取得を使わず
+    // (社長確定)、代わりに4種宝石の残高を取得して選択UIへ反映する。単価の正本はプレイ時の
+    // PF plays応答 run.bet のみ。
+    IEnumerator ApplyPlatformUnitAndBalances()
+    {
+#if JEM_BUILD
+        yield return StartCoroutine(RefreshJemBalances());
+#else
+        yield return StartCoroutine(TryApplyPlatformMissionBet());
+#endif
+    }
+
+#if JEM_BUILD
+    IEnumerator RefreshJemBalances()
+    {
+        if (platformClient == null)
+            platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));
+
+        var task = platformClient.GetGemBalances();
+        yield return new WaitUntil(() => task.IsCompleted);
+
+        if (task.IsFaulted || task.IsCanceled)
+        {
+            Debug.LogWarning("[JEM] wallet/balance (gems) failed; keeping previous balances: " + task.Exception?.Message);
+            yield break;
+        }
+        jemGemBalances = task.Result;
+        // 残高0の宝石が選択中なら未選択へ戻す(選べない旨はパネル側で非活性表示)。
+        if (jemGemIndex >= 0 && jemGemBalances != null && jemGemBalances[jemGemIndex] <= 0)
+            jemGemIndex = -1;
+        UpdateJemPanelVisuals();
+    }
+#endif
 
     // 2026-09-15 是正: warukyure-api(InitSession応答)のmissionBetは既定100固定
     // (本番Lambdaの環境変数MISSION_BET未設定)で、実際の1口単価はSPIN時のPF
@@ -1529,7 +1948,13 @@ public class WarukyureBoard : MonoBehaviour
         // 数えるため、開始時点でインクリメントする。全ての出口(失敗/成功)で必ず
         // デクリメントする。
         platformPrepareInFlight++;
+#if JEM_BUILD
+        // JEM: 選んだ宝石(asset_code)とrateをplaysへ送る(2026-09-21 社長確定 2=A)。
+        // ConfirmJemAndSpin で jemGemIndex>=0 と JemAllowedRates 内であることを確認済み。
+        var task = platformClient.Prepare(JemGemAssetCodes[jemGemIndex], jemRate);
+#else
         var task = platformClient.Prepare();
+#endif
         yield return new WaitUntil(() => task.IsCompleted);
 
         if (task.IsFaulted)
@@ -1545,6 +1970,11 @@ public class WarukyureBoard : MonoBehaviour
             platformPrepareOutcomeUnknown = true;
             ShowPoiError("E-PREPARE", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
             currentRunId = System.Guid.NewGuid().ToString();
+#if JEM_BUILD
+            // JEM: platform連携なしの既存ゲームLambdaフローへはフォールバックしない。
+            // reserveが行われないrunは宝石を消費しない無料プレイになるため、fail-closedで中断する。
+            EndRound(API_RETRY_MSG);
+#endif
             yield break;
         }
 
@@ -1601,6 +2031,11 @@ public class WarukyureBoard : MonoBehaviour
             pendingUnsettledPlatformRunIds.Remove(currentRunId);
         }
 
+#if JEM_BUILD
+        // JEM: MEDAL残高は使わない。選択した宝石の残高を表示用に再取得する。
+        // state.wallet(=0)を宝石残高として使わない(社長確定)。
+        yield return StartCoroutine(RefreshJemBalances());
+#else
         var walletTask = platformClient.GetWalletBalance();
         yield return new WaitUntil(() => walletTask.IsCompleted);
 
@@ -1608,6 +2043,7 @@ public class WarukyureBoard : MonoBehaviour
         {
             wallet = walletTask.Result;
         }
+#endif
     }
 
     void ShowPoiError(string code, string runId, bool refunded, System.Action onRetry, System.Action onBack)
@@ -1738,7 +2174,7 @@ public class WarukyureBoard : MonoBehaviour
                     {
                         ResetSpinState();
                         string detail = resolved.payout > 0
-                            ? BuildScoreDetail("結果", $"{resolved.payout:N0}枚獲得")
+                            ? BuildScoreDetail("結果", AmountLabel(resolved.payout) + "獲得")
                             : BuildLoseDetail();
                         bool settled = resolved.state == "SETTLED" && resolved.run_id == runId;
                         platformSettledRunId = settled ? runId : null;
@@ -2057,7 +2493,7 @@ public class WarukyureBoard : MonoBehaviour
     }
 
     // 式型（pr-a-formula）: 材料行(最大4)＋結果。
-    static string BuildFormulaDetail(string[] materialLines, int resultValue, string unit = "枚")
+    static string BuildFormulaDetail(string[] materialLines, int resultValue, string unit)
     {
         StringBuilder h = new StringBuilder();
         h.Append("<div class=\"pr-a-formula\">");
@@ -2110,13 +2546,18 @@ public class WarukyureBoard : MonoBehaviour
             {
                 $"数字 {r.number}",
                 $"× 倍率 {r.multiplier}",
-                $"× {playMissionBet:N0}枚",
-            }, r.awardBreakdown.number);
+                $"× {AmountLabel(playMissionBet)}",
+            }, r.awardBreakdown.number, UnitLabel);
         }
         else if (r.primaryType == "castle")
         {
             WarukyureSfx.PlayFanfare();   // 城到達のファンファーレ
-            detail = BuildFormulaDetail(new[] { "城 90" }, r.awardBreakdown.castle);
+#if JEM_BUILD
+            // JEM: 城配当は100メダル基準÷100×rateの宝石数。材料行もrateスケールで表示する。
+            detail = BuildFormulaDetail(new[] { $"城 {90 * playMissionBet / 100}" }, r.awardBreakdown.castle, UnitLabel);
+#else
+            detail = BuildFormulaDetail(new[] { "城 90" }, r.awardBreakdown.castle, UnitLabel);
+#endif
         }
         else if (r.primaryType == "ball")
         {
@@ -2133,18 +2574,8 @@ public class WarukyureBoard : MonoBehaviour
             // 2026-09-17是正: primaryTypeがサーバーから未知/null/空の値で来た場合の
             // 代替表示。payout(r.awardBreakdown.total)だけを使い、白紙を防ぐ。
             detail = r.awardBreakdown.total > 0
-                ? BuildScoreDetail("結果", $"{r.awardBreakdown.total:N0}枚獲得")
+                ? BuildScoreDetail("結果", AmountLabel(r.awardBreakdown.total) + "獲得")
                 : BuildLoseDetail();
-        }
-        else
-        {
-            // 2026-09-17是正: primaryTypeがサーバーから未知/null/空の値で来た場合、
-            // 従来はどの分岐にも該当せずsbが空のままZ3(中央板)が白紙になっていた。
-            // payout(r.awardBreakdown.total)だけを使った最低限のフォールバックを出す。
-            if (r.awardBreakdown.total > 0)
-                sb.Append($"{r.awardBreakdown.total:N0}枚 獲得");
-            else
-                sb.Append("はずれ");
         }
 
         // 精算表示は共通リザルト画面（poiresult v2）に一本化する。
@@ -2171,11 +2602,17 @@ public class WarukyureBoard : MonoBehaviour
     // 共通リザルト表示後に、PF resolveでSETTLED・run一致を確認済みのrunだけ1回ready通知する。
     void NotifyCampaignResultReadyOnce()
     {
+#if JEM_BUILD
+        // JEM: medal系キャンペーン/付与通知は使わない(社長確定)。game_id=warukyure の
+        // campaign-result-ready を誤って発火させないため、JEMビルドでは通知しない。
+        return;
+#else
         string runId = platformSettledRunId;
         if (string.IsNullOrEmpty(runId) || runId == lastCampaignReadyRunId) return;
         lastCampaignReadyRunId = runId;
 #if UNITY_WEBGL && !UNITY_EDITOR
         WarukyureCampaignResultReady(runId);
+#endif
 #endif
     }
 
@@ -2304,7 +2741,7 @@ public class WarukyureBoard : MonoBehaviour
         yield return LampAnnouncer.Run(labels, stopIndex, labelColors, () => skipRequested);
 
         // 獲得枚数表示
-        jackpotAwardText.text = $"{r.bonusOutcome.award}枚";
+        jackpotAwardText.text = AmountLabel(r.bonusOutcome.award);
 
         // 0.3秒の表示溜め
         float hold = 0f;
@@ -2326,7 +2763,7 @@ public class WarukyureBoard : MonoBehaviour
         jackpotPanel.SetActive(false);
         jackpotPanelGroup.blocksRaycasts = false;
         SetNormalUIForChallenge(true);
-        yield return StartCoroutine(RunPoiResult(r.awardBreakdown.total, BuildScoreDetail("JACKPOT", $"{r.bonusOutcome.award:N0}枚"), "", allowReload));
+        yield return StartCoroutine(RunPoiResult(r.awardBreakdown.total, BuildScoreDetail("JACKPOT", AmountLabel(r.bonusOutcome.award)), "", allowReload));
         EndRound("");
     }
 
@@ -2373,7 +2810,7 @@ public class WarukyureBoard : MonoBehaviour
         // 現在のフレームのレンダリング／rAF 完了後にブラウザ側演出を発火し、
         // ブラウザにスタイル更新の機会を与える。
         yield return new WaitForEndOfFrame();
-        PoiFxJackpot(tier, amount, "枚", gameObject.name, "OnPoiFxDone", se);
+        PoiFxJackpot(tier, amount, UnitLabel, gameObject.name, "OnPoiFxDone", se);
 #else
         Debug.Log($"[poifx] {tier} {amount}枚 se={se ?? "(default)"}");
         OnPoiFxDone("");
