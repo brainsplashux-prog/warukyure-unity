@@ -39,17 +39,20 @@ if 'name="poicasi-build"' not in text:
     text = text.replace("</head>", '  <meta name="poicasi-build" content="jem-warukyure">\n</head>', 1)
 
 # jslib(poiresult.jslib)が game_id を window.POI_GAME_ID から読むための注入。
-if "window.POI_GAME_ID" not in text:
+# 共有UI bridge等が window.POI_GAME_ID を参照していても誤検知しないよう、
+# 「代入文そのもの」の有無で判定する。
+POI_GAME_ID_ASSIGN = 'window.POI_GAME_ID = "jem-warukyure";'
+if POI_GAME_ID_ASSIGN not in text:
     if "</head>" not in text:
         fail("</head>が見つからない")
-    text = text.replace("</head>", '  <script>window.POI_GAME_ID = "jem-warukyure";</script>\n</head>', 1)
+    text = text.replace("</head>", '  <script>' + POI_GAME_ID_ASSIGN + '</script>\n</head>', 1)
 
 if "<title>JEM WARUQ0 QUEST | ポイカジ</title>" not in text:
     fail("title置換の検証に失敗した")
 if 'name="poicasi-build" content="jem-warukyure"' not in text:
     fail("meta marker挿入の検証に失敗した")
-if '"jem-warukyure"' not in text:
-    fail("POI_GAME_ID挿入の検証に失敗した")
+if text.count(POI_GAME_ID_ASSIGN) != 1:
+    fail("POI_GAME_ID代入文がちょうど1件でない(実際: %d件)" % text.count(POI_GAME_ID_ASSIGN))
 
 open(path, "w", encoding="utf-8").write(text)
 print("PATCH_INDEX=PASS title=JEM meta=jem-warukyure poi_game_id=jem-warukyure")
