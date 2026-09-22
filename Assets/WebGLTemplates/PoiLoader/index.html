@@ -1715,7 +1715,12 @@
             S.handle = ui.mount(host, {
               // ユーザーコールバックは Unity の ready update 到着前には届けない。
               onRateSelected: function (a, r) { if (S.stateReceived) send('OnJemRateSelected', a + '|' + r); },
-              onStart: function (a, r) { if (S.stateReceived) send('OnJemStart', a + '|' + r); }
+              // 決定=確定のみ(2026-09-22 社長指示)。開始はタイトルSTARTだけ。
+              // 旧selector本体(出陣→onStart)との過渡期ペアでも開始させないため、
+              // onStart 発火も OnJemConfirm(確定のみ)へ写像する。
+              // C#側も万が一の OnJemStart は確定として処理する(二重のfail-closed)。
+              onConfirm: function (a, r) { if (S.stateReceived) send('OnJemConfirm', a + '|' + r); },
+              onStart: function (a, r) { if (S.stateReceived) send('OnJemConfirm', a + '|' + r); }
             });
             S.loading = false;
             // mount直後は共通側rootの既定表示に依存せず、Unityのshow/hide指示が

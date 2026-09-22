@@ -251,8 +251,10 @@ public class TitleScreen : MonoBehaviour
     }
 
 #if JEM_BUILD
-    // START タップ時の JEM ゲート。共通selector未ロード/失敗・宝石未選択・残高不明・
-    // 残高<選択レートでは盤面へ入らない
+    // START タップ時の JEM ゲート。共通selector未ロード/失敗・宝石未確定(決定未済)・
+    // 残高不明・残高<選択レートでは盤面へ入らない。
+    // ポップアップの「決定」は確定のみで遷移しない(2026-09-22 社長指示)ため、
+    // 開始はこのSTART経路だけが行う。
     // （消費は盤面SPIN以降。ここでは「選んだ宝石・レートで入場してよいか」だけ判定する）。
     bool TryStartJemGame()
     {
@@ -286,17 +288,6 @@ public class TitleScreen : MonoBehaviour
             ShowNotice("残高にあわせてレートをえらんでください");
             return false;
         }
-        return true;
-    }
-
-    // 共通selectorの「出陣」からの開始(WarukyureBoard.OnJemStart 経由)。
-    // 成功したらタイトルを閉じてゲーム画面へ。失敗時はfalseを返し、呼び出し側が
-    // releaseStart()で再試行可能に戻す。
-    public bool CloseFromJemSelector()
-    {
-        if (root == null || !IsShowing) return false;
-        if (board == null || !board.IsSessionReady) return false;
-        Close();
         return true;
     }
 
@@ -396,7 +387,7 @@ public class TitleScreen : MonoBehaviour
         noticeTimer = NoticeSeconds;
     }
 
-    // WarukyureBoard(FailJemSelectorStart)からの通知表示用。
+    // WarukyureBoard(FailJemSelectorConfirm)からの通知表示用。
     public void ShowJemNotice(string message) => ShowNotice(message);
 #endif
 

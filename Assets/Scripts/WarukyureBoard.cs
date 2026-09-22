@@ -1292,51 +1292,76 @@ public class WarukyureBoard : MonoBehaviour
         if (titleScreen != null) titleScreen.OnJemSelectorFailed(message);
     }
 
-    // レートタップ＝選択+保存だけ（開始・賭けはしない。PF Prepare/reserveは呼ばない）。
+    // レートタップ＝レートの即時保存だけ（2026-09-22 社長指示「レートは選択したら保存」）。
+    // 開始・賭けはしない。PF Prepare/reserveは呼ばない。宝石の確定もしない:
+    // ポップアップを×で閉じた取消しを成立させるため、gemのcommitは OnJemConfirm(決定)だけが行う。
     // selector/session未ready・残高mapに無いasset・0残高・許可値外rate・残高超過rateの
     // callbackは全て無操作(何も保存しない)。全検査を通って初めてPlayerPrefsへ保存する。
     public void OnJemRateSelected(string payload)
     {
-        if (!jemSelectorReady || jemSelectorFailed || !sessionReady) return;
+        // タイトル非表示中に届いた遅延/滞留SendMessageは一切無操作:
+        // プレイ中にレート保存・選択状態を変えない（fail closed）。
+        if (!TitleScreen.IsShowing
+            || !jemSelectorReady || jemSelectorFailed || !sessionReady) return;
         if (!TryParseJemSelectorPayload(payload, out string assetCode, out int rate)) return;
         int? bal = GetJemGemBalance(assetCode);
         if (!bal.HasValue || bal.Value <= 0) return;
         if (System.Array.IndexOf(JemAllowedRates, rate) < 0 || rate > bal.Value) return;
-        if (!SelectJemGemForTitle(assetCode)) return;
         SelectJemRateForTitle(rate);   // 全検査通過後にのみ保存（許可値は上で検証済み）
     }
 
-    // 出陣＝選択宝石とレートで開始。失敗時は releaseStart() で再試行可能に戻す。
-    public void OnJemStart(string payload)
+    // 決定＝宝石とレートの確定のみ（2026-09-22 社長指示「決定を押したらポップアップを
+    // 閉じるだけで遷移はしない」）。ゲーム開始・PF Prepare/reserve・run開始はしない。
+    // 開始はタイトルSTART(TryStartJemGame)だけが行う。
+    // パネルはJS側が閉じる。旧selector本体(出陣→onStart)との過渡期ではブリッジが
+    // onStart をこの OnJemConfirm へ写像するため、ここでも開始しない確定として処理する。
+    public void OnJemConfirm(string payload)
     {
-        if (!TryParseJemSelectorPayload(payload, out string assetCode, out int rate)
+        // fail closed: 状態を変える処理(SelectJemGemForTitle/SelectJemRateForTitle)より前に
+        // 非破壊検査を全て通す。残高不足rate等の不正callbackが前回確定済みの宝石を
+        // 上書きしないようにする（誤タップは決定完了まで無害＝社長指示 2026-09-22）。
+        // タイトル非表示中の遅延/滞留callbackも無効: 確定はタイトル表示中のみ。
+        if (!TitleScreen.IsShowing
+            || !TryParseJemSelectorPayload(payload, out string assetCode, out int rate)
             || !sessionReady
             || !jemSelectorReady || jemSelectorFailed
-            || System.Array.IndexOf(JemAllowedRates, rate) < 0
-            || !SelectJemGemForTitle(assetCode))
+            || System.Array.IndexOf(JemAllowedRates, rate) < 0)
         {
-            FailJemSelectorStart("その宝石では開始できません");
+            FailJemSelectorConfirm("その宝石はえらべません");
             return;
         }
         int? bal = GetJemGemBalance(assetCode);
-        if (!bal.HasValue || bal.Value < rate)
+        if (!bal.HasValue || bal.Value <= 0)
         {
-            FailJemSelectorStart("残高にあわせてレートをえらんでください");
+            FailJemSelectorConfirm("その宝石はえらべません");
+            return;
+        }
+        if (bal.Value < rate)
+        {
+            FailJemSelectorConfirm("残高にあわせてレートをえらんでください");
+            return;
+        }
+        // 最終mutation点。先行検査を全通過した後でも失敗し得るため false 時は
+        // 他状態を変えずに通知だけ行う（SelectJemGemForTitle は失敗時に代入しない）。
+        if (!SelectJemGemForTitle(assetCode))
+        {
+            FailJemSelectorConfirm("その宝石はえらべません");
             return;
         }
         SelectJemRateForTitle(rate);
-        if (titleScreen == null || !titleScreen.CloseFromJemSelector())
-        {
-            JemSelectorReleaseStart();
-            return;
-        }
-        // 開始成功後もロックを解除しておく（出陣ロックはreleaseStart()でしか戻らない
-        // 契約のため、このままだと次回タイトルで出陣が永久にdisabledになる）。
-        WarukyureSfx.PlayTap();
+        // 旧selector本体とのペアでは出陣ロックが残るため明示解除して再試行可能に戻す
+        // （新selector本体ではロックを持たず no-op）。
         JemSelectorReleaseStart();
     }
 
-    void FailJemSelectorStart(string message)
+    // 旧契約の開始callback。どこかの経路で届いても開始せず確定のみとして処理する
+    // （fail closed。決定で開始させない社長指示の二重防衛）。
+    public void OnJemStart(string payload)
+    {
+        OnJemConfirm(payload);
+    }
+
+    void FailJemSelectorConfirm(string message)
     {
         if (titleScreen != null) titleScreen.ShowJemNotice(message);
         JemSelectorReleaseStart();

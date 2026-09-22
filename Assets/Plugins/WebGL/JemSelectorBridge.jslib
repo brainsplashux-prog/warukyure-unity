@@ -23,7 +23,8 @@ mergeInto(LibraryManager.library, {
     if (window.__jemSel && typeof window.__jemSel.hide === 'function') window.__jemSel.hide();
   },
 
-  // onStart発火後の出陣ロックを解除する唯一の方法（開始失敗・中断時の再試行用）。
+  // 旧契約(出陣ロック解除)の互換API。決定方式の新本体ではロックを持たずno-op。
+  // 旧selector本体との過渡期ペアではロック解除として必要（確定後の再武装用）。
   JemSelectorReleaseStart: function () {
     if (window.__jemSel && typeof window.__jemSel.releaseStart === 'function') window.__jemSel.releaseStart();
   },
