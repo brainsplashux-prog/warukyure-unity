@@ -20,7 +20,7 @@ public class WarukyureBoard : MonoBehaviour
     // InitSession冒頭でfail-closedする(通信しない)。
     // ここへ元warukyure-apiのURLをfallbackとして書いてはいけない(誤配信防止)。
     const string API_URL_DEV  = "https://svixy4jdl5.execute-api.ap-northeast-1.amazonaws.com/";
-    const string API_URL_PROD = "";
+    const string API_URL_PROD = "https://726db19hp5.execute-api.ap-northeast-1.amazonaws.com/";
     const string TOKEN_KEY = "jem_warukyure_token";
 #else
     const string API_URL_DEV  = "https://b5yl9sml5l.execute-api.ap-northeast-1.amazonaws.com/";
