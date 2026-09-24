@@ -147,7 +147,15 @@ public class WarukyureBoard : MonoBehaviour
     private readonly RawImage[] collectionBalls = new RawImage[4];
     private readonly Texture2D[] ballTexOn = new Texture2D[4];
     private readonly Texture2D[] ballTexOff = new Texture2D[4];
-    private readonly string[] jpAwardLabels = { "3000", "1000", "30000", "1000", "5000" };
+#if JEM_BUILD
+    // 宝石版のJP配分（server data/master.js JP_AWARDS と同一・2026-09-24 社長確定）。
+    private static readonly int[] JP_BASE_AWARDS = { 777, 7777, 777, 77777, 777 };
+#else
+    private static readonly int[] JP_BASE_AWARDS = { 3000, 1000, 30000, 1000, 5000 };
+#endif
+    // 最高額のランプだけ "JACKPOT" 表記にする（メダル版は index 2 = 30000、宝石版は index 3 = 77777）。
+    private static readonly int JP_TOP_INDEX = System.Array.IndexOf(JP_BASE_AWARDS, Mathf.Max(JP_BASE_AWARDS));
+    private readonly string[] jpAwardLabels = System.Array.ConvertAll(JP_BASE_AWARDS, a => a.ToString());
     private Coroutine overlayRoutine;
     private long lastErrorCode = 0;
     private string lastErrorBody = null;
@@ -832,7 +840,7 @@ public class WarukyureBoard : MonoBehaviour
             txt.fontSize = 22;
             txt.alignment = TextAnchor.MiddleCenter;
             txt.color = new Color32(200, 200, 200, 255);
-            txt.text = jpAwardLabels[i] == "30000" ? "JACKPOT" : jpAwardLabels[i];
+            txt.text = (i == JP_TOP_INDEX) ? "JACKPOT" : jpAwardLabels[i];
             jackpotLampTexts[i] = txt;
 
             RectTransform trt = txtGO.GetComponent<RectTransform>();
@@ -1460,12 +1468,12 @@ public class WarukyureBoard : MonoBehaviour
     void SetMissionBet(int value)
     {
         missionBet = (value > 0) ? value : 100;
-        int[] baseJp = { 3000, 1000, 30000, 1000, 5000 };
+        int[] baseJp = JP_BASE_AWARDS;
         for (int i = 0; i < baseJp.Length; i++)
         {
             jpAwardLabels[i] = (baseJp[i] * missionBet / 100).ToString();
             if (jackpotLampTexts[i] != null)
-                jackpotLampTexts[i].text = (i == 2) ? "JACKPOT" : jpAwardLabels[i];
+                jackpotLampTexts[i].text = (i == JP_TOP_INDEX) ? "JACKPOT" : jpAwardLabels[i];
         }
         UpdateBetButtonTexts();
     }
@@ -2705,21 +2713,13 @@ public class WarukyureBoard : MonoBehaviour
 
         // Babeltower8192 と同じ 5 ランプ演出。停止位置はサーバー指定値を再生する。
         // missionBet により配当がスケールするため、ランプ表示も同率スケール（トップは JACKPOT のまま）。
-        string[] labels = {
-            (3000 * missionBet / 100).ToString(),
-            (1000 * missionBet / 100).ToString(),
-            "JACKPOT",
-            (1000 * missionBet / 100).ToString(),
-            (5000 * missionBet / 100).ToString()
-        };
-        Color[] labelColors =
+        string[] labels = new string[JP_BASE_AWARDS.Length];
+        Color[] labelColors = new Color[JP_BASE_AWARDS.Length];
+        for (int i = 0; i < JP_BASE_AWARDS.Length; i++)
         {
-            new Color(1f, 0.94f, 0.80f),
-            new Color(1f, 0.94f, 0.80f),
-            new Color(1f, 0.85f, 0.40f),
-            new Color(1f, 0.94f, 0.80f),
-            new Color(1f, 0.94f, 0.80f)
-        };
+            labels[i] = (i == JP_TOP_INDEX) ? "JACKPOT" : (JP_BASE_AWARDS[i] * missionBet / 100).ToString();
+            labelColors[i] = (i == JP_TOP_INDEX) ? new Color(1f, 0.85f, 0.40f) : new Color(1f, 0.94f, 0.80f);
+        }
 
         yield return LampAnnouncer.Run(labels, stopIndex, labelColors, () => skipRequested);
 
