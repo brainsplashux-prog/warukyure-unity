@@ -156,6 +156,10 @@ public class WarukyureBoard : MonoBehaviour
     // 最高額のランプだけ "JACKPOT" 表記にする（メダル版は index 2 = 30000、宝石版は index 3 = 77777）。
     private static readonly int JP_TOP_INDEX = System.Array.IndexOf(JP_BASE_AWARDS, Mathf.Max(JP_BASE_AWARDS));
     private readonly string[] jpAwardLabels = System.Array.ConvertAll(JP_BASE_AWARDS, a => a.ToString());
+#if JEM_BUILD
+    // 宝石版のJPランプは賭け量に依らない倍率表記（払い出し＝賭け単位×倍率・2026-09-24 社長指示）。
+    static string JemJpLampLabel(int i) => JP_BASE_AWARDS[i] + "倍";
+#endif
     private Coroutine overlayRoutine;
     private long lastErrorCode = 0;
     private string lastErrorBody = null;
@@ -840,7 +844,11 @@ public class WarukyureBoard : MonoBehaviour
             txt.fontSize = 22;
             txt.alignment = TextAnchor.MiddleCenter;
             txt.color = new Color32(200, 200, 200, 255);
+#if JEM_BUILD
+            txt.text = JemJpLampLabel(i);
+#else
             txt.text = (i == JP_TOP_INDEX) ? "JACKPOT" : jpAwardLabels[i];
+#endif
             jackpotLampTexts[i] = txt;
 
             RectTransform trt = txtGO.GetComponent<RectTransform>();
@@ -1473,7 +1481,11 @@ public class WarukyureBoard : MonoBehaviour
         {
             jpAwardLabels[i] = (baseJp[i] * missionBet / 100).ToString();
             if (jackpotLampTexts[i] != null)
+#if JEM_BUILD
+                jackpotLampTexts[i].text = JemJpLampLabel(i);
+#else
                 jackpotLampTexts[i].text = (i == JP_TOP_INDEX) ? "JACKPOT" : jpAwardLabels[i];
+#endif
         }
         UpdateBetButtonTexts();
     }
@@ -2717,7 +2729,11 @@ public class WarukyureBoard : MonoBehaviour
         Color[] labelColors = new Color[JP_BASE_AWARDS.Length];
         for (int i = 0; i < JP_BASE_AWARDS.Length; i++)
         {
+#if JEM_BUILD
+            labels[i] = JemJpLampLabel(i);
+#else
             labels[i] = (i == JP_TOP_INDEX) ? "JACKPOT" : (JP_BASE_AWARDS[i] * missionBet / 100).ToString();
+#endif
             labelColors[i] = (i == JP_TOP_INDEX) ? new Color(1f, 0.85f, 0.40f) : new Color(1f, 0.94f, 0.80f);
         }
 

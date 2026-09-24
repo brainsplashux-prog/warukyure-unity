@@ -119,6 +119,11 @@ public static class LampAnnouncer
     private static Font LabelFont()
     {
         if (labelFont != null) return labelFont;
+#if JEM_BUILD
+        // 宝石版はJPランプを「777倍」表記にするため、「倍」の字形を持つフォントを優先する。
+        labelFont = Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium");
+        if (labelFont != null) return labelFont;
+#endif
         labelFont = Font.CreateDynamicFontFromOSFont("Arial Bold", 17);
         if (labelFont == null) labelFont = Font.CreateDynamicFontFromOSFont("Arial", 17);
         if (labelFont == null) labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
