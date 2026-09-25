@@ -1686,11 +1686,28 @@ public class WarukyureBoard : MonoBehaviour
         }
     }
 
+    // dec-20260926-018: 「もう一度」→10秒以内に再エラーが3回続いたらポータルTOPへ脱出する。
+    private readonly ErrorEscapeCounter errorEscape = new ErrorEscapeCounter();
+
     void ShowPoiError(string code, string runId, bool refunded, System.Action onRetry, System.Action onBack)
     {
         ResetSpinState();
         DismissResultOverlay();
-        PoiErr.Show(code, runId, refunded, onRetry, onBack);
+        if (errorEscape.OnError(code, Time.realtimeSinceStartupAsDouble))
+        {
+            // 3回目は表示せず脱出する。遷移先は「戻る」と同じポータル（2026-09-14是正：タイトルへ戻すと
+            // 再エラーのループになるため）。未精算runが残っていれば BackToPortal が abort を試みてから遷移する。
+            Debug.LogWarning($"[ErrorEscape] 3 consecutive errors; escaping to portal (code={code} run={runId})");
+            PoiErr.Hide();
+            StartCoroutine(BackToPortal(false));
+            return;
+        }
+        System.Action retry = onRetry;
+        PoiErr.Show(code, runId, refunded, () =>
+        {
+            errorEscape.OnRetryTapped(Time.realtimeSinceStartupAsDouble);
+            retry?.Invoke();
+        }, onBack);
     }
 
     void ResetSpinState()
@@ -2135,6 +2152,7 @@ public class WarukyureBoard : MonoBehaviour
     // では常に false。
     void ShowResult(ResolveResponse r, bool allowReload)
     {
+        errorEscape.OnSuccess();
         lastNet = r.awardBreakdown.net;
         // PF 有効時は SettlePlatformRun() で取得した PF 残高を優先。
         if (!platformEnabled) wallet = r.state.wallet;
