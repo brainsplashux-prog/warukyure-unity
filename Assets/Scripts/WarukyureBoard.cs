@@ -132,6 +132,11 @@ public class WarukyureBoard : MonoBehaviour
     private bool sessionReady;
     // TitleScreen が START タップを受け付けてよいかの参照用（sessionReady の読み取り公開）
     public bool IsSessionReady => sessionReady;
+    // 2026-09-25 是正: 初期化に失敗した時のコード（null＝失敗していない）。
+    // 以前は失敗後も sessionReady=false のまま放置され、SPIN/START が
+    // 「読み込み中」表示や無反応のまま永久に止まっていた。
+    private string sessionFailCode;
+    public bool IsSessionFailed => sessionFailCode != null;
     private bool skipRequested;
     private readonly List<float> lampSegSpeeds = new List<float>();
     private readonly List<Vector2> lampSizes = new List<Vector2>();
@@ -1422,7 +1427,8 @@ public class WarukyureBoard : MonoBehaviour
         if (TitleScreen.IsShowing) return;
         if (!sessionReady)
         {
-            ShowResultOverlay("読み込み中です。少し待ってからもう一度どうぞ。", 1.5f);
+            if (IsSessionFailed) ShowSessionError();
+            else ShowResultOverlay("通信中…", 1.5f);
             return;
         }
         if (isRunning)
@@ -1586,7 +1592,7 @@ public class WarukyureBoard : MonoBehaviour
         if (string.IsNullOrEmpty(API_URL))
         {
             Debug.LogError("[JEM] jem-warukyure-api endpoint is not configured; refusing to start session");
-            ShowResultOverlay("JEM版は現在準備中です", -1f);
+            FailSession("GAME_ENDPOINT_MISSING");
             yield break;
         }
 #endif
@@ -1653,14 +1659,14 @@ public class WarukyureBoard : MonoBehaviour
         yield return StartCoroutine(ApiPost(initJson, null, (b) => initBody = b, (e) => initErr = e));
         if (!string.IsNullOrEmpty(initErr))
         {
-            ShowResultOverlay("通信エラー: " + initErr, -1f);
+            FailSession(ExtractServerErrorCode(lastErrorBody) ?? "E-INIT");
             yield break;
         }
         var initRes = JsonUtility.FromJson<InitResponse>(initBody);
         // #16: token/state が揃っていない応答で先へ進むと NullReference か無効トークンのまま遊べてしまう。
         if (initRes == null || string.IsNullOrEmpty(initRes.token) || initRes.state == null)
         {
-            ShowResultOverlay("初期化に失敗しました。\n通信環境を確認して再読み込みしてください。", -1f);
+            FailSession("E-INIT");
             yield break;
         }
         token = initRes.token;
@@ -1753,6 +1759,8 @@ public class WarukyureBoard : MonoBehaviour
 
         platformEnabled = false;
         platformRun = null;
+        // 2026-09-25 是正: SPIN直後から応答まで「通信中…」を出す（無反応に見えないように）。
+        ShowResultOverlay("通信中…", -1f, false);
 
         // launch → token → plays(prepare)。失敗したら既存のゲーム Lambda フローへフォールバック。
         yield return StartCoroutine(TryPreparePlatform());
@@ -1794,7 +1802,7 @@ public class WarukyureBoard : MonoBehaviour
             // 伴わない無償プレイになるため使えない。取得済みのplatform runはabortを試み、
             // エラー/回復表示で止める(不明な精算を「返金済み」とは表示しない)。
             EndRound(API_RETRY_MSG);
-            yield return StartCoroutine(TryAbortAndShowPopup("E-PREPARE",
+            yield return StartCoroutine(TryAbortAndShowPopup(ExtractServerErrorCode(lastErrorBody) ?? "E-PREPARE",
                 platformRun != null ? platformRun.RunId : currentRunId,
                 platformRun != null ? platformRun.PlayToken : null));
             yield break;
@@ -1805,7 +1813,9 @@ public class WarukyureBoard : MonoBehaviour
             if (string.IsNullOrEmpty(stuckId))
             {
                 EndRound(API_RETRY_MSG);
-                ShowPoiError("E-RETRY", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
+                // 2026-09-20: サーバーが実コード({"code":"..."}等)を返していればそれを渡し、
+                // 無ければ従来どおり固定タグへフォールバック。
+                ShowPoiError(ExtractServerErrorCode(lastErrorBody) ?? "E-RETRY", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
                 yield break;
             }
             currentRunId = stuckId;
@@ -1839,7 +1849,8 @@ public class WarukyureBoard : MonoBehaviour
             EndRound(API_RETRY_MSG);
             string runId = platformRun != null ? platformRun.RunId : currentRunId;
             string playToken = platformRun != null ? platformRun.PlayToken : null;
-            yield return StartCoroutine(TryAbortAndShowPopup("E-RESOLVE", runId, playToken));
+            // 2026-09-20: 実コードがあれば渡す。無ければ従来の固定タグへフォールバック。
+            yield return StartCoroutine(TryAbortAndShowPopup(ExtractServerErrorCode(lastErrorBody) ?? "E-RESOLVE", runId, playToken));
             yield break;
         }
 
@@ -1886,6 +1897,7 @@ public class WarukyureBoard : MonoBehaviour
         // 反映は共通リザルト画面を閉じた後（RunPoiResult 末尾 ApplyPendingBallMask）。
 
         // lamp animation
+        DismissResultOverlay();
         var path = BuildLampPath(lastResult.pathId, lastResult.stopId);
         if (path != null && path.Count > 0)
             lampRect.anchoredPosition = path[0];
@@ -1966,11 +1978,9 @@ public class WarukyureBoard : MonoBehaviour
             // reloadを永続的に禁止する。
             platformPrepareOutcomeUnknown = true;
 #if JEM_BUILD
-            // JEM: playsのrun作成・reserveがサーバー側で確定済みか不明のため、
-            // 「返金済み」とは表示しない。
-            ShowPoiError("E-PREPARE", currentRunId, false, OnPoiErrRetry, OnPoiErrBack);
+            ShowPoiError(ExtractServerErrorCode(task.Exception) ?? "E-PREPARE", currentRunId, false, OnPoiErrRetry, OnPoiErrBack);
 #else
-            ShowPoiError("E-PREPARE", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
+            ShowPoiError(ExtractServerErrorCode(task.Exception) ?? "E-PREPARE", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
 #endif
             currentRunId = System.Guid.NewGuid().ToString();
 #if JEM_BUILD
@@ -2008,7 +2018,8 @@ public class WarukyureBoard : MonoBehaviour
         {
             Debug.LogWarning("[PLATFORM] s2s_commit failed: " + s2sTask.Exception?.Message);
             EndRound(API_RETRY_MSG);
-            yield return StartCoroutine(TryAbortAndShowPopup("E-COMMIT", platformRun.RunId, platformRun.PlayToken, lastResult));
+            // 2026-09-20: 実コードがあれば渡す。無ければ従来のE-COMMIT。
+            yield return StartCoroutine(TryAbortAndShowPopup(ExtractServerErrorCode(s2sTask.Exception) ?? "E-COMMIT", platformRun.RunId, platformRun.PlayToken, lastResult));
             yield break;
         }
 
@@ -2019,7 +2030,8 @@ public class WarukyureBoard : MonoBehaviour
         {
             Debug.LogWarning("[PLATFORM] resolve failed: " + resolveTask.Exception?.Message);
             EndRound(API_RETRY_MSG);
-            yield return StartCoroutine(TryAbortAndShowPopup("E-SETTLE", platformRun.RunId, platformRun.PlayToken, lastResult));
+            // 2026-09-20: 実コードがあれば渡す。無ければ従来のE-SETTLE。
+            yield return StartCoroutine(TryAbortAndShowPopup(ExtractServerErrorCode(resolveTask.Exception) ?? "E-SETTLE", platformRun.RunId, platformRun.PlayToken, lastResult));
             yield break;
         }
 
@@ -2052,6 +2064,7 @@ public class WarukyureBoard : MonoBehaviour
     void ShowPoiError(string code, string runId, bool refunded, System.Action onRetry, System.Action onBack)
     {
         ResetSpinState();
+        DismissResultOverlay();
         PoiErr.Show(code, runId, refunded, onRetry, onBack);
     }
 
@@ -2262,6 +2275,47 @@ public class WarukyureBoard : MonoBehaviour
         int j = body.IndexOf('"', i);
         if (j <= i) return null;
         return body.Substring(i, j - i);
+    }
+
+    // 2026-09-20 追加(社長指示: 日次プレイ上限で正確な文言を出す)。
+    // サーバーが返すエラー応答 {"code":"daily_play_limit_reached"} (poicasi-platform
+    // src/handler.mjs buildGameErrorResponse) や {"error":"..."} (play-cap.mjs等) から
+    // 実コードを取り出す。見つからなければnullを返し、呼び出し側は従来の固定フェーズ
+    // タグ(E-PREPARE等)へフォールバックする(=新しいエラー処理機構は増やさず、
+    // 既存の失敗パスに実コードを流し込む1本だけを通す)。
+    static string ExtractJsonStringField(string body, string key)
+    {
+        if (string.IsNullOrEmpty(body)) return null;
+        string needle = "\"" + key + "\":\"";
+        int i = body.IndexOf(needle, StringComparison.Ordinal);
+        if (i < 0) return null;
+        i += needle.Length;
+        int j = body.IndexOf('"', i);
+        if (j <= i) return null;
+        return body.Substring(i, j - i);
+    }
+
+    static string ExtractServerErrorCode(string body)
+    {
+        string code = ExtractJsonStringField(body, "code");
+        if (string.IsNullOrEmpty(code)) code = ExtractJsonStringField(body, "error");
+        return string.IsNullOrEmpty(code) ? null : code;
+    }
+
+    // task.Exception(AggregateException)の中からHttpStatusExceptionを探し、そのBodyから
+    // 実コードを取り出す。無ければnull。
+    static string ExtractServerErrorCode(AggregateException ex)
+    {
+        if (ex == null) return null;
+        HttpStatusException http = ex.InnerException as HttpStatusException;
+        if (http == null)
+        {
+            foreach (var inner in ex.InnerExceptions)
+            {
+                if (inner is HttpStatusException h) { http = h; break; }
+            }
+        }
+        return http == null ? null : ExtractServerErrorCode(http.Body);
     }
 
     IEnumerator ApiPost(string json, string idemKey, Action<string> onOk, Action<string> onErr)
@@ -2678,11 +2732,28 @@ public class WarukyureBoard : MonoBehaviour
         }
     }
 
+    // 2026-09-25 是正: 初期化失敗・接続待ちタイムアウトを既存 poierr へつなぐ。
+    // 再試行は OnPoiErrRetry → RetrySession（sessionReady=false のため）。
+    public void FailSession(string code)
+    {
+        if (sessionReady) return;
+        if (initSessionEnum != null) StopCoroutine(initSessionEnum);
+        sessionFailCode = string.IsNullOrEmpty(code) ? "E-INIT" : code;
+        ShowSessionError();
+    }
+
+    public void ShowSessionError()
+    {
+        if (sessionFailCode == null) return;
+        ShowPoiError(sessionFailCode, null, false, OnPoiErrRetry, OnPoiErrBack);
+    }
+
     // セッション未確立時のタイトル画面から呼ばれる再接続。
     public void RetrySession()
     {
         if (initSessionEnum != null) StopCoroutine(initSessionEnum);
         sessionReady = false;
+        sessionFailCode = null;
         initSessionEnum = InitSession();
         initSessionRoutine = StartCoroutine(initSessionEnum);
     }

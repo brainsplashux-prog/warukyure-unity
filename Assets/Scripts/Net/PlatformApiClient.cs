@@ -10,7 +10,11 @@ using UnityEngine.Networking;
 public sealed class HttpStatusException : Exception
 {
     public long StatusCode { get; }
-    public HttpStatusException(long statusCode, string message) : base(message) { StatusCode = statusCode; }
+    // 2026-09-20 追加: サーバーの生レスポンスボディ(あれば)。poierr辞書(daily_play_limit_reached等)
+    // に引ける実コードは status/message ではなくこのJSONボディ内にしか無いため、失敗経路でも
+    // 捨てずに保持する。呼び出し元(WarukyureBoard)がここから "code"/"error" フィールドを抜き出す。
+    public string Body { get; }
+    public HttpStatusException(long statusCode, string message, string body = null) : base(message) { StatusCode = statusCode; Body = body; }
 }
 
 /// <summary>プラットフォーム session cookie 橋渡し。</summary>
@@ -223,7 +227,7 @@ public sealed class PlatformApiClient
 
         var (statusCode, text) = await SendRaw(body);
         if (statusCode < 200 || statusCode >= 300)
-            throw new HttpStatusException(statusCode, $"s2s_commit failed: HTTP {statusCode}");
+            throw new HttpStatusException(statusCode, $"s2s_commit failed: HTTP {statusCode}", text);
 
         var parsed = JsonUtility.FromJson<S2sCommitResponse>(text);
         if (parsed == null || !parsed.ok)
@@ -236,7 +240,7 @@ public sealed class PlatformApiClient
     {
         var (statusCode, text) = await PlatformPost($"/api/v1/games/{GameId}/plays/{runId}/resolve", "{}", playToken);
         if (statusCode < 200 || statusCode >= 300)
-            throw new HttpStatusException(statusCode, $"resolve failed: HTTP {statusCode}");
+            throw new HttpStatusException(statusCode, $"resolve failed: HTTP {statusCode}", text);
 
         var parsed = JsonUtility.FromJson<PlatformResolveResponse>(text);
         if (parsed == null || !parsed.ok || string.IsNullOrEmpty(parsed.run_id))
@@ -251,7 +255,7 @@ public sealed class PlatformApiClient
 
         var (statusCode, text) = await PlatformPost($"/api/v1/games/{GameId}/plays/{runId}/abort", "{}", playToken);
         if (statusCode < 200 || statusCode >= 300)
-            throw new HttpStatusException(statusCode, $"abort failed: HTTP {statusCode}");
+            throw new HttpStatusException(statusCode, $"abort failed: HTTP {statusCode}", text);
 
         var parsed = JsonUtility.FromJson<PlatformAbortResponse>(text);
         if (parsed == null)
@@ -283,7 +287,7 @@ public sealed class PlatformApiClient
     {
         var (statusCode, text) = await PlatformGet("/api/v1/wallet/balance");
         if (statusCode < 200 || statusCode >= 300)
-            throw new HttpStatusException(statusCode, $"wallet/balance failed: HTTP {statusCode}");
+            throw new HttpStatusException(statusCode, $"wallet/balance failed: HTTP {statusCode}", text);
 
         var parsed = JsonUtility.FromJson<PlatformWalletBalanceResponse>(text);
         if (parsed == null || parsed.assets == null) return 0;
@@ -302,7 +306,7 @@ public sealed class PlatformApiClient
     {
         var (statusCode, text) = await PlatformPost($"/api/v1/games/{GameId}/launch", "{}");
         if (statusCode < 200 || statusCode >= 300)
-            throw new HttpStatusException(statusCode, $"launch failed: HTTP {statusCode}");
+            throw new HttpStatusException(statusCode, $"launch failed: HTTP {statusCode}", text);
 
         var parsed = JsonUtility.FromJson<PlatformLaunchResponse>(text);
         if (parsed == null || !parsed.ok || string.IsNullOrEmpty(parsed.launch_code))
@@ -315,7 +319,7 @@ public sealed class PlatformApiClient
         string body = "{\"launch_code\":\"" + EscapeJsonString(launchCode) + "\"}";
         var (statusCode, text) = await PlatformPost($"/api/v1/games/{GameId}/token", body);
         if (statusCode < 200 || statusCode >= 300)
-            throw new HttpStatusException(statusCode, $"token failed: HTTP {statusCode}");
+            throw new HttpStatusException(statusCode, $"token failed: HTTP {statusCode}", text);
 
         var parsed = JsonUtility.FromJson<PlatformTokenResponse>(text);
         if (parsed == null || !parsed.ok || string.IsNullOrEmpty(parsed.play_token))
@@ -328,7 +332,7 @@ public sealed class PlatformApiClient
         string body = "{\"asset_code\":\"" + EscapeJsonString(assetCode) + "\",\"rate\":" + rate + "}";
         var (statusCode, text) = await PlatformPost($"/api/v1/games/{GameId}/plays", body, playToken);
         if (statusCode < 200 || statusCode >= 300)
-            throw new HttpStatusException(statusCode, $"plays failed: HTTP {statusCode}");
+            throw new HttpStatusException(statusCode, $"plays failed: HTTP {statusCode}", text);
 
         var parsed = JsonUtility.FromJson<PlatformPlaysResponse>(text);
         if (parsed == null || !parsed.ok || string.IsNullOrEmpty(parsed.run_id))
@@ -411,7 +415,7 @@ public sealed class PlatformApiClient
     {
         var (statusCode, text) = await PlatformGet("/api/v1/wallet/balance");
         if (statusCode < 200 || statusCode >= 300)
-            throw new HttpStatusException(statusCode, $"wallet/balance failed: HTTP {statusCode}");
+            throw new HttpStatusException(statusCode, $"wallet/balance failed: HTTP {statusCode}", text);
 
         var parsed = JsonUtility.FromJson<PlatformWalletBalanceResponse>(text);
         if (parsed == null || parsed.assets == null) throw new Exception("wallet/balance response malformed");

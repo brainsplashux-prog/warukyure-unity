@@ -168,11 +168,26 @@ public class TitleScreen : MonoBehaviour
         if (!IsShowing || startHitRect == null) return;
         if (hitCamera == null) ResolveCamera();
 
-        if (!errorShown && board != null && !board.IsSessionReady)
+        // 2026-09-25 是正（社長「押しても何も反応しない…エラーならポップアップ」）:
+        // 接続待ちが SessionTimeout を超えたら既存 poierr（board.FailSession 経由）で知らせ、
+        // 再試行／戻るを出す。
+        if (board != null && !board.IsSessionReady && !board.IsSessionFailed)
         {
             sessionWaitTimer += Time.deltaTime;
             if (sessionWaitTimer >= SessionTimeout)
-                ShowConnectionError();
+            {
+                sessionWaitTimer = 0f;
+                board.FailSession("E-TIMEOUT");
+            }
+        }
+        else
+        {
+            sessionWaitTimer = 0f;
+            if (errorShown)
+            {
+                errorShown = false;
+                if (errorText != null) errorText.gameObject.SetActive(false);
+            }
         }
 
         ReadTap();
@@ -207,33 +222,27 @@ public class TitleScreen : MonoBehaviour
 
         if (!down) return;
 
-        // セッション未確立かつエラー表示中はタップで再接続を試みる。
         // 共通selectorのロード失敗表示中はタップで再ロードを試みる。
-        bool selectorErr = false;
 #if JEM_BUILD
-        selectorErr = jemSelectorError;
-#endif
-        if (errorShown || selectorErr)
+        if (jemSelectorError)
         {
-#if JEM_BUILD
-            if (jemSelectorError)
-            {
-                jemSelectorError = false;
-                if (board != null) board.MountJemSelector();
-            }
-#endif
-            if (errorShown)
-            {
-                if (board != null) board.RetrySession();
-                errorShown = false;
-                sessionWaitTimer = 0f;
-            }
-            if (errorText != null) errorText.gameObject.SetActive(false);
+            jemSelectorError = false;
+            if (board != null) board.MountJemSelector();
             return;
         }
+#endif
 
         // sessionReady 前は残高・ミッション未取得のまま盤面へ入るのを防ぐため閉じない。
-        if (board == null || !board.IsSessionReady) return;
+        // 2026-09-25 是正: 以前はここで無言 return していた（START を押しても無反応）。
+        // 接続失敗済みなら poierr を出し直し、接続中なら「通信中…」を出す。
+        if (board == null) return;
+        if (!board.IsSessionReady)
+        {
+            if (!RectTransformUtility.RectangleContainsScreenPoint(startHitRect, pos, hitCamera)) return;
+            if (board.IsSessionFailed) board.ShowSessionError();
+            else ShowConnectingText();
+            return;
+        }
 
 #if JEM_BUILD
         // 共通レートパネル表示中は背面の START へ貫通させない
@@ -326,7 +335,7 @@ public class TitleScreen : MonoBehaviour
         errorText.fontSize = 24;
         errorText.alignment = TextAnchor.MiddleCenter;
         errorText.color = Color.white;
-        errorText.text = "通信状況を確認してタップでリトライ";
+        errorText.text = "通信中…";
 
         RectTransform rt = go.GetComponent<RectTransform>();
         rt.anchorMin = new Vector2(0f, 1f);
@@ -338,14 +347,12 @@ public class TitleScreen : MonoBehaviour
         go.SetActive(false);
     }
 
-    void ShowConnectionError()
+    void ShowConnectingText()
     {
         errorShown = true;
-        if (errorText != null)
-        {
-            errorText.text = "通信状況を確認してタップでリトライ";
-            errorText.gameObject.SetActive(true);
-        }
+        if (errorText == null) return;
+        errorText.text = "通信中…";
+        errorText.gameObject.SetActive(true);
     }
 
 #if JEM_BUILD
