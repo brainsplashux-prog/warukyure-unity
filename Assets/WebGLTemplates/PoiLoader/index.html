@@ -16,27 +16,43 @@
     <link rel="preload" href="Build/{{{ DATA_FILENAME }}}" as="fetch" crossorigin="anonymous">
 
     <script>
-    /* poi-audio-guard v2: 離脱で全音停止→次の操作で再開／復帰時の音声エラーを抑止 (bug-ledger #12) */
+    /* poi-audio-guard v3: 離脱で全音停止→次の操作で再開／復帰時の音声エラーを抑止 (bug-ledger #12)
+       v3(2026-09-25): 非表示中・離脱中はどこから呼ばれても resume/play を通さない／interrupted・suspended も含め全 context を suspend
+       (iOS の割り込み解除で操作なしに鳴り出すのを防ぐ)／操作前に running・play へ戻ったら即再停止／
+       pagehide・freeze・window blur(ページ全体がフォーカスを失った時だけ)でも停止／DOM上の audio・video と同一オリジン iframe も停止 */
     (function () {
       if (window.__poiAudioGuard) return;
-      var G = window.__poiAudioGuard = { ctxs: [], media: [], waiting: false, inGesture: false };
+      var G = window.__poiAudioGuard = { v: 3, ctxs: [], media: [], waiting: false, inGesture: false };
+      function isHidden() { try { return document.visibilityState === "hidden"; } catch (e) { return false; } }
+      function blocked() { return isHidden() || (G.waiting && !G.inGesture); }
+      function quiet(p) { try { if (p && p.catch) p.catch(function () {}); } catch (e) {} return p; }
+      function watchCtx(c) {
+        if (!c || G.ctxs.indexOf(c) >= 0) return;
+        G.ctxs.push(c);
+        // Unity は onstatechange プロパティを使うので上書きせず addEventListener で足す。
+        try {
+          c.addEventListener("statechange", function () {
+            try { if (c.state === "running" && blocked()) { G.waiting = true; quiet(c.suspend()); } } catch (e) {}
+          });
+        } catch (e) {}
+      }
       var Orig = window.AudioContext || window.webkitAudioContext;
       if (Orig) {
         var origResume = Orig.prototype.resume;
         var Wrapped = function (opts) {
           var c = (opts === undefined) ? new Orig() : new Orig(opts);
-          G.ctxs.push(c);
+          watchCtx(c);
+          try { if (blocked() && c.state === "running") quiet(c.suspend()); } catch (e) {}
           return c;
         };
         Wrapped.prototype = Orig.prototype;
         try { Object.setPrototypeOf(Wrapped, Orig); } catch (e) {} // static プロパティ(EventTarget等)も継承
         try {
           Orig.prototype.resume = function () {
-            if (G.waiting && !G.inGesture) return Promise.resolve();
+            watchCtx(this);
+            if (blocked()) { G.waiting = true; return Promise.resolve(); }
             try {
-              var p = origResume.apply(this, arguments);
-              if (p && p.catch) p.catch(function () {});
-              return p;
+              return quiet(origResume.apply(this, arguments));
             } catch (e) {
               // iOS Safari: 復帰直後の resume() が InvalidStateError を同期throwすることがある(bug-ledger #12実測)
               try { console.warn("[poi] audio resume failed:", e && e.message); } catch (e2) {}
@@ -47,40 +63,81 @@
         if (window.AudioContext) window.AudioContext = Wrapped;
         if (window.webkitAudioContext) window.webkitAudioContext = Wrapped;
       }
+      function watchMedia(m) {
+        if (!m || G.media.indexOf(m) >= 0) return;
+        G.media.push(m);
+        try {
+          m.addEventListener("play", function () {
+            try { if (blocked()) { G.waiting = true; m.__poiResume = true; m.pause(); } } catch (e) {}
+          });
+        } catch (e) {}
+      }
       if (window.HTMLMediaElement) {
         var origPlay = HTMLMediaElement.prototype.play;
         HTMLMediaElement.prototype.play = function () {
-          if (G.media.indexOf(this) < 0) G.media.push(this);
-          if (G.waiting && !G.inGesture) { this.__poiResume = true; return Promise.resolve(); }
+          watchMedia(this);
+          if (blocked()) { G.waiting = true; this.__poiResume = true; return Promise.resolve(); }
           return origPlay.apply(this, arguments);
         };
         G.origPlay = origPlay;
       }
+      function pauseMedia(m) {
+        try { if (!m.paused) { watchMedia(m); m.__poiResume = true; m.pause(); } } catch (e) {}
+      }
+      function stopFrames() {
+        try {
+          for (var i = 0; i < window.frames.length; i++) {
+            try {
+              var w = window.frames[i];
+              if (w.__poiAudioGuard && w.__poiAudioGuard.stop) { w.__poiAudioGuard.stop(); continue; }
+              var fm = w.document.querySelectorAll("audio,video");
+              for (var j = 0; j < fm.length; j++) { try { if (!fm[j].paused) fm[j].pause(); } catch (e) {} }
+            } catch (e) {} // 別オリジンの iframe は触れない
+          }
+        } catch (e) {}
+      }
       function stopAll() {
         G.waiting = true;
         G.ctxs.forEach(function (c) {
-          try { if (c.state === "running") { var p = c.suspend(); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
+          // running だけでなく iOS の "interrupted"・既に suspended のものも suspend を呼ぶ
+          // (ページ側が止めた印を付けないと、割り込み解除時に操作なしで running へ戻る)
+          try { if (c.state !== "closed") quiet(c.suspend()); } catch (e) {}
         });
-        G.media.forEach(function (m) {
-          try { if (!m.paused) { m.__poiResume = true; m.pause(); } } catch (e) {}
-        });
+        G.media.forEach(pauseMedia);
+        try { var dm = document.querySelectorAll("audio,video"); for (var i = 0; i < dm.length; i++) pauseMedia(dm[i]); } catch (e) {}
+        stopFrames();
       }
+      G.stop = stopAll;
       function resumeAll() {
-        if (!G.waiting || document.visibilityState === "hidden") return;
+        if (!G.waiting || isHidden()) return;
         G.waiting = false;
         G.inGesture = true;
         try {
           G.ctxs.forEach(function (c) {
             // "interrupted"(iOS) も含め running/closed 以外なら resume を試みる
-            try { if (c.state !== "running" && c.state !== "closed") { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
+            try { if (c.state !== "running" && c.state !== "closed") quiet(c.resume()); } catch (e) {}
           });
           G.media.forEach(function (m) {
-            try { if (m.__poiResume) { m.__poiResume = false; var p = G.origPlay.call(m); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
+            try { if (m.__poiResume) { m.__poiResume = false; quiet(G.origPlay.call(m)); } } catch (e) {}
           });
         } finally { G.inGesture = false; }
       }
-      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") stopAll(); }, true);
+      document.addEventListener("visibilitychange", function () { if (isHidden()) stopAll(); }, true);
       window.addEventListener("pagehide", stopAll, true);
+      document.addEventListener("freeze", stopAll, true);
+      // X等のアプリ内ブラウザ(WKWebView)は別アプリへ移っても visibilitychange を出さないことがある。
+      // window 自体の blur で、ページ全体がフォーカスを失った時だけ止める(iframe・入力欄へのフォーカス移動では止めない)。
+      window.addEventListener("blur", function (e) {
+        if (e && e.target !== window) return;
+        setTimeout(function () {
+          try {
+            if (document.hasFocus && document.hasFocus()) return;
+            var a = document.activeElement;
+            if (a && a.tagName === "IFRAME") return;
+          } catch (err) { return; }
+          stopAll();
+        }, 0);
+      });
       ["pointerdown", "touchstart", "touchend", "mousedown", "click", "keydown"].forEach(function (ev) {
         window.addEventListener(ev, resumeAll, { passive: true, capture: true });
       });
