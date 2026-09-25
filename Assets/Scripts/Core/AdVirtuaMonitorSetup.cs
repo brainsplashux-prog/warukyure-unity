@@ -20,6 +20,16 @@ public static class AdVirtuaMonitorSetup
     private static Camera cam;
     private static GameObject adVirtuaRoot;
     private static float bandTopPx;
+    // 2026-09-25 社長指示(dec-20260925-085)「宝石ゲームは起動・ゲーム開始でADVIRTUAを読まない」。
+    // 初回プレイ終了(共通リザルトを閉じた時点)で解禁し、2回目のプレイ開始から広告を生成・表示する。
+    // シーン上の Ad-VirtuaV3 は WarukyureBuilder が非アクティブで保存するため、解禁までSDKは起動しない。
+    private static bool unlocked;
+
+    /// <summary>初回プレイ終了後に呼ぶ。以後の Show() で広告を生成・表示する。</summary>
+    public static void Unlock()
+    {
+        unlocked = true;
+    }
 
     /// <summary>
     /// Ad-VirtuaV3 ルートを名前で探す。active/inactive どちらでも取得する。
@@ -180,6 +190,7 @@ public static class AdVirtuaMonitorSetup
             Debug.LogWarning("[AdVirtuaMonitorSetup] Ad-VirtuaV3 not set. Call Setup() first.");
             return;
         }
+        if (!unlocked) return;
         Layout();
         adVirtuaRoot.SetActive(true);
     }

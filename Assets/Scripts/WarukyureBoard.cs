@@ -2691,6 +2691,7 @@ public class WarukyureBoard : MonoBehaviour
     public void OnPoiResultDone(string _)
     {
         poiResultPending = false;
+        AdVirtuaMonitorSetup.Unlock();   // 初回プレイ終了で広告を解禁（起動・初回開始では読まない）
         if (titleScreen != null) titleScreen.Reopen();
     }
 

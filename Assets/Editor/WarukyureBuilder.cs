@@ -112,6 +112,8 @@ public static class WarukyureBuilder
         }
         GameObject adGO = GameObject.Instantiate(adPrefab);
         adGO.name = "Ad-VirtuaV3";
+        // 2026-09-25 dec-20260925-085: 起動時にSDKを起動させない（初回プレイ終了後に Show() で有効化）。
+        adGO.SetActive(false);
         SceneManager.MoveGameObjectToScene(adGO, scene);
 
         // 生成直後のシーン構造を Ad-Virtua 最前面検査
