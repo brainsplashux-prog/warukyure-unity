@@ -111,6 +111,13 @@ public class WarukyureBoard : MonoBehaviour
     private bool sessionReady;
     // TitleScreen が START タップを受け付けてよいかの参照用（sessionReady の読み取り公開）
     public bool IsSessionReady => sessionReady;
+    // 2026-09-25 是正: 初期化に失敗した時のコード（null＝失敗していない）。
+    // 以前は失敗後も sessionReady=false のまま放置され、SPIN/START が
+    // 「読み込み中」表示や無反応のまま永久に止まっていた。
+    private string sessionFailCode;
+    public bool IsSessionFailed => sessionFailCode != null;
+    private bool platformPrepareFailed;
+    private bool spinPreChecking; // SPIN事前判定の通信中（二重押下で2本走らせない）
     private bool skipRequested;
     private readonly List<float> lampSegSpeeds = new List<float>();
     private readonly List<Vector2> lampSizes = new List<Vector2>();
@@ -1123,7 +1130,8 @@ public class WarukyureBoard : MonoBehaviour
         if (TitleScreen.IsShowing) return;
         if (!sessionReady)
         {
-            ShowResultOverlay("読み込み中です。少し待ってからもう一度どうぞ。", 1.5f);
+            if (IsSessionFailed) ShowSessionError();
+            else ShowResultOverlay("通信中…", 1.5f);
             return;
         }
         if (isRunning)
@@ -1131,6 +1139,7 @@ public class WarukyureBoard : MonoBehaviour
             skipRequested = true;
             return;
         }
+        if (spinPreChecking) return; // 「通信中…」表示中
         DismissResultOverlay();
         if (selectedBets.Count == 0)
         {
@@ -1139,6 +1148,8 @@ public class WarukyureBoard : MonoBehaviour
         }
         if (!IsDemoMode())
         {
+            ShowResultOverlay("通信中…", -1f, false);
+            spinPreChecking = true;
             StartCoroutine(OnSpinPreCheck());
             return;
         }
@@ -1157,6 +1168,7 @@ public class WarukyureBoard : MonoBehaviour
 
         var walletTask = platformClient.GetWalletBalance();
         yield return new WaitUntil(() => walletTask.IsCompleted);
+        spinPreChecking = false;
 
         if (!walletTask.IsFaulted && !walletTask.IsCanceled)
         {
@@ -1172,7 +1184,8 @@ public class WarukyureBoard : MonoBehaviour
         int cost = selectedBets.Count * missionBet;
         if (wallet < cost)
         {
-            ShowResultOverlay($"残高不足です（必要 {cost:N0}枚）", 1.5f);
+            // 2026-09-25 是正: 残高不足も既存 poierr で理由付きで出す（共通ヘッダー辞書で「メダルが足りません」）。
+            ShowPoiError("INSUFFICIENT_BALANCE", null, false, OnPoiErrRetry, OnPoiErrBack);
             yield break;
         }
         StartCoroutine(SpinRound());
@@ -1336,14 +1349,14 @@ public class WarukyureBoard : MonoBehaviour
         yield return StartCoroutine(ApiPost(initJson, null, (b) => initBody = b, (e) => initErr = e));
         if (!string.IsNullOrEmpty(initErr))
         {
-            ShowResultOverlay("通信エラー: " + initErr, -1f);
+            FailSession(ExtractServerErrorCode(lastErrorBody) ?? "E-INIT");
             yield break;
         }
         var initRes = JsonUtility.FromJson<InitResponse>(initBody);
         // #16: token/state が揃っていない応答で先へ進むと NullReference か無効トークンのまま遊べてしまう。
         if (initRes == null || string.IsNullOrEmpty(initRes.token) || initRes.state == null)
         {
-            ShowResultOverlay("初期化に失敗しました。\n通信環境を確認して再読み込みしてください。", -1f);
+            FailSession("E-INIT");
             yield break;
         }
         token = initRes.token;
@@ -1414,9 +1427,15 @@ public class WarukyureBoard : MonoBehaviour
 
         platformEnabled = false;
         platformRun = null;
+        ShowResultOverlay("通信中…", -1f, false);
 
-        // launch → token → plays(prepare)。失敗したら既存のゲーム Lambda フローへフォールバック。
+        // launch → token → plays(prepare)。
+        platformPrepareFailed = false;
         yield return StartCoroutine(TryPreparePlatform());
+        // 2026-09-25 是正: 準備失敗時は TryPreparePlatform 内で poierr を出しているのに、
+        // ここで止めずに後続の prepare/resolve・ランプ演出まで続行していた（失敗を無視して続行）。
+        // demo=1（検証用URL）の既存フォールバックだけは残す。
+        if (platformPrepareFailed && !IsDemoMode()) yield break;
 
         // prepare
         string demoPart = IsDemoMode() ? ",\"demo\":true" : "";
@@ -1522,6 +1541,7 @@ public class WarukyureBoard : MonoBehaviour
         // 反映は共通リザルト画面を閉じた後（RunPoiResult 末尾 ApplyPendingBallMask）。
 
         // lamp animation
+        DismissResultOverlay();
         var path = BuildLampPath(lastResult.pathId, lastResult.stopId);
         if (path != null && path.Count > 0)
             lampRect.anchoredPosition = path[0];
@@ -1594,6 +1614,7 @@ public class WarukyureBoard : MonoBehaviour
             // 可能性を否定できない(runidはクライアントに届かず追跡不能)。以後の
             // reloadを永続的に禁止する。
             platformPrepareOutcomeUnknown = true;
+            platformPrepareFailed = true;
             // 2026-09-20: PF /plays (Prepare) がdaily_play_limit_reached等の429を返した場合、
             // HttpStatusException.Body に載ったサーバーの実コードを渡す。無ければ従来のE-PREPARE。
             ShowPoiError(ExtractServerErrorCode(task.Exception) ?? "E-PREPARE", currentRunId, true, OnPoiErrRetry, OnPoiErrBack);
@@ -1668,6 +1689,7 @@ public class WarukyureBoard : MonoBehaviour
     void ShowPoiError(string code, string runId, bool refunded, System.Action onRetry, System.Action onBack)
     {
         ResetSpinState();
+        DismissResultOverlay();
         PoiErr.Show(code, runId, refunded, onRetry, onBack);
     }
 
@@ -2267,11 +2289,28 @@ public class WarukyureBoard : MonoBehaviour
         }
     }
 
+    // 2026-09-25 是正: 初期化失敗・接続待ちタイムアウトを既存 poierr へつなぐ。
+    // 再試行は OnPoiErrRetry → RetrySession（sessionReady=false のため）。
+    public void FailSession(string code)
+    {
+        if (sessionReady) return;
+        if (initSessionEnum != null) StopCoroutine(initSessionEnum);
+        sessionFailCode = string.IsNullOrEmpty(code) ? "E-INIT" : code;
+        ShowSessionError();
+    }
+
+    public void ShowSessionError()
+    {
+        if (sessionFailCode == null) return;
+        ShowPoiError(sessionFailCode, null, false, OnPoiErrRetry, OnPoiErrBack);
+    }
+
     // セッション未確立時のタイトル画面から呼ばれる再接続。
     public void RetrySession()
     {
         if (initSessionEnum != null) StopCoroutine(initSessionEnum);
         sessionReady = false;
+        sessionFailCode = null;
         initSessionEnum = InitSession();
         initSessionRoutine = StartCoroutine(initSessionEnum);
     }
