@@ -2272,16 +2272,6 @@ public class WarukyureBoard : MonoBehaviour
                 ? BuildScoreDetail("結果", $"{r.awardBreakdown.total:N0}枚獲得")
                 : BuildLoseDetail();
         }
-        else
-        {
-            // 2026-09-17是正: primaryTypeがサーバーから未知/null/空の値で来た場合、
-            // 従来はどの分岐にも該当せずsbが空のままZ3(中央板)が白紙になっていた。
-            // payout(r.awardBreakdown.total)だけを使った最低限のフォールバックを出す。
-            if (r.awardBreakdown.total > 0)
-                sb.Append($"{r.awardBreakdown.total:N0}枚 獲得");
-            else
-                sb.Append("はずれ");
-        }
 
         // 精算表示は共通リザルト画面（poiresult v2）に一本化する。
         // 滞在5秒→自動クローズ→SPIN待機（＝本ゲームのタイトル相当）へ戻る。自動再開はしない。
