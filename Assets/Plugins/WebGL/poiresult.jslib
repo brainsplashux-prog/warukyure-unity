@@ -1,7 +1,7 @@
 mergeInto(LibraryManager.library, {
   // Calls the shared poiresult/v2 kit (loaded externally from lp.poicasi.co.jp).
   // payout drives the tiers (>=1000 MEGA / >0 BIG / 0 LOSE) inside the kit.
-  // reward = メダル以外の報酬名（例: くまボール）。payout が 0 でも報酬があれば当たり扱いになる。
+  // reward = メダル以外の報酬名（例: ポッツボール）。payout が 0 でも報酬があれば当たり扱いになる。
   // 当落を宣言するのはキット側だけで、ゲームはサーバが返した事実（枚数・報酬名）しか渡さない。
   // onDoneMethod is the C# method on gameObjectName, called when the screen closes.
   PoiResultShow: function (payout, detailPtr, rewardPtr, gameObjectNamePtr, onDoneMethodPtr) {
