@@ -147,7 +147,7 @@ public class WarukyureBoard : MonoBehaviour
     private readonly HashSet<int> selectedBets = new HashSet<int>();
     private ResolveResponse lastResult;
     private readonly string[] betLabels = { "2", "4", "6", "8", "20" };
-    private readonly string[] ballNames = { "うさぎ", "ねこ", "くま", "ことり" };
+    private readonly string[] ballNames = { "ポイ之信", "ポッツ", "ぺけにゃん", "タマ夫" };
     // 城下コレクションパネルの4玉（art_final_v4 はパネル内が空。玉は実行時に重ねる）
     private readonly RawImage[] collectionBalls = new RawImage[4];
     private readonly Texture2D[] ballTexOn = new Texture2D[4];
