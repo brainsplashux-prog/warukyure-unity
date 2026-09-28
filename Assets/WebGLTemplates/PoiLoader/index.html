@@ -63,18 +63,25 @@
         if (window.AudioContext) window.AudioContext = Wrapped;
         if (window.webkitAudioContext) window.webkitAudioContext = Wrapped;
       }
+      // video要素(UnityのVideoPlayer/Ad-Virtua広告動画が使う<video>)はこのガードの対象外にする。
+      // 対象に含めると離脱復帰まで再生が空振りし続け、広告動画が静止画のまま止まる
+      // (Ad-Virtua「再生完了通知が来ない」= 2026-09-21実測)。AudioContext/<audio>の抑止は維持する。
+      function isVideoEl(el) {
+        return !!(window.HTMLVideoElement && el instanceof HTMLVideoElement) || (el && el.tagName === "VIDEO");
+      }
       function watchMedia(m) {
-        if (!m || G.media.indexOf(m) >= 0) return;
+        if (!m || isVideoEl(m) || G.media.indexOf(m) >= 0) return;
         G.media.push(m);
         try {
           m.addEventListener("play", function () {
-            try { if (blocked()) { G.waiting = true; m.__poiResume = true; m.pause(); } } catch (e) {}
+            try { if (!isVideoEl(m) && blocked()) { G.waiting = true; m.__poiResume = true; m.pause(); } } catch (e) {}
           });
         } catch (e) {}
       }
       if (window.HTMLMediaElement) {
         var origPlay = HTMLMediaElement.prototype.play;
         HTMLMediaElement.prototype.play = function () {
+          if (isVideoEl(this)) return origPlay.apply(this, arguments);
           watchMedia(this);
           if (blocked()) { G.waiting = true; this.__poiResume = true; return Promise.resolve(); }
           return origPlay.apply(this, arguments);
@@ -82,6 +89,7 @@
         G.origPlay = origPlay;
       }
       function pauseMedia(m) {
+        if (isVideoEl(m)) return;
         try { if (!m.paused) { watchMedia(m); m.__poiResume = true; m.pause(); } } catch (e) {}
       }
       function stopFrames() {
@@ -91,7 +99,7 @@
               var w = window.frames[i];
               if (w.__poiAudioGuard && w.__poiAudioGuard.stop) { w.__poiAudioGuard.stop(); continue; }
               var fm = w.document.querySelectorAll("audio,video");
-              for (var j = 0; j < fm.length; j++) { try { if (!fm[j].paused) fm[j].pause(); } catch (e) {} }
+              for (var j = 0; j < fm.length; j++) { if (isVideoEl(fm[j])) continue; try { if (!fm[j].paused) fm[j].pause(); } catch (e) {} }
             } catch (e) {} // 別オリジンの iframe は触れない
           }
         } catch (e) {}
@@ -118,6 +126,7 @@
             try { if (c.state !== "running" && c.state !== "closed") quiet(c.resume()); } catch (e) {}
           });
           G.media.forEach(function (m) {
+            if (isVideoEl(m)) return;
             try { if (m.__poiResume) { m.__poiResume = false; quiet(G.origPlay.call(m)); } } catch (e) {}
           });
         } finally { G.inGesture = false; }
