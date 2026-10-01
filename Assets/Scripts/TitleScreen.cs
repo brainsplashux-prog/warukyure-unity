@@ -193,20 +193,39 @@ public class TitleScreen : MonoBehaviour
 
         if (!down) return;
 
-        // sessionReady 前は残高・ミッション未取得のまま盤面へ入るのを防ぐため閉じない。
-        // 2026-09-25 是正: 以前はここで無言 return していた（START を押しても無反応）。
-        // 接続失敗済みなら poierr を出し直し、接続中なら「通信中…」を出す。
-        if (board == null) return;
-        if (!board.IsSessionReady)
+        // 2026-10-01 社長指示「タイトル画面はスタートボタン以外もどこ押してもゲーム開始で別にいい」。
+        // 端末によりSTARTボタンがフッター広告の下に隠れて押せない件の是正。
+        // タイトル表示中は画面のどこを押してもSTARTと同じ処理（同じガード）を通す。
+        // 例外: 共通サウンドミュートボタン上のタップはミュート切替だけに使い、開始しない。
+        bool onMute = IsTapOnMuteButton(pos);
+        switch (DecideTap(IsShowing, board != null,
+                board != null && board.IsSessionReady, board != null && board.IsSessionFailed, onMute))
         {
-            if (!RectTransformUtility.RectangleContainsScreenPoint(startHitRect, pos, hitCamera)) return;
-            if (board.IsSessionFailed) board.ShowSessionError();
-            else ShowConnectingText();
-            return;
+            case TapAction.Start: Close(); break;
+            case TapAction.ShowSessionError: board.ShowSessionError(); break;
+            case TapAction.ShowConnecting: ShowConnectingText(); break;
         }
+    }
 
-        if (RectTransformUtility.RectangleContainsScreenPoint(startHitRect, pos, hitCamera))
-            Close();
+    public enum TapAction { Ignore, Start, ShowSessionError, ShowConnecting }
+
+    // タップ1回の扱いを決める純関数（座標は見ない＝全面タップ）。EditModeテストから直接呼ぶ。
+    // sessionReady 前は残高・ミッション未取得のまま盤面へ入るのを防ぐため開始しない
+    // （2026-09-25 是正: 無言returnせず、失敗済みならpoierr・接続中なら「通信中…」を出す）。
+    public static TapAction DecideTap(bool isShowing, bool hasBoard, bool sessionReady, bool sessionFailed, bool onOtherControl)
+    {
+        if (!isShowing || !hasBoard || onOtherControl) return TapAction.Ignore;
+        if (!sessionReady) return sessionFailed ? TapAction.ShowSessionError : TapAction.ShowConnecting;
+        return TapAction.Start;
+    }
+
+    GameObject muteGO;
+    bool IsTapOnMuteButton(Vector2 pos)
+    {
+        if (muteGO == null) muteGO = GameObject.Find("SoundMuteButton");
+        if (muteGO == null) return false;
+        var rt = muteGO.GetComponent<RectTransform>();
+        return rt != null && RectTransformUtility.RectangleContainsScreenPoint(rt, pos, hitCamera);
     }
 
     // ScreenSpaceOverlay では null、ScreenSpaceCamera/WorldSpace では
