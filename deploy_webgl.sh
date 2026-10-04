@@ -258,7 +258,13 @@ fi
 aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION_ID" --id "$INVALIDATION_ID" --region "$REGION"
 
 REMOTE_HTML="$(mktemp -t deployed_index)"
-curl -fsSL --max-time 30 "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
+# dev面（game/*-dev/）は poicasi-pc-game-gate の固定Basic認証が掛かる
+# （正本 scripts/chrome-conformance-check.mjs の DEV_BASIC_AUTH と同値）。
+CURL_AUTH=()
+case "$S3_PREFIX" in
+  *-dev) CURL_AUTH=(-H "Authorization: Basic cG9pY2FzaTpWemFXSHJOYzdnMGlMZEphNnNlTg==") ;;
+esac
+curl -fsSL --max-time 30 "${CURL_AUTH[@]}" "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
 python3 - "$REMOTE_HTML" "$VERSION" "$NAME" "$EXT" <<'PY'
 import re, sys
 path, ver, name, ext = sys.argv[1:]; text = open(path, encoding="utf-8").read()
