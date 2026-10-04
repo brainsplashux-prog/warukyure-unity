@@ -305,7 +305,7 @@ public class WarukyureBoard : MonoBehaviour
         CreateSpinButton();
         CreateResultOverlay();
         CreateJackpotChallengeUI();
-        gameObject.AddComponent<SoundMuteButton>(); // game-layout-standard.md §2b 共通サウンドミュートボタン
+        gameObject.AddComponent<PoiPlatformBridge>(); // poi-game-boot 共通ミュート中継（正本= poicasi-platform web/shared/poi-game-boot/unity/）
         new GameObject("WarukyureBgm").AddComponent<WarukyureBgm>(); // BGMループ(ミュートはAudioListener一括)
 
         platformClient = new PlatformApiClient(API_URL.TrimEnd('/'));

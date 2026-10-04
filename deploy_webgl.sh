@@ -88,7 +88,10 @@ fi
 # 削除操作は一切行わない。--html-only 時はコピーしない（既存の Builds/WebGL/index.html をそのまま使う。
 # コピーすると Unity 生の出力で上書きされ、HTML だけの変更が消えてしまうため）。
 if [[ "${HTML_ONLY}" -eq 0 ]]; then
-  CLIENT_DIR="$HOME/Desktop/warukyure/client"
+  # ビルド出力の取り込み元。既定は従来の ~/Desktop/warukyure/client。
+  # ~/Desktop/warukyure は別セッションが使う旧ツリーのため、WARUKYURE_CLIENT_OUT で
+  # ビルド出力先を変えた場合は WARUKYURE_CLIENT_DIR も同じ場所を指定する。
+  CLIENT_DIR="${WARUKYURE_CLIENT_DIR:-$HOME/Desktop/warukyure/client}"
   [ -d "$CLIENT_DIR" ] || { echo "Error: $CLIENT_DIR が無い。先に Unity WebGL ビルドを行うこと。" >&2; exit 1; }
   echo "== copy client build from $CLIENT_DIR to $BUILD_DIR =="
   mkdir -p "$BUILD_DIR"
@@ -255,7 +258,13 @@ fi
 aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION_ID" --id "$INVALIDATION_ID" --region "$REGION"
 
 REMOTE_HTML="$(mktemp -t deployed_index)"
-curl -fsSL --max-time 30 "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
+# dev面（game/*-dev/）は poicasi-pc-game-gate の固定Basic認証が掛かる
+# （正本 scripts/chrome-conformance-check.mjs の DEV_BASIC_AUTH と同値）。
+CURL_AUTH=()
+case "$S3_PREFIX" in
+  *-dev) CURL_AUTH=(-H "Authorization: Basic cG9pY2FzaTpWemFXSHJOYzdnMGlMZEphNnNlTg==") ;;
+esac
+curl -fsSL --max-time 30 ${CURL_AUTH[@]+"${CURL_AUTH[@]}"} "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
 python3 - "$REMOTE_HTML" "$VERSION" "$NAME" "$EXT" <<'PY'
 import re, sys
 path, ver, name, ext = sys.argv[1:]; text = open(path, encoding="utf-8").read()
