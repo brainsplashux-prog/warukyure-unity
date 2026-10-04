@@ -264,7 +264,7 @@ CURL_AUTH=()
 case "$S3_PREFIX" in
   *-dev) CURL_AUTH=(-H "Authorization: Basic cG9pY2FzaTpWemFXSHJOYzdnMGlMZEphNnNlTg==") ;;
 esac
-curl -fsSL --max-time 30 "${CURL_AUTH[@]}" "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
+curl -fsSL --max-time 30 ${CURL_AUTH[@]+"${CURL_AUTH[@]}"} "${DIST_URL}index.html?v=${VERSION}" -o "$REMOTE_HTML"
 python3 - "$REMOTE_HTML" "$VERSION" "$NAME" "$EXT" <<'PY'
 import re, sys
 path, ver, name, ext = sys.argv[1:]; text = open(path, encoding="utf-8").read()
