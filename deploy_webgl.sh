@@ -88,7 +88,10 @@ fi
 # 削除操作は一切行わない。--html-only 時はコピーしない（既存の Builds/WebGL/index.html をそのまま使う。
 # コピーすると Unity 生の出力で上書きされ、HTML だけの変更が消えてしまうため）。
 if [[ "${HTML_ONLY}" -eq 0 ]]; then
-  CLIENT_DIR="$HOME/Desktop/warukyure/client"
+  # ビルド出力の取り込み元。既定は従来の ~/Desktop/warukyure/client。
+  # ~/Desktop/warukyure は別セッションが使う旧ツリーのため、WARUKYURE_CLIENT_OUT で
+  # ビルド出力先を変えた場合は WARUKYURE_CLIENT_DIR も同じ場所を指定する。
+  CLIENT_DIR="${WARUKYURE_CLIENT_DIR:-$HOME/Desktop/warukyure/client}"
   [ -d "$CLIENT_DIR" ] || { echo "Error: $CLIENT_DIR が無い。先に Unity WebGL ビルドを行うこと。" >&2; exit 1; }
   echo "== copy client build from $CLIENT_DIR to $BUILD_DIR =="
   mkdir -p "$BUILD_DIR"

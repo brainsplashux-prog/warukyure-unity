@@ -14,7 +14,12 @@ public static class WarukyureBuilder
         // 1. 既存シーンの Ad-Virtua 構造を事前検査
         AdVirtuaFrontmostValidator.ValidateAdVirtuaFrontmost();
 
-        string clientOutPath = "/Users/suzukimasahiro/Desktop/warukyure/client";
+        // 出力先は WARUKYURE_CLIENT_OUT 環境変数で上書き可能（既定は従来どおり Desktop）。
+        // ~/Desktop/warukyure は別セッションが使う旧ツリーのため、CI/本ビルドでは
+        // プロジェクト内の Builds/ 配下へ出せるようにする。
+        string clientOutPath = Environment.GetEnvironmentVariable("WARUKYURE_CLIENT_OUT");
+        if (string.IsNullOrEmpty(clientOutPath))
+            clientOutPath = "/Users/suzukimasahiro/Desktop/warukyure/client";
 
         // Ensure PoiLoader cache-buster variable is empty so deploy script adds ?v=.
         string templatePath = Path.Combine(Application.dataPath, "WebGLTemplates/PoiLoader/index.html");
