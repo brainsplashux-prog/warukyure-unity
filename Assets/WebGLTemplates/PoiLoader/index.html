@@ -16,6 +16,64 @@
     <link rel="preload" href="Build/{{{ DATA_FILENAME }}}" as="fetch" crossorigin="anonymous">
 
     <script>
+    /* POI_FPS_CAP_START (2026-10-05 dec-20261005-017 追加): 画質ボタンの段ごとにフレームレート上限をかける（ページ側のみ・Unity無改修）。
+       3=上限なし(起動時のfpsのまま) / 2=30fps / 1=20fps。実fps = min(起動時のfps, 上限)。
+       対象は Unity(Emscripten) のメインループ関数 Browser_mainLoop_runner だけ。それ以外の setTimeout / rAF は素通し。
+       setTimeout モード(targetFrameRate>0): 次回呼び出しの待ち時間を「1000/上限 − 前回実行からの経過」まで延ばす。
+       rAF モード(targetFrameRate=-1): 前回実行からの経過が 1000/上限 未満なら次の rAF へ再予約して間引く。 */
+    (function () {
+      if (window.__poiApplyFpsCap) return;
+      var RUNNER = "Browser_mainLoop_runner";
+      var LEVEL_KEY = "poi_res_level_warukyure";
+      var cap = 0;          // 0 = 素通し
+      var lastRun = -1e9;   // 前回 runner 実行開始時刻(ms)
+      var origST = window.setTimeout;
+      var origRAF = window.requestAnimationFrame;
+      function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+      function capForLevel(lv) { return lv === 1 ? 20 : (lv === 2 ? 30 : 0); }
+      function isRunner(fn) { return typeof fn === "function" && fn.name === RUNNER; }
+      window.__poiFpsCap = 0;
+      window.setTimeout = function (fn, delay) {
+        if (cap > 0 && isRunner(fn)) {
+          var interval = 1000 / cap;
+          var wait = interval - (now() - lastRun);
+          var d = +delay || 0;
+          var nd = Math.max(d, wait);
+          var args = Array.prototype.slice.call(arguments, 2);
+          return origST.call(window, function () { lastRun = now(); return fn.apply(this, args); }, nd);
+        }
+        return origST.apply(window, arguments);
+      };
+      if (typeof origRAF === "function") {
+        window.requestAnimationFrame = function (fn) {
+          if (cap > 0 && isRunner(fn)) {
+            var interval = 1000 / cap;
+            var tick = function (ts) {
+              var t = now();
+              // 4ms の余裕: 60Hz/120Hz の揺らぎで 1 フレーム余計に飛ばさないため
+              if (t - lastRun < interval - 4) { return origRAF.call(window, tick); }
+              lastRun = t;
+              return fn(ts);
+            };
+            return origRAF.call(window, tick);
+          }
+          return origRAF.apply(window, arguments);
+        };
+      }
+      window.__poiApplyFpsCap = function (level) {
+        var lv = parseInt(level, 10);
+        cap = capForLevel(lv);
+        window.__poiFpsCap = cap;
+        return cap;
+      };
+      try {
+        var saved = parseInt(window.localStorage.getItem(LEVEL_KEY), 10);
+        if (saved === 1 || saved === 2 || saved === 3) window.__poiApplyFpsCap(saved);
+      } catch (e) { /* 保存領域が使えない環境は上限なし(=3) */ }
+    })();
+    /* POI_FPS_CAP_END */
+    </script>
+    <script>
     /* poi-audio-guard v3: 離脱で全音停止→次の操作で再開／復帰時の音声エラーを抑止 (bug-ledger #12)
        v3(2026-09-25): 非表示中・離脱中はどこから呼ばれても resume/play を通さない／interrupted・suspended も含め全 context を suspend
        (iOS の割り込み解除で操作なしに鳴り出すのを防ぐ)／操作前に running・play へ戻ったら即再停止／
@@ -568,6 +626,7 @@
           ev.stopPropagation();
           R.set(lv);
           paint();
+          if (window.__poiApplyFpsCap) window.__poiApplyFpsCap(lv); // POI_FPS_CAP: 3=上限なし/2=30fps/1=20fps
         });
         box.appendChild(b);
       });
