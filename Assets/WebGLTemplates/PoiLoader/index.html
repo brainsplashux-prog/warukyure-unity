@@ -160,6 +160,43 @@
          共通ヘッダーは /shared/poicasi-chrome/loader.js が共通基盤経由で注入する
          （game-layout-check の SDK_HEADER_RE 判定対象＝ヘッダーA寸法はSDK側の責務）。
          WARUQ0 のロード絵柄は POI_GAME.loading の variants:['ninja'] で指定する。 -->
+    <!-- POI_RES_LEVEL (dec-20261005-017 / 2026-10-05): 画質調整 1/2/3。
+         3=現行の描画DPRそのまま(既定。configもModuleも触らない) / 1=最終描画DPRを min(現行,0.75) / 2=3と1の算術平均。
+         CSS表示サイズ・タップ座標は変えず、Unityへ渡す devicePixelRatio だけを変える。選択は localStorage に保存。 -->
+    <script>
+    (function () {
+      var KEY = "poi_res_level_warukyure", MIN_DPR = 0.75;
+      var R = window.__poiResLevel = { level: 3, baseCfg: undefined, dirty: false };
+      try {
+        var s = parseInt(window.localStorage.getItem(KEY), 10);
+        if (s === 1 || s === 2 || s === 3) R.level = s;
+      } catch (e) { /* 保存領域が使えない環境は3 */ }
+      function base() { return R.baseCfg || window.devicePixelRatio || 1; }
+      R.dprFor = function (lv) {
+        var b = base(), low = Math.min(b, MIN_DPR);
+        if (lv === 1) return low;
+        if (lv === 2) return (b + low) / 2;
+        return b;
+      };
+      // createUnityInstance 直前に呼ぶ。保存値が3（既定）なら config を一切変えない。
+      window.__poiResLevelCfg = function (config) {
+        R.baseCfg = config.devicePixelRatio;
+        if (R.level !== 3) config.devicePixelRatio = R.dprFor(R.level);
+      };
+      // 実行中Unityへ即時反映（Unity は毎フレーム Module.devicePixelRatio || window.devicePixelRatio を読む）。
+      R.apply = function () {
+        var m = window.unityInstance && window.unityInstance.Module;
+        if (!m) return;
+        m.devicePixelRatio = (R.level === 3) ? R.baseCfg : R.dprFor(R.level);
+      };
+      R.set = function (lv) {
+        R.level = lv; R.dirty = true;
+        try { window.localStorage.setItem(KEY, String(lv)); } catch (e) {}
+        R.apply();
+      };
+      window.__poiResLevelReady = function () { if (R.dirty) R.apply(); };
+    })();
+    </script>
     <script>
       var buildUrl = "Build";
       var cb = "";
@@ -202,6 +239,7 @@
           beforeCreate: function (config) {
             config.showBanner = unityShowBanner;
             config.cacheControl = function (url) { return "no-store"; };
+            try { if (window.__poiResLevelCfg) window.__poiResLevelCfg(config); } catch (e) {}
 #if USE_THREADS
             config.workerUrl = buildUrl + "/{{{ WORKER_FILENAME }}}" + cb;
 #endif
@@ -214,6 +252,7 @@
             if (bar) bar.style.width = 100 * progress + "%";
           },
           onReady: function (unityInstance) {
+            try { if (window.__poiResLevelReady) window.__poiResLevelReady(unityInstance); } catch (e) {}
 #if DEVELOPMENT_PLAYER
             try {
               var profile = unityProfiler.createButton(unityInstance);
@@ -494,6 +533,51 @@
       canvas.style.background = "url('" + buildUrl + "/{{{ BACKGROUND_FILENAME.replace(/'/g, '%27') }}}') center / cover";
 #endif
       document.querySelector("#unity-loading-bar").style.display = "block";
+    </script>
+    <!-- POI_RES_LEVEL_UI (dec-20261005-017): 画面左・ADVIRTUA帯（キャンバス上端＋幅×405/720）のすぐ下。 -->
+    <style>
+      #poi-res-level{position:fixed;left:6px;top:calc(var(--poi-stage-top, var(--common-header-height, 56px)) + 56.25vw + 10px);z-index:900;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:auto;}
+      #poi-res-level .lbl{font:700 8px/1 sans-serif;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000;white-space:nowrap;margin-bottom:-2px;letter-spacing:-.2px;pointer-events:none;}
+      #poi-res-level button{width:30px;height:30px;padding:0;border:2px solid rgba(255,255,255,.85);border-radius:8px;background:rgba(0,0,0,.45);color:#fff;font:700 15px/26px sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+      #poi-res-level button[aria-pressed=true]{background:#ffcc00;color:#000;border-color:#fff;}
+    </style>
+    <script>
+    (function () {
+      var R = window.__poiResLevel;
+      if (!R || document.getElementById("poi-res-level")) return;
+      var box = document.createElement("div");
+      box.id = "poi-res-level";
+      box.setAttribute("role", "group");
+      box.setAttribute("aria-label", "画質調整");
+      var lbl = document.createElement("div");
+      lbl.className = "lbl";
+      lbl.textContent = "画質調整";
+      box.appendChild(lbl);
+      function paint() {
+        var bs = box.querySelectorAll("button");
+        for (var i = 0; i < bs.length; i++) {
+          bs[i].setAttribute("aria-pressed", bs[i].getAttribute("data-lv") === String(R.level) ? "true" : "false");
+        }
+      }
+      [1, 2, 3].forEach(function (lv) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = String(lv);
+        b.setAttribute("data-lv", String(lv));
+        b.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          R.set(lv);
+          paint();
+        });
+        box.appendChild(b);
+      });
+      // ボタンのタッチをゲーム側（document/window の入力リスナー）へ伝えない。
+      ["pointerdown", "pointerup", "touchstart", "touchend", "mousedown", "mouseup"].forEach(function (t) {
+        box.addEventListener(t, function (ev) { ev.stopPropagation(); }, { passive: true });
+      });
+      paint();
+      document.body.appendChild(box);
+    })();
     </script>
   </body>
 </html>
