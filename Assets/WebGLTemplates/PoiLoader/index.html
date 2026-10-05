@@ -73,145 +73,191 @@
     })();
     /* POI_FPS_CAP_END */
     </script>
-    <script>
-    /* poi-audio-guard v3: 離脱で全音停止→次の操作で再開／復帰時の音声エラーを抑止 (bug-ledger #12)
-       v3(2026-09-25): 非表示中・離脱中はどこから呼ばれても resume/play を通さない／interrupted・suspended も含め全 context を suspend
-       (iOS の割り込み解除で操作なしに鳴り出すのを防ぐ)／操作前に running・play へ戻ったら即再停止／
-       pagehide・freeze・window blur(ページ全体がフォーカスを失った時だけ)でも停止／DOM上の audio・video と同一オリジン iframe も停止 */
-    (function () {
-      if (window.__poiAudioGuard) return;
-      var G = window.__poiAudioGuard = { v: 3, ctxs: [], media: [], waiting: false, inGesture: false };
-      function isHidden() { try { return document.visibilityState === "hidden"; } catch (e) { return false; } }
-      function blocked() { return isHidden() || (G.waiting && !G.inGesture); }
-      function quiet(p) { try { if (p && p.catch) p.catch(function () {}); } catch (e) {} return p; }
-      function watchCtx(c) {
-        if (!c || G.ctxs.indexOf(c) >= 0) return;
-        G.ctxs.push(c);
-        // Unity は onstatechange プロパティを使うので上書きせず addEventListener で足す。
+    <!-- poi-audio-guard v4.3 正本 (~/.claude/templates/game-defaults/poi-audio-guard.v4.html)。出典: ~/Unity/nyaruma commit 69a6180 Assets/WebGLTemplates/PoiLoader/index.html（本番 https://lp.poicasi.co.jp/game/nyaruma/ 版 69a6180-20261001T0515Z で実測PASS 2026-10-01）。<head> 内・Unity loader より前に丸ごと貼る。改変禁止。v4.3(2026-10-01 CODEX round3是正): ①JS凍結直前の停止契機(pagehide/freeze/visibilitychange hidden)が同期で stopAll を呼ぶことをテストで固定（iframeフォーカス残りで離脱→ポーリング前に凍結のケース）②lostFocus() の例外は止める側(true)へ倒す（hasFocus 不在・非top は従来どおり false）。v4.2(2026-10-01 CODEX round2是正): ①広告iframeにフォーカス後に離脱しても止まるよう、iframe除外をやめ hasFocus() で判定（blurがIFRAME時は約50ms後に再判定）②判定不能(例外)は止める側へ倒す。v4.1(2026-10-01 CODEXレビュー是正): nyaruma 実測版(v4.0・poi-audio-guard.v4.0-nyaruma.html に保管)から、①通常プレイ中の遅延再生を塞がない ②hasFocus ポーリングはトップレベルで一度でもフォーカスを得た環境だけ ③自ページ内 iframe へのフォーカス移動では止めない、の3点だけ変更。Unity は PoiAudioHardStop.jslib と PoiAudioHardStop.cs も同時に入れる（無くても guard 単体で動くが、Unity 音源の同期停止は効かない）。 -->
+<script>
+/* poi-audio-guard v4.3: 離脱で全音「同期」停止→次の操作で再開 (dec-20261001-017)
+   v4(2026-10-01): 全経路を stopAll 一本化 — 先頭で window.__poiUnityAudio.stop()
+   (PoiAudioHardStop.jslib が公開。framework.js の onstatechange suspended 分岐と同じ
+   処理を同期実行し Unity 音源を実停止する) →全 context の suspend→ waiting=true。
+   blur は setTimeout/hasFocus/IFRAME の見送りなしで即停止。1000ms ポーリングで
+   document.hidden || !document.hasFocus() を補助検査。poiTryResumeAudio/resumeAll
+   以外の running 化（離脱後の操作待ち中・hidden中）は __poiUnityAudio.stop()＋
+   suspend で再停止する。<video> 要素は対象外のまま。
+   v4.1(2026-10-01): 塞ぐのは「hidden 中」と「離脱後、次の操作まで」だけ（通常プレイ中の
+   遅延BGM/SEは通す）。hasFocus 検査はトップレベルで一度 focus を観測した環境だけ・
+   自ページ内 iframe（広告等）へのフォーカス移動は離脱とみなさない。
+   v4.2(2026-10-01): iframe にフォーカスがある間も親の hasFocus() は true になる仕様を使い、
+   activeElement 除外を廃止（iframe クリック後にアプリを離れても止まる）。blur 時 activeElement が
+   IFRAME なら 50ms 後に hidden||lostFocus() で再判定。isHidden()/ポーリングは判定不能(例外)で
+   止める側へ倒す（everFocused と isTop の条件は維持）。
+   v4.3(2026-10-01): visibilitychange(hidden)/pagehide/freeze は全て同期 stopAll（凍結前に止める）。
+   lostFocus() が例外を投げたら true（止める側）。hasFocus 不在・非top は従来どおり false。 */
+(function () {
+  if (window.__poiAudioGuard) return;
+  var G = window.__poiAudioGuard = { v: 4.3, ctxs: [], media: [], waiting: false, inGesture: false, lastGestureAt: 0, everFocused: false };
+  function isHidden() { try { return document.visibilityState === "hidden"; } catch (e) { return true; } }
+  // 塞ぐのは hidden 中と、離脱(stopAll)後に次の操作(resumeAll)が来るまでだけ。
+  function blocked() { return isHidden() || G.waiting; }
+  function activeIsFrame() { try { var a = document.activeElement; return !!(a && a.tagName === "IFRAME"); } catch (e) { return false; } }
+  function isTop() { try { return window.top === window; } catch (e) { return false; } }
+  function lostFocus() {
+    try {
+      if (!isTop() || !document.hasFocus) return false;
+      if (document.hasFocus()) { G.everFocused = true; return false; }
+      return G.everFocused; // 子 iframe にフォーカスがあれば hasFocus() は true なのでここへ来ない
+    } catch (e) { return true; } // 判定不能(例外)は止める側へ。hasFocus 不在・非top は上で false 返却済み
+  }
+  function quiet(p) { try { if (p && p.catch) p.catch(function () {}); } catch (e) {} return p; }
+  // Unity 音源の実停止（PoiAudioHardStop.jslib が公開する同期停止口）。
+  function unityHardStop() {
+    try { if (window.__poiUnityAudio && window.__poiUnityAudio.stop) window.__poiUnityAudio.stop(); } catch (e) {}
+  }
+  function watchCtx(c) {
+    if (!c || G.ctxs.indexOf(c) >= 0) return;
+    G.ctxs.push(c);
+    // Unity は onstatechange プロパティを使うので上書きせず addEventListener で足す。
+    // AudioContext 生成時（Wrapped 内）に登録するため、Unity 側リスナーより先に動く。
+    try {
+      c.addEventListener("statechange", function () {
         try {
-          c.addEventListener("statechange", function () {
-            try { if (c.state === "running" && blocked()) { G.waiting = true; quiet(c.suspend()); } } catch (e) {}
-          });
-        } catch (e) {}
-      }
-      var Orig = window.AudioContext || window.webkitAudioContext;
-      if (Orig) {
-        var origResume = Orig.prototype.resume;
-        var Wrapped = function (opts) {
-          var c = (opts === undefined) ? new Orig() : new Orig(opts);
-          watchCtx(c);
-          try { if (blocked() && c.state === "running") quiet(c.suspend()); } catch (e) {}
-          return c;
-        };
-        Wrapped.prototype = Orig.prototype;
-        try { Object.setPrototypeOf(Wrapped, Orig); } catch (e) {} // static プロパティ(EventTarget等)も継承
-        try {
-          Orig.prototype.resume = function () {
-            watchCtx(this);
-            if (blocked()) { G.waiting = true; return Promise.resolve(); }
-            try {
-              return quiet(origResume.apply(this, arguments));
-            } catch (e) {
-              // iOS Safari: 復帰直後の resume() が InvalidStateError を同期throwすることがある(bug-ledger #12実測)
-              try { console.warn("[poi] audio resume failed:", e && e.message); } catch (e2) {}
-              return Promise.resolve();
-            }
-          };
-        } catch (e) {}
-        if (window.AudioContext) window.AudioContext = Wrapped;
-        if (window.webkitAudioContext) window.webkitAudioContext = Wrapped;
-      }
-      // video要素(UnityのVideoPlayer/Ad-Virtua広告動画が使う<video>)はこのガードの対象外にする。
-      // 対象に含めると離脱復帰まで再生が空振りし続け、広告動画が静止画のまま止まる
-      // (Ad-Virtua「再生完了通知が来ない」= 2026-09-21実測)。AudioContext/<audio>の抑止は維持する。
-      function isVideoEl(el) {
-        return !!(window.HTMLVideoElement && el instanceof HTMLVideoElement) || (el && el.tagName === "VIDEO");
-      }
-      function watchMedia(m) {
-        if (!m || isVideoEl(m) || G.media.indexOf(m) >= 0) return;
-        G.media.push(m);
-        try {
-          m.addEventListener("play", function () {
-            try { if (!isVideoEl(m) && blocked()) { G.waiting = true; m.__poiResume = true; m.pause(); } } catch (e) {}
-          });
-        } catch (e) {}
-      }
-      if (window.HTMLMediaElement) {
-        var origPlay = HTMLMediaElement.prototype.play;
-        HTMLMediaElement.prototype.play = function () {
-          if (isVideoEl(this)) return origPlay.apply(this, arguments);
-          watchMedia(this);
-          if (blocked()) { G.waiting = true; this.__poiResume = true; return Promise.resolve(); }
-          return origPlay.apply(this, arguments);
-        };
-        G.origPlay = origPlay;
-      }
-      function pauseMedia(m) {
-        if (isVideoEl(m)) return;
-        try { if (!m.paused) { watchMedia(m); m.__poiResume = true; m.pause(); } } catch (e) {}
-      }
-      function stopFrames() {
-        try {
-          for (var i = 0; i < window.frames.length; i++) {
-            try {
-              var w = window.frames[i];
-              if (w.__poiAudioGuard && w.__poiAudioGuard.stop) { w.__poiAudioGuard.stop(); continue; }
-              var fm = w.document.querySelectorAll("audio,video");
-              for (var j = 0; j < fm.length; j++) { if (isVideoEl(fm[j])) continue; try { if (!fm[j].paused) fm[j].pause(); } catch (e) {} }
-            } catch (e) {} // 別オリジンの iframe は触れない
+          if (c.state === "running" && blocked()) {
+            // poiTryResumeAudio/resumeAll 経由でない running 化 → 同期で再停止
+            unityHardStop();
+            G.waiting = true;
+            quiet(c.suspend());
           }
         } catch (e) {}
-      }
-      function stopAll() {
-        G.waiting = true;
-        G.ctxs.forEach(function (c) {
-          // running だけでなく iOS の "interrupted"・既に suspended のものも suspend を呼ぶ
-          // (ページ側が止めた印を付けないと、割り込み解除時に操作なしで running へ戻る)
-          try { if (c.state !== "closed") quiet(c.suspend()); } catch (e) {}
-        });
-        G.media.forEach(pauseMedia);
-        try { var dm = document.querySelectorAll("audio,video"); for (var i = 0; i < dm.length; i++) pauseMedia(dm[i]); } catch (e) {}
-        stopFrames();
-      }
-      G.stop = stopAll;
-      function resumeAll() {
-        if (!G.waiting || isHidden()) return;
-        G.waiting = false;
-        G.inGesture = true;
+      });
+    } catch (e) {}
+  }
+  var Orig = window.AudioContext || window.webkitAudioContext;
+  if (Orig) {
+    var origResume = Orig.prototype.resume;
+    var Wrapped = function (opts) {
+      var c = (opts === undefined) ? new Orig() : new Orig(opts);
+      watchCtx(c);
+      try { if (blocked() && c.state === "running") { unityHardStop(); quiet(c.suspend()); } } catch (e) {}
+      return c;
+    };
+    Wrapped.prototype = Orig.prototype;
+    try { Object.setPrototypeOf(Wrapped, Orig); } catch (e) {} // static プロパティ(EventTarget等)も継承
+    try {
+      Orig.prototype.resume = function () {
+        watchCtx(this);
+        if (blocked()) { G.waiting = true; return Promise.resolve(); }
         try {
-          G.ctxs.forEach(function (c) {
-            // "interrupted"(iOS) も含め running/closed 以外なら resume を試みる
-            try { if (c.state !== "running" && c.state !== "closed") quiet(c.resume()); } catch (e) {}
-          });
-          G.media.forEach(function (m) {
-            if (isVideoEl(m)) return;
-            try { if (m.__poiResume) { m.__poiResume = false; quiet(G.origPlay.call(m)); } } catch (e) {}
-          });
-        } finally { G.inGesture = false; }
+          return quiet(origResume.apply(this, arguments));
+        } catch (e) {
+          // iOS Safari: 復帰直後の resume() が InvalidStateError を同期throwすることがある(bug-ledger #12実測)
+          try { console.warn("[poi] audio resume failed:", e && e.message); } catch (e2) {}
+          return Promise.resolve();
+        }
+      };
+    } catch (e) {}
+    if (window.AudioContext) window.AudioContext = Wrapped;
+    if (window.webkitAudioContext) window.webkitAudioContext = Wrapped;
+  }
+  // video要素(UnityのVideoPlayer/Ad-Virtua広告動画が使う<video>)はこのガードの対象外にする。
+  // 対象に含めると離脱復帰まで再生が空振りし続け、広告動画が静止画のまま止まる
+  // (Ad-Virtua「再生完了通知が来ない」= 2026-09-21実測)。AudioContext/<audio>の抑止は維持する。
+  function isVideoEl(el) {
+    return !!(window.HTMLVideoElement && el instanceof HTMLVideoElement) || (el && el.tagName === "VIDEO");
+  }
+  function watchMedia(m) {
+    if (!m || isVideoEl(m) || G.media.indexOf(m) >= 0) return;
+    G.media.push(m);
+    try {
+      m.addEventListener("play", function () {
+        try { if (!isVideoEl(m) && blocked()) { G.waiting = true; m.__poiResume = true; m.pause(); } } catch (e) {}
+      });
+    } catch (e) {}
+  }
+  if (window.HTMLMediaElement) {
+    var origPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      if (isVideoEl(this)) return origPlay.apply(this, arguments);
+      watchMedia(this);
+      if (blocked()) { G.waiting = true; this.__poiResume = true; return Promise.resolve(); }
+      return origPlay.apply(this, arguments);
+    };
+    G.origPlay = origPlay;
+  }
+  function pauseMedia(m) {
+    if (isVideoEl(m)) return;
+    try { if (!m.paused) { watchMedia(m); m.__poiResume = true; m.pause(); } } catch (e) {}
+  }
+  function stopFrames() {
+    try {
+      for (var i = 0; i < window.frames.length; i++) {
+        try {
+          var w = window.frames[i];
+          if (w.__poiAudioGuard && w.__poiAudioGuard.stop) { w.__poiAudioGuard.stop(); continue; }
+          var fm = w.document.querySelectorAll("audio,video");
+          for (var j = 0; j < fm.length; j++) { if (isVideoEl(fm[j])) continue; try { if (!fm[j].paused) fm[j].pause(); } catch (e) {} }
+        } catch (e) {} // 別オリジンの iframe は触れない
       }
-      document.addEventListener("visibilitychange", function () { if (isHidden()) stopAll(); }, true);
-      window.addEventListener("pagehide", stopAll, true);
-      document.addEventListener("freeze", stopAll, true);
-      // X等のアプリ内ブラウザ(WKWebView)は別アプリへ移っても visibilitychange を出さないことがある。
-      // window 自体の blur で、ページ全体がフォーカスを失った時だけ止める(iframe・入力欄へのフォーカス移動では止めない)。
-      window.addEventListener("blur", function (e) {
-        if (e && e.target !== window) return;
-        setTimeout(function () {
-          try {
-            if (document.hasFocus && document.hasFocus()) return;
-            var a = document.activeElement;
-            if (a && a.tagName === "IFRAME") return;
-          } catch (err) { return; }
-          stopAll();
-        }, 0);
+    } catch (e) {}
+  }
+  // 停止はこの1本（visibilitychange/pagehide/freeze/blur/1秒ポーリングの全経路が呼ぶ）。
+  // 先頭で Unity 音源を同期停止してから全 context を suspend し、waiting=true にする。
+  function stopAll() {
+    unityHardStop();
+    G.ctxs.forEach(function (c) {
+      // running だけでなく iOS の "interrupted"・既に suspended のものも suspend を呼ぶ
+      // (ページ側が止めた印を付けないと、割り込み解除時に操作なしで running へ戻る)
+      try { if (c.state !== "closed") quiet(c.suspend()); } catch (e) {}
+    });
+    G.waiting = true;
+    G.media.forEach(pauseMedia);
+    try { var dm = document.querySelectorAll("audio,video"); for (var i = 0; i < dm.length; i++) pauseMedia(dm[i]); } catch (e) {}
+    stopFrames();
+  }
+  G.stop = stopAll;
+  function resumeAll() {
+    if (isHidden()) return;
+    G.lastGestureAt = Date.now();
+    if (!G.waiting) return;
+    G.waiting = false;
+    G.inGesture = true;
+    try {
+      G.ctxs.forEach(function (c) {
+        // "interrupted"(iOS) も含め running/closed 以外なら resume を試みる
+        try { if (c.state !== "running" && c.state !== "closed") quiet(c.resume()); } catch (e) {}
       });
-      ["pointerdown", "touchstart", "touchend", "mousedown", "click", "keydown"].forEach(function (ev) {
-        window.addEventListener(ev, resumeAll, { passive: true, capture: true });
+      G.media.forEach(function (m) {
+        if (isVideoEl(m)) return;
+        try { if (m.__poiResume) { m.__poiResume = false; quiet(G.origPlay.call(m)); } } catch (e) {}
       });
-      window.poiTryResumeAudio = resumeAll;
-      window.__poiIsAudioError = function (msg) { return /audio device|AudioContext|Web Audio|audioContext/i.test(String(msg || "")); };
-    })();
-    </script>
+    } finally { G.inGesture = false; }
+  }
+  document.addEventListener("visibilitychange", function () { if (isHidden()) stopAll(); }, true);
+  window.addEventListener("pagehide", stopAll, true);
+  document.addEventListener("freeze", stopAll, true);
+  // blur は同期で停止する（X等のアプリ内ブラウザは visibilitychange を出さないことがある）。
+  // ただし自ページ内 iframe（広告等）へフォーカスが移っただけなら止めない。
+  window.addEventListener("blur", function () {
+    if (!activeIsFrame()) { stopAll(); return; }
+    // iframe(広告等)へ移っただけか、アプリ離脱かを少し待って hasFocus() で再判定する。
+    setTimeout(function () {
+      try { if (document.hidden || lostFocus()) stopAll(); } catch (e) { try { stopAll(); } catch (e2) {} }
+    }, 50);
+  });
+  window.addEventListener("focus", function () { G.everFocused = true; });
+  // JS が動いている環境向けの補助検査（凍結中の保険ではない）。
+  setInterval(function () {
+    try {
+      // 既に停止済み(waiting)なら何もしない（毎秒の suspend 連打を避ける）
+      if (!G.waiting && (document.hidden || lostFocus())) stopAll();
+    } catch (e) { try { stopAll(); } catch (e2) {} } // 判定不能は止める側へ
+  }, 1000);
+  // 復帰はユーザー操作（pointerdown/touchstart/keydown）でだけ行う。
+  ["pointerdown", "touchstart", "keydown"].forEach(function (ev) {
+    window.addEventListener(ev, resumeAll, { passive: true, capture: true });
+  });
+  window.poiTryResumeAudio = resumeAll;
+  window.__poiIsAudioError = function (msg) { return /audio device|AudioContext|Web Audio|audioContext/i.test(String(msg || "")); };
+})();
+</script>
 
     <!-- ロード画面・離脱時音停止・API prefix・共通スクリプト・chrome・Unity起動は
          /shared/poi-game-boot/loader.js（共通起動基盤 v1）へ移管済み。
