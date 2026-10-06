@@ -274,10 +274,6 @@ public class WarukyureBoard : MonoBehaviour
 
     void Update()
     {
-        // 累積プレイ時間の加算。本ゲームはタイトル/選択画面を持たず盤面がそのままプレイ画面なので、
-        // クロスプロモのポップアップが開いている間だけ非加算とする（タブ非アクティブは PoiPlayTime 側で除外）。
-        PoiPlayTime.Tick(!CrossPromoPopupUI.IsOpen);
-
         // 2026-09-15: リサイズ/回転/iOSツールバー表示切替でHが変わってもBoardRoot(上下中央配置)
         // がズレたままにならないよう追従させる。BET/SPINボタンはBoardRootの子のため自動追従。
         if (boardRoot != null &&
@@ -1885,10 +1881,6 @@ public class WarukyureBoard : MonoBehaviour
         // 2026-09-15 社長指示: ラウンド終了・次回スピン可能になったらBETボタンを再表示。
         SetBetButtonsVisible(true);
         if (!string.IsNullOrEmpty(error)) ShowResultOverlay(error, -1f);
-
-        // クロスプロモ: ラウンド終了（＝リザルト表示）時のみ発火。プレイ中には割り込まない。
-        // 通信エラー時は出さない。同一セッション1回までの制御は PoiPlayTime 側が持つ。
-        if (string.IsNullOrEmpty(error)) CrossPromoPopupUI.ShowIfEligible(canvas, Resources.Load<Font>("Fonts/MPLUSRounded1c-Medium"));
     }
 
     // resolve 応答の必須項目を検証。1つでも満たさなければSPIN復帰＋エラー表示。
