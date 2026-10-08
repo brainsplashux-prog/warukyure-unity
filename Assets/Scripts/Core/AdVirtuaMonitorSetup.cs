@@ -26,25 +26,16 @@ public static class AdVirtuaMonitorSetup
     // シーン上の Ad-VirtuaV3 は WarukyureBuilder が非アクティブで保存するため、解禁までSDKは起動しない。
     private static bool unlocked;
 
-    // ===== ADVIRTUA keep-prepared（連続プレイ時の再リクエスト防止 2026-10-07 dec-20261007-075） =====
-    // 手本: ColorSort 7463097（docs/handoff/advirtua-keep-prepared-20260930）。
-    // タイトルへ戻る時に SetActive(false) すると SDK の準備（video-request → Prepare）が止まり、
-    // 次のプレイで最初からやり直しになる＝広告が出る前にプレイが終わり売上が立たない。
-    // 未準備の間はタイトルでも active を維持し、カメラ背後（viewport z<0）へ退避させて準備を続行する。
-    // 退避中はカメラ外のため SDK の可視判定に通らず、start/viewable impression は送られない。
-    // 準備完了→SDK が Play() した瞬間（VideoPlayer.started）に即 SetActive(false) する。
-    // 解禁前（unlocked=false）は adVirtuaRoot が一度も active になっていないため退避経路に入らない。
-    private static bool _retreated;
+    // ===== ADVIRTUA hide=退避＋一時停止（2026-10-08 dec-20261007-087） =====
+    // 表示切替に SetActive(false) を使うと SDK の AdPlay.OnDisable で video-request →
+    // Prepare → RequestNextSequenceVideo のコルーチンが止まり、HasPrepared が true のまま
+    // 残って再有効化後も再生が再開しない（＝広告が出なくなる）欠陥があった。
+    // 非表示は active のままカメラ背後（viewport z<0）へ退避＋VideoPlayer.Pause() に置き換える。
+    // 退避中は SDK の可視判定（0.2秒ごと・coverage=0）に通らず impression は送られない。
+    private static bool _hidden;
     private static VideoPlayer _adVideoPlayer;
     private static bool _videoStartedHooked;
-
-    /// <summary>テスト差し替え用。null なら SDK の公開 getter HasPrepared を reflection で読む。</summary>
-    public static Func<bool> HasPreparedProbe;
-    /// <summary>テスト差し替え用。null なら VideoPlayer.isPlaying を読む。</summary>
-    public static Func<bool> IsPlayingProbe;
-
-    /// <summary>退避中（active のままカメラ背後に置いて準備を続行している）か。</summary>
-    public static bool IsRetreated => _retreated;
+    private static MonoBehaviour _adPlay;   // MoviePlayStatus は SDK 非公開型のため reflection で読む
 
     /// <summary>初回プレイ終了後に呼ぶ。以後の Show() で広告を生成・表示する。</summary>
     public static void Unlock()
@@ -168,6 +159,9 @@ public static class AdVirtuaMonitorSetup
             {
                 Debug.LogWarning("[AdVirtuaMonitorSetup] No AdPlay component with 'targetCamera' field was found. SDK binding may be broken.");
             }
+
+            // 退避中に次の動画が始まったら Pause するための購読（二重購読は HookVideoStarted 内で防止）。
+            HookVideoStarted();
         }
         catch (Exception ex)
         {
@@ -212,71 +206,47 @@ public static class AdVirtuaMonitorSetup
             return;
         }
         if (!unlocked) return;
-        CancelRetreat();
+        if (!_hidden)
+        {
+            // 初回（root がまだ一度も有効化されていない）を含む従来の有効化経路。
+            Layout();
+            adVirtuaRoot.SetActive(true);
+            return;
+        }
+        // 2回目以降: 退避から元位置へ戻し、SDK が Playing 状態なら再生を再開する。
+        _hidden = false;
         Layout();
-        adVirtuaRoot.SetActive(true);
+        Physics.SyncTransforms();
+        EnsureVideoPlayer();
+        if (IsMovieStatusPlaying() && _adVideoPlayer != null
+            && _adVideoPlayer.isPrepared && !_adVideoPlayer.isPlaying)
+        {
+            _adVideoPlayer.Play();
+        }
+        SetAuxiliaryUiVisible(true);
+        Debug.Log("[AdVirtuaMonitorSetup] show: restore");
     }
 
     public static void Hide()
     {
         NotifySurface(true);
         if (adVirtuaRoot == null) return;
-        // 解禁前・既に非表示の時は従来どおり（SDK を起動させない）。
-        if (!adVirtuaRoot.activeSelf || _retreated)
-        {
-            if (!_retreated) adVirtuaRoot.SetActive(false);
-            return;
-        }
-        if (IsPrepared())
-        {
-            // 準備済み: 従来どおり無効化。次のプレイでは hasPrepared=true 経路で Play() のみ。
-            adVirtuaRoot.SetActive(false);
-            return;
-        }
-        EnterRetreat();
-    }
-
-    /// <summary>SDK の HasPrepared を取得する。HasPreparedProbe 差し替えでテスト可能。</summary>
-    public static bool IsPrepared()
-    {
-        if (HasPreparedProbe != null) return HasPreparedProbe();
-        if (adVirtuaRoot == null) return false;
-        foreach (var mb in adVirtuaRoot.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (mb == null) continue;
-            var t = mb.GetType();
-            var p = t.GetProperty("HasPrepared",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (p != null && p.PropertyType == typeof(bool) && p.CanRead)
-                return (bool)p.GetValue(mb);
-            var f = t.GetField("HasPrepared",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (f != null && f.FieldType == typeof(bool))
-                return (bool)f.GetValue(mb);
-        }
-        return false;
-    }
-
-    private static bool IsVideoPlaying()
-    {
-        if (IsPlayingProbe != null) return IsPlayingProbe();
-        EnsureVideoPlayer();
-        return _adVideoPlayer != null && _adVideoPlayer.isPlaying;
-    }
-
-    /// <summary>未準備のまま非表示要求が来た時: active のままカメラ背後へ退避させる。</summary>
-    private static void EnterRetreat()
-    {
+        // 解禁前・まだ一度も表示されていない時は何もしない
+        // （root は Setup で既に非アクティブ＝SDK を起動させない）。
+        if (!adVirtuaRoot.activeSelf || _hidden) return;
+        if (cam == null) cam = Camera.main;
         if (cam == null)
         {
-            // カメラを取れない異常系では退避位置を決められないため従来動作に倒す。
-            adVirtuaRoot.SetActive(false);
+            Debug.LogWarning("[AdVirtuaMonitorSetup] hide skipped: camera not found.");
             return;
         }
-        _retreated = true;
-        HookVideoStarted();
+        _hidden = true;
         ApplyRetreatPosition();
-        Debug.Log("[AdVirtuaMonitorSetup] retreat: ad kept active behind camera while preparing");
+        Physics.SyncTransforms();
+        EnsureVideoPlayer();
+        if (_adVideoPlayer != null && _adVideoPlayer.isPlaying) _adVideoPlayer.Pause();
+        SetAuxiliaryUiVisible(false);
+        Debug.Log("[AdVirtuaMonitorSetup] hide: retreat+pause");
     }
 
     /// <summary>カメラ背後（WorldToViewportPoint の z<0）へ置く。可視判定に通らない。</summary>
@@ -286,62 +256,29 @@ public static class AdVirtuaMonitorSetup
         adVirtuaRoot.transform.position = cam.transform.position - cam.transform.forward * MonitorCameraDistance;
     }
 
-    /// <summary>プレイ復帰時: 退避を解除する（位置は呼び出し側の Layout() で元へ戻る）。</summary>
-    private static void CancelRetreat()
-    {
-        if (!_retreated) return;
-        _retreated = false;
-        UnhookVideoStarted();
-        Debug.Log("[AdVirtuaMonitorSetup] retreat cancelled");
-    }
-
-    /// <summary>
-    /// 退避中に再生が始まった（=準備完了→SDKがPlay()した）時の無効化。
-    /// VideoPlayer.started ハンドラと RetreatGuardTick の両方から呼ばれる。
-    /// </summary>
-    public static void DeactivateRetreatedAd()
-    {
-        _retreated = false;
-        UnhookVideoStarted();
-        if (adVirtuaRoot == null) return;
-        adVirtuaRoot.SetActive(false);
-        Layout();
-        Debug.Log("[AdVirtuaMonitorSetup] retreated ad deactivated after prepare/play");
-    }
-
-    /// <summary>
-    /// 退避中の保険。AdVirtuaResizeWatcher.LateUpdate から毎フレーム呼ぶ。
-    /// started を取りこぼしても HasPrepared/isPlaying が true になった次のフレームで無効化する。
-    /// </summary>
-    public static void RetreatGuardTick()
-    {
-        if (!_retreated || adVirtuaRoot == null) return;
-        if (IsPrepared() || IsVideoPlaying()) DeactivateRetreatedAd();
-    }
-
     /// <summary>シーン破棄時にハンドラと退避状態を必ず解除する。</summary>
-    public static void ReleaseRetreat()
+    public static void ReleaseHidden()
     {
-        _retreated = false;
+        _hidden = false;
         UnhookVideoStarted();
         _adVideoPlayer = null;
+        _adPlay = null;
     }
 
     private static void EnsureVideoPlayer()
     {
         if (_adVideoPlayer == null && adVirtuaRoot != null)
+        {
             _adVideoPlayer = adVirtuaRoot.GetComponentInChildren<VideoPlayer>(true);
+            if (_adVideoPlayer == null)
+                Debug.LogWarning("[AdVirtuaMonitorSetup] VideoPlayer not found under Ad-VirtuaV3 root.");
+        }
     }
 
     private static void HookVideoStarted()
     {
         EnsureVideoPlayer();
-        if (_adVideoPlayer == null)
-        {
-            Debug.LogWarning("[AdVirtuaMonitorSetup] VideoPlayer not found — started hook unavailable");
-            return;
-        }
-        if (_videoStartedHooked) return;
+        if (_adVideoPlayer == null || _videoStartedHooked) return;
         _adVideoPlayer.started += OnAdVideoStarted;
         _videoStartedHooked = true;
     }
@@ -353,11 +290,58 @@ public static class AdVirtuaMonitorSetup
         _videoStartedHooked = false;
     }
 
-    // prepareCompleted は SDK が解除・再登録するため順序に頼れない。
-    // started は SDK が hasPrepared=true にして Play() した後にしか来ないので順序に依存しない。
+    // 退避中に次の動画が始まったら即 Pause する（Pause 中に SDK が新動画を Play する経路の塞ぎ）。
     private static void OnAdVideoStarted(VideoPlayer vp)
     {
-        if (_retreated) DeactivateRetreatedAd();
+        if (_hidden) vp.Pause();
+    }
+
+    /// <summary>SDK の AdPlay.MoviePlayStatus が Playing か。SDK 型は非公開のため reflection。</summary>
+    private static bool IsMovieStatusPlaying()
+    {
+        EnsureAdPlay();
+        if (_adPlay == null) return false;
+        try
+        {
+            var p = _adPlay.GetType().GetProperty("MoviePlayStatus",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var v = p != null && p.CanRead ? p.GetValue(_adPlay) : null;
+            return v != null && v.ToString() == "Playing";
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[AdVirtuaMonitorSetup] MoviePlayStatus read failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static void EnsureAdPlay()
+    {
+        if (_adPlay != null || adVirtuaRoot == null) return;
+        foreach (var mb in adVirtuaRoot.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (mb == null) continue;
+            var p = mb.GetType().GetProperty("MoviePlayStatus",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (p != null && p.CanRead)
+            {
+                _adPlay = mb;
+                return;
+            }
+        }
+        Debug.LogWarning("[AdVirtuaMonitorSetup] MoviePlayStatus provider not found under Ad-VirtuaV3 root.");
+    }
+
+    /// <summary>PR表記など広告に付随するUIの表示切替（adVirtuaRoot 以外の active は触らない）。</summary>
+    private static void SetAuxiliaryUiVisible(bool visible)
+    {
+        if (adVirtuaRoot == null) return;
+        foreach (Transform t in adVirtuaRoot.GetComponentsInChildren<Transform>(true))
+        {
+            var n = t.name;
+            if (n.StartsWith("AdPr") || n.IndexOf("PrLabel", StringComparison.OrdinalIgnoreCase) >= 0)
+                t.gameObject.SetActive(visible);
+        }
     }
 
     /// <summary>
@@ -402,8 +386,8 @@ public static class AdVirtuaMonitorSetup
         adVirtuaRoot.transform.localScale = new Vector3(monW, monH, 1f);
         adVirtuaRoot.transform.localRotation = Quaternion.identity;
 
-        // 退避中（未準備のタイトル）は Layout が広告をカメラ前へ戻さない。
-        if (_retreated) ApplyRetreatPosition();
+        // 退避中（非表示のタイトル）は Layout が広告をカメラ前へ戻さない。
+        if (_hidden) ApplyRetreatPosition();
     }
 }
 
@@ -431,14 +415,8 @@ public class AdVirtuaResizeWatcher : MonoBehaviour
         }
     }
 
-    void LateUpdate()
-    {
-        // 退避中の保険: started を取りこぼしても準備完了/再生開始を次フレームで拾う。
-        AdVirtuaMonitorSetup.RetreatGuardTick();
-    }
-
     void OnDestroy()
     {
-        AdVirtuaMonitorSetup.ReleaseRetreat();
+        AdVirtuaMonitorSetup.ReleaseHidden();
     }
 }
