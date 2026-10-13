@@ -1233,7 +1233,42 @@ public class WarukyureBoard : MonoBehaviour
         PlayerPrefs.SetInt(JemBetRateKey, rate);
         PlayerPrefs.Save();
         UpdateBetButtonTexts(); // BETボタンの「×rate」表示を選択レートへ合わせる
+        // dec-20261013-045: JACKPOTスタンプはレートごとにサーバーが持つ。選んだレートの分を取り直して表示する。
+        if (sessionReady && !isRunning && !string.IsNullOrEmpty(token))
+            StartCoroutine(RefreshJemBallMaskForRate(rate));
         return true;
+    }
+
+    // dec-20261013-045（2026-10-13 社長「ちゃんとレートごとにジャックポットを管理してくれ」）:
+    // サーバーの state に bet を渡し、そのレートのスタンプ(ballMask)だけを表示する。
+    // 表示専用（JACKPOT判定はサーバーがrun.betのスタンプで行う）。失敗時は表示を変えない。
+    // 共通の ApiPost は lastErrorCode/lastErrorBody を書き換えるため使わない。
+    int jemMaskRefreshSeq;
+    IEnumerator RefreshJemBallMaskForRate(int rate)
+    {
+        int seq = ++jemMaskRefreshSeq;
+        string json = "{\"action\":\"state\",\"token\":\"" + token + "\",\"bet\":" + rate + "}";
+        using (UnityWebRequest req = new UnityWebRequest(API_URL, "POST"))
+        {
+            req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+            req.timeout = 15;
+            yield return req.SendWebRequest();
+            // 後から来た古い応答・プレイ開始後の応答・別レートの応答は反映しない。
+            if (seq != jemMaskRefreshSeq || isRunning || rate != jemRate) yield break;
+            if (req.result != UnityWebRequest.Result.Success || req.responseCode != 200)
+            {
+                Debug.LogWarning("JEM レート別スタンプの取得に失敗: HTTP " + req.responseCode);
+                yield break;
+            }
+            StateResponse res = null;
+            try { res = JsonUtility.FromJson<StateResponse>(req.downloadHandler.text); } catch (Exception) { }
+            if (res == null || res.state == null || res.state.ballMaskBet != rate) yield break;
+            ballMask = res.state.ballMask;
+            hasPendingBallMask = false;
+            UpdateCollectionPanel();
+        }
     }
 
     // 残高未取得の時だけ取得を開始する（TitleScreen側の再要求用。二重起動しない）。
@@ -1602,6 +1637,9 @@ public class WarukyureBoard : MonoBehaviour
         {
             string anonToken = PlayerPrefs.GetString(TOKEN_KEY, "");
             string authJson = "{\"action\":\"auth\",\"pa_code\":\"" + paCode + "\"";
+#if JEM_BUILD
+            authJson += ",\"bet\":" + jemRate; // dec-20261013-045: 選択中レートのスタンプを受け取る
+#endif
             if (!string.IsNullOrEmpty(anonToken))
                 authJson += ",\"anon_token\":\"" + anonToken + "\"";
             authJson += "}";
@@ -1632,7 +1670,11 @@ public class WarukyureBoard : MonoBehaviour
         token = PlayerPrefs.GetString(TOKEN_KEY, "");
         if (!string.IsNullOrEmpty(token))
         {
+#if JEM_BUILD
+            string json = "{\"action\":\"state\",\"token\":\"" + token + "\",\"bet\":" + jemRate + "}"; // dec-20261013-045
+#else
             string json = "{\"action\":\"state\",\"token\":\"" + token + "\"}";
+#endif
             string error = null;
             string body = null;
             yield return StartCoroutine(ApiPost(json, null, (b) => body = b, (e) => error = e));
@@ -1653,7 +1695,11 @@ public class WarukyureBoard : MonoBehaviour
             }
         }
 
+#if JEM_BUILD
+        string initJson = "{\"action\":\"init\",\"bet\":" + jemRate + "}"; // dec-20261013-045
+#else
         string initJson = "{\"action\":\"init\"}";
+#endif
         string initBody = null;
         string initErr = null;
         yield return StartCoroutine(ApiPost(initJson, null, (b) => initBody = b, (e) => initErr = e));
@@ -3007,6 +3053,7 @@ public class WarukyureBoard : MonoBehaviour
     {
         public int wallet;
         public int ballMask;
+        public int ballMaskBet; // dec-20261013-045: ballMask がどのレートの分か（JEMサーバーのみ返す）
     }
 
     [Preserve]
