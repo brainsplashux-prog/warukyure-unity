@@ -1389,7 +1389,10 @@ public class WarukyureBoard : MonoBehaviour
         {
             int? costMedal = task.Result;
             if (costMedal.HasValue && costMedal.Value > 0)
+            {
                 SetMissionBet(costMedal.Value);
+                platformCostResolved = true;
+            }
         }
 
         // 2026-09-18 是正: wallet も missionBet と同じ場所・同じ作りで先取り同期する。
@@ -1408,6 +1411,40 @@ public class WarukyureBoard : MonoBehaviour
         else
         {
             Debug.LogWarning("[PLATFORM] wallet/balance failed; keeping existing wallet: " + walletTask.Exception?.Message);
+        }
+
+        // dec-20261013-045（2026-10-13 社長「ちゃんとレートごとにジャックポットを管理してくれ」）:
+        // JACKPOTスタンプはサーバーがレート別に持つ。現在マップのレート(missionBet)が確定したので、
+        // そのレートで state を取り直してスタンプを表示する。表示専用（判定はサーバーがrunのbetで行う）。
+        if (platformCostResolved && !isRunning && !string.IsNullOrEmpty(token))
+            yield return StartCoroutine(RefreshBallMaskForRate(missionBet));
+    }
+
+    bool platformCostResolved;
+    // 共通の ApiPost は lastErrorCode/lastErrorBody を書き換えるため使わない。失敗時・ballMaskBet不一致時は表示を変えない。
+    IEnumerator RefreshBallMaskForRate(int rate)
+    {
+        string json = "{\"action\":\"state\",\"token\":\"" + token + "\",\"bet\":" + rate + "}";
+        using (UnityWebRequest req = new UnityWebRequest(API_URL, "POST"))
+        {
+            req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+            req.timeout = 15;
+            yield return req.SendWebRequest();
+            // プレイ開始後・レート変更後に届いた応答は反映しない。
+            if (isRunning || rate != missionBet) yield break;
+            if (req.result != UnityWebRequest.Result.Success || req.responseCode != 200)
+            {
+                Debug.LogWarning("レート別スタンプの取得に失敗: HTTP " + req.responseCode);
+                yield break;
+            }
+            StateResponse res = null;
+            try { res = JsonUtility.FromJson<StateResponse>(req.downloadHandler.text); } catch (Exception) { }
+            if (res == null || res.state == null || res.state.ballMaskBet != rate) yield break;
+            ballMask = res.state.ballMask;
+            hasPendingBallMask = false;
+            UpdateCollectionPanel();
         }
     }
 
@@ -2634,6 +2671,7 @@ public class WarukyureBoard : MonoBehaviour
     {
         public int wallet;
         public int ballMask;
+        public int ballMaskBet; // dec-20261013-045: ballMask がどのレートの分か（サーバーが返す）
     }
 
     [Preserve]
