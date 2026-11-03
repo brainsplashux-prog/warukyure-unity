@@ -181,7 +181,7 @@
     </script>
     <script src="/shared/poi-game-boot/loader.js"></script>
 
-    <!-- warukyure-local: iOS Safari の large/small viewport 差でSPIN/BETが隠れる件の是正
+    <!-- warukyure-local: iOS Safari の large/small viewport 差でSPIN/使う量が隠れる件の是正
          (2026-08-19 社長報告「画面が入り切ってなくてボタンが押せないね」)
          position:fixed への height:100% は iOS では large viewport に解決されるため、
          見えている small viewport の下端がツールバー裏に入り、スクロール不能になる。
@@ -201,7 +201,7 @@
          (WarukyureBoard.CreateBoardRoot / TitleScreen.cs)で盤面・STARTボタンをキャンバス
          下端に常時吸着させる実装に変更して対処（はみ出しは押せないボタンではなく、
          押せないボタンからは離れたキャラ絵上部などの背景側で吸収する）。
-         依頼必須3viewport（390x664/390x750/430x740）で再計算し、SPIN/BET/START全て100%可視
+         依頼必須3viewport（390x664/390x750/430x740）で再計算し、SPIN/使う量/START全て100%可視
          を確認済み（harness/reports/20260915-warukyure-noreload-fullwidth.md 参照）。
          exp/fullwidth-20260915 の内容（width:100vw化）はこのブロックに取り込んでmainへ統合。 -->
     <style>
@@ -403,7 +403,7 @@
      一切変更せず、margin-topで最初のビューポート(100svh)より下へ押し下げるだけで解決する。 -->
 <section class="game-description" aria-labelledby="waruq0-quest-about" style="max-width:800px;margin:100svh auto 0;padding:16px;font-size:14px;line-height:1.7;color:#333;background:transparent;box-sizing:border-box;">
   <h1 id="waruq0-quest-about" style="font-size:16px;font-weight:bold;margin:0 0 8px;color:#333;">WARUQ0 QUEST ― 数字を選んで回すルーレットメダルゲーム</h1>
-  <p style="margin:0;color:#333;">「WARUQ0 QUEST」は、2、4、6、8、20から数字を選んでBETし、SPINでランプの行方を見届けるUnity WebGLメダルゲームです。数字は複数選択でき、1口ごとの必要メダルと残高を確認してから回します。プレイ開始時にサーバーからセッション、メダル残高、1口額を受け取り、BET内容を送信して結果を確定します。ランプは外周・内周・ループ状の盤面を高速、中速、低速と段階的に進み、クジラや船、虹の橋、鍵を使うワープを通って停止します。停止した数字では数字と倍率に応じた払い出しが表示され、城への到達や、うさぎ・ねこ・くま・ことりのボール取得が発生することもあります。4種類のボールはコレクションとして盤面に表示され、条件がそろうと5つのランプを使ったJACKPOT演出も行われます。結果画面では払い出しと獲得内容を確認でき、メダル残高やコレクションは結果表示後に反映されます。</p>
+  <p style="margin:0;color:#333;">「WARUQ0 QUEST」は、2、4、6、8、20から数字を選んでメダルを使い、SPINでランプの行方を見届けるUnity WebGLメダルゲームです。数字は複数選択でき、1口ごとの必要メダルと残高を確認してから回します。プレイ開始時にサーバーからセッション、メダル残高、1口額を受け取り、使う量の内容を送信して結果を確定します。ランプは外周・内周・ループ状の盤面を高速、中速、低速と段階的に進み、クジラや船、虹の橋、鍵を使うワープを通って停止します。停止した数字では数字と倍率に応じた獲得が表示され、城への到達や、うさぎ・ねこ・くま・ことりのボール取得が発生することもあります。4種類のボールはコレクションとして盤面に表示され、条件がそろうと5つのランプを使ったスペシャル演出も行われます。結果画面では獲得した内容を確認でき、メダル残高やコレクションは結果表示後に反映されます。</p>
 </section>
     <script>
       // モバイル時のviewport meta・canvas class・デスクトップ固定寸法（現行と同一）。
